@@ -9,7 +9,6 @@ import secrets
 import random
 import string
 import sqlite3
-import pandas as pd
 from datetime import datetime, timedelta
 from functools import wraps
 from markupsafe import escape
@@ -756,23 +755,67 @@ def assign_user_to_class(user_id, class_name, subject=None, assignment_type='sub
 
 # ==================== MARKS PROCESSING ====================
 def process_marks_upload(file, subject, term, year, assigned_class, teacher_id, level='olevel', is_subsidiary=False):
+    """Process marks upload using openpyxl (no pandas needed)"""
     try:
-        df = pd.read_excel(file)
-    except:
-        flash('Error reading Excel file', 'danger')
+        from openpyxl import load_workbook
+        wb = load_workbook(file, data_only=True)
+        sheet = wb.active
+    except Exception as e:
+        flash(f'Error reading Excel file: {str(e)}', 'danger')
         return 0
     
-    df.columns = [str(col).strip().lower() for col in df.columns]
+    # Get headers from first row
+    headers = []
+    for cell in sheet[1]:
+        if cell.value:
+            headers.append(str(cell.value).strip().lower())
+        else:
+            headers.append('')
     
-    if 'student_id' not in df.columns:
+    # Find column indices
+    student_id_col = None
+    subject_col = None
+    eot_col = None
+    teacher_init_col = None
+    ai_columns = []
+    paper1_col = None
+    paper2_col = None
+    
+    for idx, h in enumerate(headers):
+        if h == 'student_id':
+            student_id_col = idx
+        elif h == 'subject':
+            subject_col = idx
+        elif h == 'eot_score':
+            eot_col = idx
+        elif h == 'teacher_initials':
+            teacher_init_col = idx
+        elif h == 'paper1':
+            paper1_col = idx
+        elif h == 'paper2':
+            paper2_col = idx
+        elif h and h.startswith('ai') and len(h) > 2 and h[2:].isdigit():
+            ai_columns.append((idx, h))
+    
+    if student_id_col is None:
         flash('Missing student_id column', 'danger')
         return 0
     
     count = 0
     
     if level == 'alevel':
-        for _, row in df.iterrows():
-            student_id = str(row['student_id']).strip()
+        # A-Level processing
+        if paper1_col is None or paper2_col is None:
+            flash('Missing paper1 or paper2 columns', 'danger')
+            return 0
+        
+        for row_idx in range(2, sheet.max_row + 1):
+            student_id = sheet.cell(row=row_idx, column=student_id_col + 1).value
+            if not student_id:
+                continue
+            student_id = str(student_id).strip()
+            
+            # Check if student belongs to assigned class
             cur = get_db().cursor()
             cur.execute("SELECT class FROM students WHERE student_id=?", (student_id,))
             res = cur.fetchone()
@@ -780,15 +823,23 @@ def process_marks_upload(file, subject, term, year, assigned_class, teacher_id, 
             if not res or res[0] != assigned_class:
                 continue
             
-            paper1 = float(row['paper1']) if pd.notna(row.get('paper1')) else None
-            paper2 = float(row['paper2']) if pd.notna(row.get('paper2')) else None
+            paper1_val = sheet.cell(row=row_idx, column=paper1_col + 1).value
+            paper2_val = sheet.cell(row=row_idx, column=paper2_col + 1).value
+            
+            paper1 = float(paper1_val) if paper1_val is not None else None
+            paper2 = float(paper2_val) if paper2_val is not None else None
+            
             available = [s for s in [paper1, paper2] if s is not None]
             if not available:
                 continue
             
             avg_score = sum(available) / len(available)
             grade, points = get_alevel_grade_and_points(avg_score, is_subsidiary)
-            teacher_init = str(row.get('teacher_initials', '')) if pd.notna(row.get('teacher_initials')) else ''
+            
+            teacher_init = ''
+            if teacher_init_col is not None:
+                init_val = sheet.cell(row=row_idx, column=teacher_init_col + 1).value
+                teacher_init = str(init_val).strip() if init_val else ''
             
             execute_db("""INSERT INTO marks (student_id, subject, term, year, paper1, paper2, total_score, grade, points, teacher_initials, teacher_id)
                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -798,9 +849,14 @@ def process_marks_upload(file, subject, term, year, assigned_class, teacher_id, 
                         (student_id, subject, term, year, paper1, paper2, avg_score, grade, points, teacher_init, teacher_id))
             count += 1
     else:
-        ai_columns = [col for col in df.columns if col.startswith('ai') and col[2:].isdigit()]
-        for _, row in df.iterrows():
-            student_id = str(row['student_id']).strip()
+        # O-Level processing
+        for row_idx in range(2, sheet.max_row + 1):
+            student_id = sheet.cell(row=row_idx, column=student_id_col + 1).value
+            if not student_id:
+                continue
+            student_id = str(student_id).strip()
+            
+            # Check if student belongs to assigned class
             cur = get_db().cursor()
             cur.execute("SELECT class FROM students WHERE student_id=?", (student_id,))
             res = cur.fetchone()
@@ -808,29 +864,49 @@ def process_marks_upload(file, subject, term, year, assigned_class, teacher_id, 
             if not res or res[0] != assigned_class:
                 continue
             
+            # Collect AI scores
             ai_scores = []
-            for ai_col in ai_columns:
-                if ai_col in row and pd.notna(row[ai_col]):
+            for col_idx, col_name in ai_columns:
+                val = sheet.cell(row=row_idx, column=col_idx + 1).value
+                if val is not None:
                     try:
-                        score = float(row[ai_col])
+                        score = float(val)
                         if 0 <= score <= 3:
                             ai_scores.append(score)
                     except:
                         pass
             
-            ai_average = sum(ai_scores) / len(ai_scores) if ai_scores else 0
-            ai_contribution = (ai_average / 3.0) * 20 if ai_scores else 0
-            eot = float(row['eot_score']) if 'eot_score' in df.columns and pd.notna(row['eot_score']) else 0
+            # Get EOT score
+            eot = 0
+            if eot_col is not None:
+                eot_val = sheet.cell(row=row_idx, column=eot_col + 1).value
+                if eot_val is not None:
+                    try:
+                        eot = float(eot_val)
+                    except:
+                        eot = 0
+            
+            # Get teacher initials
+            teacher_init = ''
+            if teacher_init_col is not None:
+                init_val = sheet.cell(row=row_idx, column=teacher_init_col + 1).value
+                teacher_init = str(init_val).strip() if init_val else ''
+            
+            if not ai_scores:
+                continue
+            
+            ai_average = sum(ai_scores) / len(ai_scores)
+            ai_contribution = (ai_average / 3.0) * 20
             eot_contribution = (eot / 100.0) * 80
             total_score = ai_contribution + eot_contribution
-            grade, _ = get_grade_and_descriptor(total_score) if ai_scores and eot else ('N/A', '')
+            grade, _ = get_grade_and_descriptor(total_score)
             identifier = (total_score / 100.0) * 3
             descriptor = get_descriptor_by_identifier(identifier)
-            teacher_init = str(row.get('teacher_initials', '')) if pd.notna(row.get('teacher_initials')) else ''
             
             ai_values = [0] * 6
-            for i, col in enumerate(ai_columns[:6]):
-                ai_values[i] = ai_scores[i] if i < len(ai_scores) else 0
+            for i, (col_idx, col_name) in enumerate(ai_columns[:6]):
+                if i < len(ai_scores):
+                    ai_values[i] = ai_scores[i]
             
             execute_db("""INSERT INTO marks (student_id, subject, term, year, ai1, ai2, ai3, ai4, ai5, ai6, ai_average, ai_contribution, eot_score, total_score, grade, identifier, descriptor, teacher_initials, teacher_id)
                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -1486,22 +1562,62 @@ def dos_olevel_grading():
             flash('Please upload an Excel file.', 'danger')
             return redirect(url_for('dos_olevel_grading'))
         try:
-            df = pd.read_excel(file)
-            df.columns = [str(col).strip().lower() for col in df.columns]
-            required = ['min_score', 'max_score', 'grade', 'descriptor']
-            if not all(c in df.columns for c in required):
-                flash('Missing required columns', 'danger')
+            from openpyxl import load_workbook
+            wb = load_workbook(file, data_only=True)
+            sheet = wb.active
+            
+            # Get headers from first row
+            headers = []
+            for cell in sheet[1]:
+                if cell.value:
+                    headers.append(str(cell.value).strip().lower())
+                else:
+                    headers.append('')
+            
+            # Find required column indices
+            min_score_col = None
+            max_score_col = None
+            grade_col = None
+            descriptor_col = None
+            
+            for idx, h in enumerate(headers):
+                if h == 'min_score':
+                    min_score_col = idx
+                elif h == 'max_score':
+                    max_score_col = idx
+                elif h == 'grade':
+                    grade_col = idx
+                elif h == 'descriptor':
+                    descriptor_col = idx
+            
+            if min_score_col is None or max_score_col is None or grade_col is None or descriptor_col is None:
+                flash('Missing required columns: min_score, max_score, grade, descriptor', 'danger')
                 return redirect(url_for('dos_olevel_grading'))
+            
             execute_db("DELETE FROM grading_system")
             count = 0
-            for _, row in df.iterrows():
-                execute_db("INSERT INTO grading_system (min_score, max_score, grade, descriptor) VALUES (?, ?, ?, ?)",
-                           (float(row['min_score']), float(row['max_score']), str(row['grade']).strip(), str(row['descriptor']).strip()))
-                count += 1
+            
+            for row_idx in range(2, sheet.max_row + 1):
+                min_val = sheet.cell(row=row_idx, column=min_score_col + 1).value
+                max_val = sheet.cell(row=row_idx, column=max_score_col + 1).value
+                grade_val = sheet.cell(row=row_idx, column=grade_col + 1).value
+                desc_val = sheet.cell(row=row_idx, column=descriptor_col + 1).value
+                
+                if min_val is None or max_val is None or grade_val is None:
+                    continue
+                
+                try:
+                    execute_db("INSERT INTO grading_system (min_score, max_score, grade, descriptor) VALUES (?, ?, ?, ?)",
+                               (float(min_val), float(max_val), str(grade_val).strip(), str(desc_val).strip() if desc_val else ''))
+                    count += 1
+                except:
+                    continue
+            
             flash(f'{count} O-Level grading rules uploaded.', 'success')
         except Exception as e:
             flash(f'Error: {str(e)}', 'danger')
         return redirect(url_for('dos_olevel_grading'))
+    
     cur = get_db().cursor()
     cur.execute("SELECT min_score, max_score, grade, descriptor FROM grading_system ORDER BY min_score DESC")
     rules = cur.fetchall()
@@ -1518,27 +1634,63 @@ def dos_alevel_grading():
             flash('Please upload an Excel file.', 'danger')
             return redirect(url_for('dos_alevel_grading'))
         try:
-            df = pd.read_excel(file)
-            df.columns = [str(col).strip().lower() for col in df.columns]
-            required = ['min_score', 'max_score', 'grade', 'points']
-            if not all(c in df.columns for c in required):
-                flash('Missing required columns', 'danger')
+            from openpyxl import load_workbook
+            wb = load_workbook(file, data_only=True)
+            sheet = wb.active
+            
+            headers = []
+            for cell in sheet[1]:
+                headers.append(str(cell.value).strip().lower() if cell.value else '')
+            
+            min_score_col = None
+            max_score_col = None
+            grade_col = None
+            points_col = None
+            
+            for idx, h in enumerate(headers):
+                if h == 'min_score':
+                    min_score_col = idx
+                elif h == 'max_score':
+                    max_score_col = idx
+                elif h == 'grade':
+                    grade_col = idx
+                elif h == 'points':
+                    points_col = idx
+            
+            if None in [min_score_col, max_score_col, grade_col, points_col]:
+                flash('Missing required columns: min_score, max_score, grade, points', 'danger')
                 return redirect(url_for('dos_alevel_grading'))
+            
             execute_db("DELETE FROM alevel_grading WHERE is_subsidiary=0")
             count = 0
-            for _, row in df.iterrows():
-                execute_db("INSERT INTO alevel_grading (min_score, max_score, grade, points, is_subsidiary) VALUES (?, ?, ?, ?, 0)",
-                           (float(row['min_score']), float(row['max_score']), str(row['grade']).strip(), int(row['points'])))
-                count += 1
+            
+            for row_idx in range(2, sheet.max_row + 1):
+                min_val = sheet.cell(row=row_idx, column=min_score_col + 1).value
+                max_val = sheet.cell(row=row_idx, column=max_score_col + 1).value
+                grade_val = sheet.cell(row=row_idx, column=grade_col + 1).value
+                points_val = sheet.cell(row=row_idx, column=points_col + 1).value
+                
+                if None in [min_val, max_val, grade_val, points_val]:
+                    continue
+                
+                try:
+                    execute_db("INSERT INTO alevel_grading (min_score, max_score, grade, points, is_subsidiary) VALUES (?, ?, ?, ?, 0)",
+                               (float(min_val), float(max_val), str(grade_val).strip(), int(points_val)))
+                    count += 1
+                except:
+                    continue
+            
             flash(f'{count} A-Level grading rules uploaded.', 'success')
         except Exception as e:
             flash(f'Error: {str(e)}', 'danger')
         return redirect(url_for('dos_alevel_grading'))
+    
     cur = get_db().cursor()
     cur.execute("SELECT min_score, max_score, grade, points FROM alevel_grading WHERE is_subsidiary=0 ORDER BY min_score DESC")
     rules = cur.fetchall()
     cur.close()
     return render_template('dos/alevel_grading.html', rules=rules)
+
 
 @app.route('/dos/identifier_grading', methods=['GET', 'POST'])
 def dos_identifier_grading():
@@ -1550,38 +1702,58 @@ def dos_identifier_grading():
             flash('Please upload an Excel file.', 'danger')
             return redirect(url_for('dos_identifier_grading'))
         try:
-            df = pd.read_excel(file)
-            df.columns = [str(col).strip().lower() for col in df.columns]
-            required = ['min_value', 'max_value', 'descriptor']
-            if not all(c in df.columns for c in required):
-                flash('Missing required columns', 'danger')
+            from openpyxl import load_workbook
+            wb = load_workbook(file, data_only=True)
+            sheet = wb.active
+            
+            headers = []
+            for cell in sheet[1]:
+                headers.append(str(cell.value).strip().lower() if cell.value else '')
+            
+            min_col = None
+            max_col = None
+            desc_col = None
+            
+            for idx, h in enumerate(headers):
+                if h == 'min_value':
+                    min_col = idx
+                elif h == 'max_value':
+                    max_col = idx
+                elif h == 'descriptor':
+                    desc_col = idx
+            
+            if None in [min_col, max_col, desc_col]:
+                flash('Missing required columns: min_value, max_value, descriptor', 'danger')
                 return redirect(url_for('dos_identifier_grading'))
+            
             execute_db("DELETE FROM identifier_grading")
             count = 0
-            for _, row in df.iterrows():
-                execute_db("INSERT INTO identifier_grading (min_value, max_value, descriptor) VALUES (?, ?, ?)",
-                           (float(row['min_value']), float(row['max_value']), str(row['descriptor']).strip()))
-                count += 1
+            
+            for row_idx in range(2, sheet.max_row + 1):
+                min_val = sheet.cell(row=row_idx, column=min_col + 1).value
+                max_val = sheet.cell(row=row_idx, column=max_col + 1).value
+                desc_val = sheet.cell(row=row_idx, column=desc_col + 1).value
+                
+                if None in [min_val, max_val, desc_val]:
+                    continue
+                
+                try:
+                    execute_db("INSERT INTO identifier_grading (min_value, max_value, descriptor) VALUES (?, ?, ?)",
+                               (float(min_val), float(max_val), str(desc_val).strip()))
+                    count += 1
+                except:
+                    continue
+            
             flash(f'{count} Identifier grading rules uploaded.', 'success')
         except Exception as e:
             flash(f'Error: {str(e)}', 'danger')
         return redirect(url_for('dos_identifier_grading'))
+    
     cur = get_db().cursor()
     cur.execute("SELECT min_value, max_value, descriptor FROM identifier_grading ORDER BY min_value DESC")
     rules = cur.fetchall()
     cur.close()
     return render_template('dos/identifier_grading.html', rules=rules)
-
-@app.route('/dos/teacher_assignments')
-def dos_teacher_assignments():
-    if not check_permission(['dos']):
-        abort(403)
-    db = get_db_dict()
-    cur = db.cursor()
-    cur.execute("SELECT u.username, u.role, tca.class_name, tca.subject, tca.assignment_type, tca.assigned_by, tca.assigned_at FROM teacher_class_assignments tca JOIN users u ON tca.user_id = u.id ORDER BY tca.class_name, tca.assignment_type, u.username")
-    assignments = cur.fetchall()
-    cur.close()
-    return render_template('dos/teacher_assignments.html', assignments=assignments)
 
 @app.route('/dos/upload_subject_teachers', methods=['GET', 'POST'])
 def dos_upload_subject_teachers():
@@ -1593,21 +1765,48 @@ def dos_upload_subject_teachers():
             flash('Please upload an Excel file.', 'danger')
             return redirect(url_for('dos_upload_subject_teachers'))
         try:
-            df = pd.read_excel(file)
-            df.columns = [str(col).strip().lower() for col in df.columns]
-            required = ['username', 'class_name', 'subject']
-            if not all(c in df.columns for c in required):
-                flash('Missing required columns', 'danger')
+            from openpyxl import load_workbook
+            wb = load_workbook(file, data_only=True)
+            sheet = wb.active
+            
+            headers = []
+            for cell in sheet[1]:
+                headers.append(str(cell.value).strip().lower() if cell.value else '')
+            
+            username_col = None
+            class_col = None
+            subject_col = None
+            
+            for idx, h in enumerate(headers):
+                if h == 'username':
+                    username_col = idx
+                elif h == 'class_name':
+                    class_col = idx
+                elif h == 'subject':
+                    subject_col = idx
+            
+            if None in [username_col, class_col, subject_col]:
+                flash('Missing required columns: username, class_name, subject', 'danger')
                 return redirect(url_for('dos_upload_subject_teachers'))
+            
             db = get_db_dict()
             cur = db.cursor()
             success = 0
-            for _, row in df.iterrows():
-                cur.execute("SELECT id FROM users WHERE username=?", (str(row['username']).strip(),))
+            
+            for row_idx in range(2, sheet.max_row + 1):
+                username = sheet.cell(row=row_idx, column=username_col + 1).value
+                class_name = sheet.cell(row=row_idx, column=class_col + 1).value
+                subject = sheet.cell(row=row_idx, column=subject_col + 1).value
+                
+                if not username or not class_name or not subject:
+                    continue
+                
+                cur.execute("SELECT id FROM users WHERE username=?", (str(username).strip(),))
                 user = cur.fetchone()
                 if user:
-                    assign_user_to_class(user['id'], str(row['class_name']).strip(), str(row['subject']).strip(), 'subject_teacher')
+                    assign_user_to_class(user['id'], str(class_name).strip(), str(subject).strip(), 'subject_teacher')
                     success += 1
+            
             cur.close()
             flash(f'{success} subject teacher assignments uploaded.', 'success')
         except Exception as e:
