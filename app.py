@@ -548,8 +548,8 @@ with app.app_context():
         init_db()
 
 
-csrf = CSRFProtect()
-csrf.init_app(app)
+#csrf = CSRFProtect()
+#csrf.init_app(app)
 
 app.config.update(
     SESSION_COOKIE_SECURE=True,      # Only send over HTTPS
@@ -700,6 +700,8 @@ def send_email(recipient, subject, html_content):
 def calculate_age(birth_date):
     today = datetime.now().date()
     return today.year - birth_date.year - ((today.month, today.day) < (birth_date.month, birth_date.day))
+
+
 
 # ==================== NOTIFICATION FUNCTIONS ====================
 def add_notification(user_role, message, link=None):
