@@ -1019,26 +1019,49 @@ def add_security_headers(response):
     response.headers['X-XSS-Protection'] = '1; mode=block'
     return response
 
+from werkzeug.security import check_password_hash
+
 @app.route('/login', methods=['GET', 'POST'])
-#@limiter.limit("5 per minute")
 def login():
     if request.method == 'POST':
         username = request.form['username'].strip()
         password = request.form['password'].strip()
         
-        cur = get_db().cursor()
+        db = get_db()
+        cur = db.cursor()
         cur.execute("SELECT id, username, role, status, phone, must_change_password, password FROM users WHERE username=?", (username,))
         user = cur.fetchone()
         cur.close()
         
-        if user and user[3] == 1 and check_password_hash(user[6], password):
-            session['user_id'], session['username'], session['role'], session['phone'] = user[0], user[1], user[2], user[4]
-            if user[5] == 1:
-                flash('Please change your password.', 'warning')
-                return redirect(url_for('change_password'))
-            flash(f'Welcome {username}!', 'success')
-            return redirect(url_for('dashboard'))
-        flash('Invalid credentials or inactive account.', 'danger')
+        if user:
+            stored_password = user[6]
+            password_valid = False
+            
+            # Check if stored password is hashed (starts with pbkdf2: or scrypt:)
+            if stored_password.startswith(('pbkdf2:sha256:', 'scrypt:')):
+                # Hashed password
+                password_valid = check_password_hash(stored_password, password)
+            else:
+                # Plain text password
+                password_valid = (stored_password == password)
+            
+            if password_valid and user[3] == 1:
+                session['user_id'] = user[0]
+                session['username'] = user[1]
+                session['role'] = user[2]
+                session['phone'] = user[4]
+                
+                if user[5] == 1:
+                    flash('Please change your password.', 'warning')
+                    return redirect(url_for('change_password'))
+                
+                flash(f'Welcome {username}!', 'success')
+                return redirect(url_for('dashboard'))
+            else:
+                flash('Invalid credentials.', 'danger')
+        else:
+            flash('Invalid credentials.', 'danger')
+        
         return redirect(url_for('login'))
     return render_template('login.html')
 
