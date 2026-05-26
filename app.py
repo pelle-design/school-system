@@ -12,13 +12,15 @@ import sqlite3
 from datetime import datetime, timedelta
 from functools import wraps
 from markupsafe import escape
-
+from werkzeug.security import generate_password_hash, check_password_hash
 from flask import Flask, render_template, request, redirect, url_for, session, flash, abort, send_from_directory, jsonify, g
 from werkzeug.utils import secure_filename
-
+from flask_wtf.csrf import CSRFProtect
+from markupsafe import escape
 # ==================== APP CONFIGURATION ====================
 app = Flask(__name__)
-app.secret_key = 'your_secret_key_here'
+app.secret_key = secrets.token_hex(32)
+app.secret_key = os.environ.get('SECRET_KEY', secrets.token_hex(32))
 app.config['UPLOAD_FOLDER'] = 'static/uploads'
 
 ALLOWED_IMAGE_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
@@ -545,6 +547,39 @@ with app.app_context():
         # Verify tables exist, create if missing
         init_db()
 
+
+csrf = CSRFProtect()
+csrf.init_app(app)
+
+app.config.update(
+    SESSION_COOKIE_SECURE=True,      # Only send over HTTPS
+    SESSION_COOKIE_HTTPONLY=True,    # No JavaScript access
+    SESSION_COOKIE_SAMESITE='Lax',   # CSRF protection
+    PERMANENT_SESSION_LIFETIME=timedelta(hours=2)
+)
+
+@app.after_request
+def add_security_headers(response):
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['X-Frame-Options'] = 'DENY'
+    response.headers['X-XSS-Protection'] = '1; mode=block'
+    response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
+    return response
+
+
+def validate_input(text, max_length=500, allow_html=False):
+    """Validate and sanitize user input"""
+    if not text:
+        return ''
+    
+    # Limit length
+    if len(text) > max_length:
+        text = text[:max_length]
+    
+    if not allow_html:
+        text = sanitize_input(text)
+    
+    return text
 # ==================== HELPER FUNCTIONS ====================
 def query_db(query, args=(), one=False):
     """Execute a query and return results"""
@@ -562,6 +597,17 @@ def execute_db(query, args=()):
     db.commit()
     cur.close()
     return cur.lastrowid
+
+def sanitize_input(text):
+    """Remove dangerous characters and escape HTML"""
+    if not text:
+        return ''
+    # Remove script tags and javascript: URLs
+    text = re.sub(r'<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>', '', text, flags=re.IGNORECASE)
+    text = re.sub(r'javascript:', '', text, flags=re.IGNORECASE)
+    text = re.sub(r'on\w+\s*=', '', text, flags=re.IGNORECASE)
+    # Escape HTML entities
+    return escape(text)
 
 def dict_factory(cursor, row):
     """Convert row to dictionary"""
@@ -963,17 +1009,27 @@ def word_format(value):
 def index():
     return redirect(url_for('login'))
 
+@app.after_request
+def add_security_headers(response):
+    response.headers['Content-Security-Policy'] = "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; font-src 'self' https://cdnjs.cloudflare.com; img-src 'self' data:;"
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['X-Frame-Options'] = 'DENY'
+    response.headers['X-XSS-Protection'] = '1; mode=block'
+    return response
+
 @app.route('/login', methods=['GET', 'POST'])
+#@limiter.limit("5 per minute")
 def login():
     if request.method == 'POST':
         username = request.form['username'].strip()
         password = request.form['password'].strip()
+        
         cur = get_db().cursor()
-        cur.execute("SELECT id, username, role, status, phone, must_change_password FROM users WHERE username=? AND password=?", 
-                    (username, password))
+        cur.execute("SELECT id, username, role, status, phone, must_change_password, password FROM users WHERE username=?", (username,))
         user = cur.fetchone()
         cur.close()
-        if user and user[3] == 1:
+        
+        if user and user[3] == 1 and check_password_hash(user[6], password):
             session['user_id'], session['username'], session['role'], session['phone'] = user[0], user[1], user[2], user[4]
             if user[5] == 1:
                 flash('Please change your password.', 'warning')
@@ -993,7 +1049,9 @@ def change_password():
         if new_pass != confirm:
             flash('Passwords do not match.', 'danger')
             return redirect(url_for('change_password'))
-        execute_db("UPDATE users SET password=?, must_change_password=0 WHERE id=?", (new_pass, session['user_id']))
+        
+        hashed_password = generate_password_hash(new_pass)
+        execute_db("UPDATE users SET password=?, must_change_password=0 WHERE id=?", (hashed_password, session['user_id']))
         flash('Password changed successfully!', 'success')
         return redirect(url_for('dashboard'))
     return render_template('change_password.html')
@@ -1011,12 +1069,15 @@ def forgot_password():
         if new_pass != confirm:
             flash('Passwords do not match.', 'danger')
             return redirect(url_for('forgot_password'))
+        
         cur = get_db().cursor()
         cur.execute("SELECT id FROM users WHERE username=? AND phone=?", (username, phone))
         user = cur.fetchone()
         cur.close()
+        
         if user:
-            execute_db("UPDATE users SET password=?, must_change_password=0 WHERE id=?", (new_pass, user[0]))
+            hashed_password = generate_password_hash(new_pass)
+            execute_db("UPDATE users SET password=?, must_change_password=0 WHERE id=?", (hashed_password, user[0]))
             flash('Password reset successfully.', 'success')
         else:
             flash('Username and phone number do not match.', 'danger')
@@ -1092,6 +1153,10 @@ def mark_all_notifications_read_route():
 def add_user():
     username = request.form['username'].strip()
     password = request.form['password'].strip()
+    
+    # Hash the password before storing
+    hashed_password = generate_password_hash(password)
+    
     role = request.form['role'].strip()
     phone_raw = request.form.get('phone', '').strip()
     phone = validate_and_format_phone(phone_raw) if phone_raw else None
@@ -1102,7 +1167,7 @@ def add_user():
     
     try:
         execute_db("INSERT INTO users (username, password, role, phone, status, child_id, profile_pic, must_change_password) VALUES (?, ?, ?, ?, 1, ?, 'default_avatar.png', 1)",
-                   (username, password, role, phone, child_id))
+                   (username, hashed_password, role, phone, child_id))
         flash(f'User {username} added. Password: {password} – inform the user.', 'success')
     except Exception as e:
         flash(f'Error: {str(e)}', 'danger')
