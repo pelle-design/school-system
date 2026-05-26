@@ -1075,6 +1075,7 @@ def change_password():
             flash('Passwords do not match.', 'danger')
             return redirect(url_for('change_password'))
         
+        # Hash the new password
         hashed_password = generate_password_hash(new_pass)
         execute_db("UPDATE users SET password=?, must_change_password=0 WHERE id=?", (hashed_password, session['user_id']))
         flash('Password changed successfully!', 'success')
