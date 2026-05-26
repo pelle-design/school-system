@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% block title %}Payroll Records{% endblock %}
+{% block content %}
+<style>
+    .status-badge { padding: 5px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+    .table tbody tr { cursor: pointer; }
+    .table tbody tr:hover { background-color: #f5f5f5; }
+</style>
+
+<div class="card shadow">
+    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+        <h5 class="mb-0"><i class="fas fa-credit-card"></i> Payroll Records</h5>
+        <a href="{{ url_for('bursar_generate_payroll') }}" class="btn btn-light btn-sm">
+            <i class="fas fa-plus"></i> New Payroll
+        </a>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-bordered table-striped table-hover">
+                <thead class="table-dark">
+                    <tr style="text-align: center;">
+                        <th width="5%">#</th>
+                        <th width="15%">Payroll No</th>
+                        <th width="12%">Month/Year</th>
+                        <th width="10%">Staff Count</th>
+                        <th width="18%">Total Amount (UGX)</th>
+                        <th width="15%">Status</th>
+                        <th width="15%">Created</th>
+                        <th width="10%">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for p in payrolls %}
+                    <tr style="text-align: center;">
+                        <td>{{ loop.index }}</td>
+                        <td><strong>{{ p.payroll_no }}</strong></td>
+                        <td>{{ p.month_year }}</td>
+                        <td>{{ p.staff_count or 0 }}</td>
+                        <td class="text-end">{{ "{:,.2f}".format(p.total_amount) }}</td>
+                        <td>
+                            {% if p.approval_status == 'pending' %}
+                                <span class="badge bg-warning status-badge">⏳ Pending Approval</span>
+                            {% elif p.approval_status == 'approved' and p.payment_status == 'pending' %}
+                                <span class="badge bg-info status-badge">🔔 Awaiting Authorization</span>
+                            {% elif p.payment_status == 'processing' %}
+                                <span class="badge bg-secondary status-badge">⚙️ Processing</span>
+                            {% elif p.payment_status == 'completed' %}
+                                <span class="badge bg-success status-badge">✅ Paid</span>
+                            {% elif p.approval_status == 'rejected' %}
+                                <span class="badge bg-danger status-badge">❌ Rejected</span>
+                            {% elif p.payment_status == 'failed' %}
+                                <span class="badge bg-danger status-badge">⚠️ Payment Failed</span>
+                            {% else %}
+                                <span class="badge bg-secondary status-badge">{{ p.approval_status }}</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ p.created_at.strftime('%Y-%m-%d') if p.created_at else '-' }}</td>
+                        <td>
+                            <div class="btn-group btn-group-sm">
+                                <a href="{{ url_for('bursar_view_payroll', payroll_id=p.id) }}" class="btn btn-info" title="View Details">
+                                    <i class="fas fa-eye"></i>
+                                </a>
+                                {% if p.approval_status == 'pending' %}
+                                <a href="{{ url_for('bursar_delete_payroll', payroll_id=p.id) }}" class="btn btn-danger" onclick="return confirm('Delete this payroll permanently?')" title="Delete">
+                                    <i class="fas fa-trash-alt"></i>
+                                </a>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="8" class="text-center py-4">
+                            <i class="fas fa-inbox fa-2x mb-2 d-block text-muted"></i>
+                            No payroll records found.
+                            <br><a href="{{ url_for('bursar_generate_payroll') }}" class="btn btn-primary btn-sm mt-2">Create First Payroll</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                {% if payrolls %}
+                <tfoot class="table-secondary">
+                    <tr style="text-align: center;">
+                        <td colspan="4" class="text-end fw-bold"><strong>TOTAL:</strong></td>
+                        <td class="text-end fw-bold"><strong>UGX {{ "{:,.2f}".format(payrolls|sum(attribute='total_amount')) }}</strong></td>
+                        <td colspan="3"></td>
+                    </tr>
+                </tfoot>
+                {% endif %}
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

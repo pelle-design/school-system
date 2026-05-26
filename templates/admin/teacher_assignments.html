@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Teacher Assignments{% endblock %}
+{% block content %}
+<div class="card shadow">
+    <div class="card-header bg-primary text-white">Teacher Class Assignments</div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr><th>Teacher</th><th>Role</th><th>Assigned Classes</th><th>Action</th></tr>
+                </thead>
+                <tbody>
+                    {% for t in teachers %}
+                    <tr>
+                        <td>{{ t.username }}</td><td>{{ t.role }}</td>
+                        <td>{{ t.assigned_classes or 'None' }}</td>
+                        <td>
+                            <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#assignModal" 
+                                    data-teacher-id="{{ t.id }}" data-teacher-name="{{ t.username }}">Assign Class</button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+<div class="modal fade" id="assignModal" tabindex="-1">
+    <div class="modal-dialog"><div class="modal-content">
+        <div class="modal-header bg-primary text-white"><h5>Assign Class</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+        <form method="POST" action="{{ url_for('admin_assign_class') }}">
+            <div class="modal-body">
+                <input type="hidden" name="teacher_id" id="teacher_id">
+                <div class="mb-2"><label>Teacher</label><input type="text" id="teacher_name" class="form-control" disabled></div>
+                <div class="mb-2"><label>Class</label><select name="class_name" class="form-select" required>
+                    <option value="">Select Class</option>{% for cls in all_classes %}<option value="{{ cls }}">{{ cls }}</option>{% endfor %}
+                </select></div>
+                <div class="mb-2"><label>Subject (optional)</label><input type="text" name="subject" class="form-control"></div>
+            </div>
+            <div class="modal-footer"><button type="submit" class="btn btn-primary">Assign</button></div>
+        </form>
+    </div></div>
+</div>
+<script>
+    var assignModal = document.getElementById('assignModal')
+    assignModal.addEventListener('show.bs.modal', function(event) {
+        var button = event.relatedTarget
+        document.getElementById('teacher_id').value = button.getAttribute('data-teacher-id')
+        document.getElementById('teacher_name').value = button.getAttribute('data-teacher-name')
+    })
+</script>
+{% endblock %}

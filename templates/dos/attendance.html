@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Attendance{% endblock %}
+{% block content %}
+<div class="card shadow">
+    <div class="card-header bg-primary text-white">Student Attendance</div>
+    <div class="card-body">
+        <form method="GET" class="row g-3 mb-4">
+            <div class="col-md-4"><select name="class" class="form-select" required><option value="">Select Class</option>{% for cls in classes %}<option value="{{ cls }}" {% if cls == selected_class %}selected{% endif %}>{{ cls }}</option>{% endfor %}</select></div>
+            <div class="col-md-3"><input type="date" name="date" class="form-control" value="{{ selected_date }}" required></div>
+            <div class="col-md-2"><button type="submit" class="btn btn-primary">Load</button></div>
+        </form>
+        {% if records %}
+        <form method="POST"><input type="hidden" name="class" value="{{ selected_class }}"><input type="hidden" name="date" value="{{ selected_date }}">
+        <table class="table table-bordered"><thead><tr><th>Student ID</th><th>Full Name</th><th>Status</th></tr></thead>
+        <tbody>{% for rec in records %}
+        <tr><td>{{ rec.student_id }}</td><td>{{ rec.full_name }}</td>
+        <td><select name="status_{{ rec.student_id }}" class="form-select"><option value="Present" {% if rec.status == 'Present' %}selected{% endif %}>Present</option><option value="Absent" {% if rec.status == 'Absent' %}selected{% endif %}>Absent</option><option value="Late" {% if rec.status == 'Late' %}selected{% endif %}>Late</option></select></td></tr>
+        {% endfor %}</tbody></table>
+        <button type="submit" class="btn btn-success">Save Attendance</button></form>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

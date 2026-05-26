@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+{% block title %}My Students{% endblock %}
+{% block content %}
+<style>
+    @media print {
+        .no-print { display: none !important; }
+        .sidebar { display: none !important; }
+        .content-area { margin-left: 0 !important; padding: 0 !important; width: 100% !important; }
+        .card { box-shadow: none; border: 1px solid #ddd; }
+        .card-header { background: white !important; color: black !important; }
+        .table th, .table td { padding: 6px !important; font-size: 12px; }
+        .student-photo { width: 30px !important; height: 30px !important; }
+        .print-title { display: block !important; }
+        .action-column { display: none !important; }
+        .class-selector { display: none !important; }
+        .btn { display: none; }
+    }
+    .print-title { display: none; margin-bottom: 20px; text-align: center; }
+    .print-title h3 { margin: 0; }
+    .print-title p { margin: 5px 0; color: #666; }
+    .student-photo { width: 40px; height: 40px; object-fit: cover; border-radius: 50%; }
+</style>
+
+<div class="card shadow">
+    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+        <span><i class="fas fa-users"></i> My Students - Class {{ selected_class }}</span>
+        <div class="no-print">
+            <button onclick="window.print()" class="btn btn-light btn-sm">
+                <i class="fas fa-print"></i> Print List
+            </button>
+            <a href="{{ url_for('teacher_print_all_report_cards') }}" class="btn btn-light btn-sm">
+                <i class="fas fa-print"></i> Print All Report Cards
+            </a>
+        </div>
+    </div>
+    <div class="card-body">
+        <!-- Print Title (visible only when printing) -->
+        <div class="print-title">
+            <h3>Student Class List</h3>
+            <p>
+                <strong>Class:</strong> {{ selected_class }} &nbsp;|&nbsp;
+                <strong>Term:</strong> {{ request.args.get('term', 'Term 1') }} &nbsp;|&nbsp;
+                <strong>Year:</strong> {{ datetime.now().year }} &nbsp;|&nbsp;
+                <strong>Date:</strong> {{ datetime.now().strftime('%d/%m/%Y') }}
+            </p>
+            <hr>
+        </div>
+
+        <!-- Class Selector (only visible if multiple classes assigned) -->
+        {% if available_classes|length > 1 %}
+        <div class="row mb-3 class-selector no-print">
+            <div class="col-md-3">
+                <label class="form-label">Select Class</label>
+                <select id="classSelect" class="form-select" onchange="window.location.href='?class_name='+this.value">
+                    {% for cls in available_classes %}
+                    <option value="{{ cls }}" {% if cls == selected_class %}selected{% endif %}>{{ cls }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Term</label>
+                <input type="text" id="termInput" class="form-control" value="{{ request.args.get('term', 'Term 1') }}" placeholder="Term">
+            </div>
+            <div class="col-md-2 align-self-end">
+                <button onclick="updateTerm()" class="btn btn-primary">Update</button>
+            </div>
+        </div>
+        {% else %}
+        <div class="row mb-3 class-selector no-print">
+            <div class="col-md-3">
+                <label class="form-label">Term</label>
+                <input type="text" id="termInput" class="form-control" value="{{ request.args.get('term', 'Term 1') }}" placeholder="Term">
+            </div>
+            <div class="col-md-2 align-self-end">
+                <button onclick="updateTerm()" class="btn btn-primary">Update</button>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Student Table -->
+        <div class="table-responsive">
+            <table class="table table-hover align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th>Student ID</th>
+                        <th>Photo</th>
+                        <th>Full Name</th>
+                        <th>Parent Phone</th>
+                        <th class="action-column">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for s in students %}
+                    <tr>
+                        <td>{{ s.student_id }}</td>
+                        <td class="text-center">
+                            <img src="{{ s.photo_url }}" class="student-photo" alt="Photo">
+                        </td>
+                        <td class="fw-semibold">{{ s.full_name }}</td>
+                        <td>{{ s.parent_phone or '-' }}</td>
+                        <td class="action-column">
+                            <a href="{{ url_for('teacher_report_card', student_id=s.student_id) }}" class="btn btn-sm btn-info no-print">
+                                <i class="fas fa-eye"></i> Report Card
+                            </a>
+                            {% if is_classteacher %}
+                            <a href="{{ url_for('teacher_edit_student', student_id=s.student_id) }}" class="btn btn-sm btn-warning no-print">
+                                <i class="fas fa-edit"></i> Edit
+                            </a>
+                            <form method="POST" action="{{ url_for('teacher_remove_student', student_id=s.student_id) }}" style="display:inline;" onsubmit="return confirm('Remove this student permanently?')">
+                                <button type="submit" class="btn btn-sm btn-danger no-print">
+                                    <i class="fas fa-trash-alt"></i> Remove
+                                </button>
+                            </form>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="5" class="text-center text-muted py-4">
+                            <i class="fas fa-folder-open fa-2x mb-2 d-block"></i>No students found.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+function updateTerm() {
+    var term = document.getElementById('termInput').value;
+    var url = new URL(window.location.href);
+    url.searchParams.set('term', term);
+    window.location.href = url.toString();
+}
+</script>
+{% endblock %}

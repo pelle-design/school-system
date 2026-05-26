@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Mark Attendance{% endblock %}
+{% block content %}
+<div class="card shadow">
+    <div class="card-header bg-primary text-white">Attendance for {{ assigned_class }}</div>
+    <div class="card-body">
+        <form method="GET" class="row g-2 mb-4"><div class="col-auto"><input type="date" name="date" class="form-control" value="{{ selected_date }}"></div><div class="col-auto"><button type="submit" class="btn btn-primary">Load</button></div></form>
+        <form method="POST"><input type="hidden" name="date" value="{{ selected_date }}">
+        <table class="table table-bordered"><thead><tr><th>Student ID</th><th>Full Name</th><th>Status</th></tr></thead>
+        <tbody>{% for rec in records %}<tr><td>{{ rec.student_id }}</td><td>{{ rec.full_name }}</td>
+        <td><select name="status_{{ rec.student_id }}" class="form-select"><option value="Present" {% if rec.status == 'Present' %}selected{% endif %}>Present</option><option value="Absent" {% if rec.status == 'Absent' %}selected{% endif %}>Absent</option><option value="Late" {% if rec.status == 'Late' %}selected{% endif %}>Late</option></select></td></tr>{% endfor %}</tbody></table>
+        <button type="submit" class="btn btn-success">Save Attendance</button></form>
+    </div>
+</div>
+{% endblock %}

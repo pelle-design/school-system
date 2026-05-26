@@ -1,0 +1,279 @@
+{% extends "base.html" %}
+{% block title %}Inventory Items{% endblock %}
+{% block content %}
+<style>
+    .low-stock { background-color: #fff3cd !important; }
+    .critical-stock { background-color: #f8d7da !important; }
+    .status-badge { padding: 5px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+    .item-image { width: 45px; height: 45px; object-fit: cover; border-radius: 8px; }
+</style>
+
+<div class="card shadow">
+    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+        <h5 class="mb-0"><i class="fas fa-boxes"></i> Inventory Items</h5>
+        {% if session.role in ['admin', 'bursar', 'stores_keeper'] %}
+        <a href="{{ url_for('inventory_item_add') }}" class="btn btn-light btn-sm">
+            <i class="fas fa-plus"></i> Add Item
+        </a>
+        {% endif %}
+    </div>
+    <div class="card-body">
+        <!-- Filter Form -->
+        <form method="GET" class="row g-2 mb-4">
+            <div class="col-md-2">
+                <select name="category" class="form-select form-select-sm">
+                    <option value="">All Categories</option>
+                    {% for c in categories %}
+                    <option value="{{ c.name }}" {% if c.name == category %}selected{% endif %}>{{ c.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <select name="status" class="form-select form-select-sm">
+                    <option value="">All Status</option>
+                    <option value="working" {% if status == 'working' %}selected{% endif %}>Working</option>
+                    <option value="spoilt" {% if status == 'spoilt' %}selected{% endif %}>Spoilt</option>
+                    <option value="used_up" {% if status == 'used_up' %}selected{% endif %}>Used Up</option>
+                    <option value="under_repair" {% if status == 'under_repair' %}selected{% endif %}>Under Repair</option>
+                    <option value="disposed" {% if status == 'disposed' %}selected{% endif %}>Disposed</option>
+                </select>
+            </div>
+            <div class="col-md-4">
+                <input type="text" name="search" class="form-control form-control-sm" placeholder="Search by name, code, or supplier" value="{{ search }}">
+            </div>
+            <div class="col-md-4">
+                <button type="submit" class="btn btn-primary btn-sm"><i class="fas fa-search"></i> Filter</button>
+                <a href="{{ url_for('inventory_items') }}" class="btn btn-secondary btn-sm"><i class="fas fa-undo"></i> Reset</a>
+                <a href="{{ url_for('inventory_reports') }}" class="btn btn-info btn-sm"><i class="fas fa-chart-bar"></i> Reports</a>
+            </div>
+        </form>
+
+        <!-- Items Table -->
+        <div class="table-responsive">
+            <table class="table table-bordered table-striped table-hover">
+                <thead class="table-dark">
+                    <tr style="text-align: center;">
+                        <th width="5%">#</th>
+                        <th width="10%">Code</th>
+                        <th width="8%">Image</th>
+                        <th width="18%">Item Name</th>
+                        <th width="10%">Category</th>
+                        <th width="8%">Quantity</th>
+                        <th width="6%">Unit</th>
+                        <th width="10%">Status</th>
+                        <th width="10%">Location</th>
+                        <th width="10%">Value (UGX)</th>
+                        <th width="5%">Actions</th>
+                    <tr>
+                </thead>
+                <tbody>
+                    {% for item in items %}
+                    <tr style="text-align: center;" class="{% if item.quantity <= item.reorder_level %}low-stock{% endif %}">
+                        <td>{{ loop.index }}</td>
+                        <td><strong>{{ item.item_code }}</strong></td>
+                        <td class="text-center">
+                            {% if item.image_path %}
+                                <img src="{{ url_for('uploaded_file', filename=item.image_path) }}" class="item-image">
+                            {% else %}
+                                <i class="fas fa-box fa-2x text-secondary"></i>
+                            {% endif %}
+                        </td>
+                        <td style="text-align: left;">
+                            <strong>{{ item.name }}</strong>
+                            {% if item.quantity <= item.reorder_level %}
+                                <br><small class="text-danger"><i class="fas fa-exclamation-triangle"></i> Low Stock!</small>
+                            {% endif %}
+                        </td>
+                        <td>{{ item.category_name }}</td>
+                        <td class="{% if item.quantity <= item.reorder_level %}text-danger fw-bold{% endif %}">
+                            {{ item.quantity }}
+                            {% if item.minimum_quantity > 0 %}
+                                <br><small class="text-muted">Min: {{ item.minimum_quantity }}</small>
+                            {% endif %}
+                        </td>
+                        <td>{{ item.unit }}</td>
+                        <td>
+                            {% if item.status == 'working' %}
+                                <span class="badge bg-success">Working</span>
+                            {% elif item.status == 'spoilt' %}
+                                <span class="badge bg-danger">Spoilt</span>
+                            {% elif item.status == 'used_up' %}
+                                <span class="badge bg-secondary">Used Up</span>
+                            {% elif item.status == 'under_repair' %}
+                                <span class="badge bg-warning text-dark">Under Repair</span>
+                            {% elif item.status == 'disposed' %}
+                                <span class="badge bg-dark">Disposed</span>
+                            {% else %}
+                                <span class="badge bg-secondary">{{ item.status }}</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ item.location or '-' }}</td>
+                        <td class="text-end">{{ "{:,.2f}".format(item.current_value) }}</td>
+                        <td>
+                            <div class="btn-group btn-group-sm">
+                                <a href="{{ url_for('inventory_item_edit', item_id=item.id) }}" class="btn btn-info" title="Edit">
+                                    <i class="fas fa-edit"></i>
+                                </a>
+                                <button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#receiveModal{{ item.id }}" title="Receive Stock">
+                                    <i class="fas fa-arrow-down"></i>
+                                </button>
+                                <button type="button" class="btn btn-warning" data-bs-toggle="modal" data-bs-target="#issueModal{{ item.id }}" title="Issue Item">
+                                    <i class="fas fa-arrow-up"></i>
+                                </button>
+                                <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#statusModal{{ item.id }}" title="Update Status">
+                                    <i class="fas fa-tools"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="11" class="text-center text-muted py-4">
+                            <i class="fas fa-box-open fa-3x mb-2 d-block"></i>
+                            No inventory items found.
+                            {% if session.role in ['admin', 'bursar', 'stores_keeper'] %}
+                            <br><a href="{{ url_for('inventory_item_add') }}" class="btn btn-primary btn-sm mt-2">Add Your First Item</a>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Receive Stock Modals -->
+{% for item in items %}
+<div class="modal fade" id="receiveModal{{ item.id }}" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title"><i class="fas fa-arrow-down"></i> Receive Stock - {{ item.name }}</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('inventory_receive_item', item_id=item.id) }}">
+                <div class="modal-body">
+                    <div class="alert alert-info">
+                        <strong>Current Stock:</strong> {{ item.quantity }} {{ item.unit }}
+                    </div>
+                    <div class="mb-2">
+                        <label>Quantity to Receive *</label>
+                        <input type="number" name="quantity" class="form-control" required min="1">
+                    </div>
+                    <div class="mb-2">
+                        <label>Unit Price (UGX)</label>
+                        <input type="number" name="unit_price" class="form-control" step="0.01">
+                    </div>
+                    <div class="mb-2">
+                        <label>Supplier</label>
+                        <input type="text" name="supplier" class="form-control">
+                    </div>
+                    <div class="mb-2">
+                        <label>Notes</label>
+                        <textarea name="notes" class="form-control" rows="2"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="submit" class="btn btn-success">Receive Stock</button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Issue Item Modals -->
+<div class="modal fade" id="issueModal{{ item.id }}" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-warning text-dark">
+                <h5 class="modal-title"><i class="fas fa-arrow-up"></i> Issue Item - {{ item.name }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('inventory_issue_item', item_id=item.id) }}">
+                <div class="modal-body">
+                    <div class="alert alert-info">
+                        <strong>Available Stock:</strong> {{ item.quantity }} {{ item.unit }}
+                    </div>
+                    <div class="mb-2">
+                        <label>Quantity to Issue *</label>
+                        <input type="number" name="quantity" class="form-control" required min="1" max="{{ item.quantity }}">
+                    </div>
+                    <div class="mb-2">
+                        <label>Issued To *</label>
+                        <input type="text" name="issued_to" class="form-control" required placeholder="Person or Department">
+                    </div>
+                    <div class="mb-2">
+                        <label>Role/Department</label>
+                        <input type="text" name="issued_to_role" class="form-control" placeholder="e.g., Teacher, Student, Lab">
+                    </div>
+                    <div class="mb-2">
+                        <label>Purpose *</label>
+                        <textarea name="purpose" class="form-control" required rows="2"></textarea>
+                    </div>
+                    <div class="mb-2">
+                        <label>Additional Notes</label>
+                        <textarea name="notes" class="form-control" rows="2"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="submit" class="btn btn-warning">Issue Item</button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Update Status Modals -->
+<div class="modal fade" id="statusModal{{ item.id }}" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title"><i class="fas fa-tools"></i> Update Status - {{ item.name }}</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('inventory_update_status', item_id=item.id) }}">
+                <div class="modal-body">
+                    <div class="mb-2">
+                        <label>Status</label>
+                        <select name="status" class="form-select" required>
+                            <option value="working" {% if item.status == 'working' %}selected{% endif %}>Working</option>
+                            <option value="spoilt" {% if item.status == 'spoilt' %}selected{% endif %}>Spoilt</option>
+                            <option value="used_up" {% if item.status == 'used_up' %}selected{% endif %}>Used Up</option>
+                            <option value="under_repair" {% if item.status == 'under_repair' %}selected{% endif %}>Under Repair</option>
+                            <option value="disposed" {% if item.status == 'disposed' %}selected{% endif %}>Disposed</option>
+                        </select>
+                    </div>
+                    <div class="mb-2">
+                        <label>Quantity Affected</label>
+                        <input type="number" name="quantity_affected" class="form-control" value="0" min="0" max="{{ item.quantity }}">
+                        <small class="text-muted">For spoilt or used up items, enter quantity to deduct from stock</small>
+                    </div>
+                    <div class="mb-2">
+                        <label>Condition Notes</label>
+                        <textarea name="condition_notes" class="form-control" rows="3"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="submit" class="btn btn-danger">Update Status</button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endfor %}
+
+<script>
+    // Auto-hide alerts after 5 seconds
+    setTimeout(function() {
+        var alerts = document.querySelectorAll('.alert');
+        alerts.forEach(function(alert) {
+            var bsAlert = new bootstrap.Alert(alert);
+            bsAlert.close();
+        });
+    }, 5000);
+</script>
+{% endblock %}

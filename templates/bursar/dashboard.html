@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}Bursar Dashboard{% endblock %}
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-3 mb-3">
+        <div class="card text-white bg-primary">
+            <div class="card-body">
+                <h5 class="card-title">Total Students</h5>
+                <p class="card-text display-4">{{ total_students }}</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 mb-3">
+        <div class="card text-white bg-success">
+            <div class="card-body">
+                <h5 class="card-title">Total Fees</h5>
+                <p class="card-text display-6">UGX {{ totals.total_fees|default(0)|round(2) }}</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 mb-3">
+        <div class="card text-white bg-info">
+            <div class="card-body">
+                <h5 class="card-title">Total Collected</h5>
+                <p class="card-text display-6">UGX {{ totals.total_paid|default(0)|round(2) }}</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 mb-3">
+        <div class="card text-white bg-warning">
+            <div class="card-body">
+                <h5 class="card-title">Outstanding Balance</h5>
+                <p class="card-text display-6">UGX {{ totals.total_balance|default(0)|round(2) }}</p>
+                <small>Defaulters: {{ defaulter_count }}</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card shadow">
+    <div class="card-header bg-primary text-white">Recent Payments</div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr><th>Receipt No</th><th>Student</th><th>Class</th><th>Amount</th><th>Date</th><th>Method</th></tr>
+                </thead>
+                <tbody>
+                    {% for p in recent_payments %}
+                    <tr>
+                        <td>{{ p.receipt_no }}</td>
+                        <td>{{ p.full_name }}</td>
+                        <td>{{ p.class }}</td>
+                        <td>UGX {{ p.amount|round(2) }}</td>
+                        <td>{{ p.payment_date }}</td>
+                        <td>{{ p.payment_method }}</td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="6">No payments recorded yet.{% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

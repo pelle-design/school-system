@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}Payment Gateway Configuration{% endblock %}
+{% block content %}
+<div class="card shadow">
+    <div class="card-header bg-primary text-white">School Pay Integration Settings</div>
+    <div class="card-body">
+        <form method="POST">
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label>API Key</label>
+                    <input type="text" name="api_key" class="form-control" value="{{ config.api_key if config else '' }}">
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label>API Secret</label>
+                    <input type="password" name="api_secret" class="form-control" value="{{ config.api_secret if config else '' }}">
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label>Webhook Secret</label>
+                    <input type="text" name="webhook_secret" class="form-control" value="{{ config.webhook_secret if config else '' }}">
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label>Callback URL</label>
+                    <input type="url" name="callback_url" class="form-control" value="{{ config.callback_url if config else 'https://yourdomain.com/bursar/webhook/payment' }}">
+                </div>
+            </div>
+            <div class="mb-3">
+                <label>Status</label>
+                <select name="status" class="form-select">
+                    <option value="active" {% if config and config.status == 'active' %}selected{% endif %}>Active</option>
+                    <option value="inactive" {% if not config or config.status == 'inactive' %}selected{% endif %}>Inactive</option>
+                </select>
+            </div>
+            <button type="submit" class="btn btn-primary">Save Configuration</button>
+        </form>
+        <hr>
+        <h5>Webhook Endpoint</h5>
+        <p>Configure your payment gateway to send POST requests to:</p>
+        <code>{{ url_for('bursar_payment_webhook', _external=True) }}</code>
+        <p class="text-muted mt-2">Use the webhook secret above to verify incoming requests.</p>
+    </div>
+</div>
+{% endblock %}

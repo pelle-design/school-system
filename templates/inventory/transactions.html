@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+{% block title %}Inventory Transactions{% endblock %}
+{% block content %}
+<style>
+    .transaction-type { padding: 5px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+    .type-purchase { background-color: #17a2b8; color: white; }
+    .type-received { background-color: #28a745; color: white; }
+    .type-issued { background-color: #ffc107; color: #333; }
+    .type-spoilt { background-color: #dc3545; color: white; }
+    .type-used_up { background-color: #6c757d; color: white; }
+    .type-repaired { background-color: #fd7e14; color: white; }
+    .type-disposed { background-color: #343a40; color: white; }
+</style>
+
+<div class="card shadow">
+    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+        <h5 class="mb-0"><i class="fas fa-history"></i> Inventory Transactions</h5>
+        <div>
+            <button onclick="window.print()" class="btn btn-light btn-sm">
+                <i class="fas fa-print"></i> Print
+            </button>
+        </div>
+    </div>
+    <div class="card-body">
+        <!-- Filter Form -->
+        <form method="GET" class="row g-2 mb-4">
+            <div class="col-md-4">
+                <select name="item_id" class="form-select form-select-sm">
+                    <option value="">All Items</option>
+                    {% for item in items %}
+                    <option value="{{ item.id }}" {% if selected_item|string == item.id|string %}selected{% endif %}>
+                        {{ item.name }} ({{ item.item_code }})
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3">
+                <select name="transaction_type" class="form-select form-select-sm">
+                    <option value="">All Types</option>
+                    <option value="purchase">Purchase</option>
+                    <option value="received">Received</option>
+                    <option value="issued">Issued</option>
+                    <option value="spoilt">Spoilt</option>
+                    <option value="used_up">Used Up</option>
+                    <option value="repaired">Repaired</option>
+                    <option value="disposed">Disposed</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <input type="date" name="start_date" class="form-control form-control-sm" placeholder="Start Date">
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-primary btn-sm w-100">Filter</button>
+            </div>
+        </form>
+
+        <!-- Transactions Table -->
+        <div class="table-responsive">
+            <table class="table table-bordered table-striped table-hover">
+                <thead class="table-dark">
+                    <tr style="text-align: center;">
+                        <th width="5%">#</th>
+                        <th width="12%">Date</th>
+                        <th width="12%">Item Code</th>
+                        <th width="20%">Item Name</th>
+                        <th width="10%">Type</th>
+                        <th width="8%">Quantity</th>
+                        <th width="8%">Unit Price</th>
+                        <th width="10%">Total Amount</th>
+                        <th width="15%">Issued To / Source</th>
+                        <th width="10%">Recorded By</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for t in transactions %}
+                    <tr style="text-align: center;">
+                        <td>{{ loop.index }}</td>
+                        <td>{{ t.transaction_date.strftime('%Y-%m-%d') if t.transaction_date else t.created_at.strftime('%Y-%m-%d') }}</td>
+                        <td>{{ t.item_code }}</td>
+                        <td style="text-align: left;"><strong>{{ t.item_name }}</strong></td>
+                        <td>
+                            {% if t.transaction_type == 'purchase' %}
+                                <span class="transaction-type type-purchase">Purchase</span>
+                            {% elif t.transaction_type == 'received' %}
+                                <span class="transaction-type type-received">Received</span>
+                            {% elif t.transaction_type == 'issued' %}
+                                <span class="transaction-type type-issued">Issued</span>
+                            {% elif t.transaction_type == 'spoilt' %}
+                                <span class="transaction-type type-spoilt">Spoilt</span>
+                            {% elif t.transaction_type == 'used_up' %}
+                                <span class="transaction-type type-used_up">Used Up</span>
+                            {% elif t.transaction_type == 'repaired' %}
+                                <span class="transaction-type type-repaired">Repaired</span>
+                            {% elif t.transaction_type == 'disposed' %}
+                                <span class="transaction-type type-disposed">Disposed</span>
+                            {% else %}
+                                <span class="transaction-type">{{ t.transaction_type }}</span>
+                            {% endif %}
+                         </td
+                        <td>{{ t.quantity }} {{ t.unit or '' }}</td
+                        <td class="text-end">UGX {{ "{:,.2f}".format(t.unit_price or 0) }}</td
+                        <td class="text-end">UGX {{ "{:,.2f}".format(t.total_amount or 0) }}</td
+                        <td style="text-align: left;">{{ t.issued_to or t.supplier or '-' }}</td
+                        <td>{{ t.recorded_by or '-' }}</td
+                    </tr
+                    {% else %}
+                    <tr
+                        <td colspan="10" class="text-center text-muted py-4">
+                            <i class="fas fa-history fa-3x mb-2 d-block"></i>
+                            No transaction records found.
+                        </td
+                    </tr
+                    {% endfor %}
+                </tbody>
+             </table
+        </div>
+    </div>
+</div>
+{% endblock %}

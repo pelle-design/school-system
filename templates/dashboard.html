@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+    {% if session.role == 'admin' %}
+        <!-- Admin Dashboard -->
+        <div class="card mb-4 p-3">
+            <form method="GET" class="row g-2">
+                <div class="col-md-8">
+                    <input type="text" name="search" class="form-control" placeholder="Search username..." value="{{ search }}">
+                </div>
+                <div class="col-md-4">
+                    <button type="submit" class="btn btn-primary w-100">Filter</button>
+                </div>
+            </form>
+        </div>
+        <div class="card">
+            <div class="card-header bg-primary text-white">User Management</div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>ID</th>
+                                <th>Photo</th>
+                                <th>Username</th>
+                                <th>Role</th>
+                                <th>Phone</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for u in data.users %}
+                            <tr>
+                                <td>{{ u[0] }}</td>
+                                <td><img src="{{ url_for('uploaded_file', filename=u[5]) }}" width="40" class="rounded-circle"></td>
+                                <td>{{ u[1] }}</td>
+                                <td>{{ u[2] }}</td>
+                                <td>{{ u[3] or '-' }}</td>
+                                <td>{% if u[4] == 1 %}<span class="badge bg-success">Active</span>{% else %}<span class="badge bg-secondary">Inactive</span>{% endif %}</td>
+                                <td>
+                                    <a href="{{ url_for('edit_user', user_id=u[0]) }}" class="btn btn-sm btn-info">Edit</a>
+                                    <a href="{{ url_for('toggle_user', user_id=u[0]) }}" class="btn btn-sm btn-warning">Toggle</a>
+                                    <a href="{{ url_for('delete_user', user_id=u[0]) }}" class="btn btn-sm btn-danger" onclick="return confirm('Delete?')">Delete</a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        {% if data.total_pages > 1 %}
+        <nav class="mt-4">
+            <ul class="pagination justify-content-center">
+                {% for p in range(1, data.total_pages+1) %}
+                <li class="page-item {% if p == data.current_page %}active{% endif %}">
+                    <a class="page-link" href="{{ url_for('dashboard', page=p, search=search) }}">{{ p }}</a>
+                </li>
+                {% endfor %}
+            </ul>
+        </nav>
+        {% endif %}
+    {% elif session.role == 'bursar' %}
+        <!-- Bursar Dashboard -->
+        <div class="alert alert-info">
+            <i class="fas fa-coins"></i> 
+            <strong>Bursar Dashboard</strong><br>
+            Manage student fees, record payments, and send payment reminders to parents.
+        </div>
+    {% elif session.role == 'classteacher' %}
+        <!-- Class Teacher Dashboard -->
+        <div class="alert alert-info">
+            <i class="fas fa-chalkboard-teacher"></i> 
+            <strong>Class Teacher Dashboard</strong><br>
+            You are assigned to class <strong>{{ assigned_class }}</strong> with <strong>{{ student_count }}</strong> students.
+            Use the sidebar to manage attendance, upload marks, and view report cards.
+        </div>
+    {% elif session.role == 'subject_teacher' %}
+        <!-- Subject Teacher Dashboard -->
+        <div class="alert alert-info">
+            <i class="fas fa-chalkboard-teacher"></i> 
+            <strong>Subject Teacher Dashboard</strong><br>
+            Use the sidebar to upload marks and view student report cards.
+        </div>
+    {% elif session.role == 'parent' %}
+        <!-- Parent Dashboard -->
+        <div class="alert alert-info">
+            <i class="fas fa-child"></i> 
+            <strong>Parent Dashboard</strong><br>
+            View your children's progress and report cards.
+        </div>
+    {% elif session.role == 'headteacher' %}
+        <!-- Headteacher Dashboard -->
+        <div class="alert alert-info">
+            <i class="fas fa-gavel"></i> 
+            <strong>Headteacher Dashboard</strong><br>
+            Review and approve payrolls, manage school settings.
+        </div>
+    {% elif session.role == 'management' %}
+        <!-- Management Dashboard -->
+        <div class="alert alert-info">
+            <i class="fas fa-building"></i> 
+            <strong>Management Dashboard</strong><br>
+            Authorize bank payments and oversee financial operations.
+        </div>
+    {% elif session.role == 'stores_keeper' %}
+        <!-- Stores Keeper Dashboard -->
+        <div class="alert alert-info">
+            <i class="fas fa-boxes"></i> 
+            <strong>Stores Keeper Dashboard</strong><br>
+            Manage inventory, track stock levels, and process item requests.
+        </div>
+    {% elif session.role == 'dos' %}
+        <!-- DOS Dashboard -->
+        <div class="alert alert-info">
+            <i class="fas fa-graduation-cap"></i> 
+            <strong>Director of Studies Dashboard</strong><br>
+            Manage student admissions, class lists, promotions, and grading systems.
+        </div>
+    {% else %}
+        <!-- Default Dashboard -->
+        <div class="alert alert-info">
+            <i class="fas fa-info-circle"></i> 
+            <strong>Welcome to your Dashboard</strong><br>
+            Use the sidebar to navigate through the system.
+        </div>
+    {% endif %}
+{% endblock %}

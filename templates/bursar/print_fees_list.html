@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>{% if status_filter == 'defaulters' %}Fee Defaulters List{% else %}Student Fees Payment List{% endif %}</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .header { text-align: center; margin-bottom: 30px; }
+        .header h2 { margin: 5px 0; }
+        .header p { color: #666; font-size: 12px; }
+        .header h3 { margin: 10px 0; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { border: 1px solid #ddd; padding: 8px; }
+        th { background-color: #f2f2f2; font-weight: bold; text-align: center; }
+        td { text-align: left; }
+        .text-right { text-align: right; }
+        .text-center { text-align: center; }
+        .text-danger { color: #dc3545; font-weight: bold; }
+        .footer { margin-top: 30px; text-align: center; font-size: 12px; color: #666; }
+        .totals { margin-top: 20px; text-align: right; font-weight: bold; padding-top: 10px; border-top: 2px solid #000; }
+        @media print {
+            body { padding: 0; margin: 0; }
+            .no-print { display: none; }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h2>{{ school_name|default('YOUR SCHOOL NAME') }}</h2>
+        <p>{{ school_address|default('P.O. Box 123, Kampala, Uganda') }} | {{ school_phone|default('Tel: +256 712 345678') }}</p>
+        <h3>{% if status_filter == 'defaulters' %}FEE DEFAULTERS LIST{% else %}STUDENT FEES PAYMENT LIST{% endif %}</h3>
+        <p>
+            Date: {{ datetime.now().strftime('%d/%m/%Y') }}
+            {% if class_filter %}
+            | <strong>Class:</strong> {{ class_filter }}
+            {% else %}
+            | <strong>Class:</strong> All Classes
+            {% endif %}
+        </p>
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Student ID</th>
+                <th>Full Name</th>
+                <th class="text-center">Class</th>
+                <th class="text-right">Fees Paid (UGX)</th>
+                <th class="text-right">Fees Balance (UGX)</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for s in students %}
+            <tr>
+                <td>{{ s.student_id }}</td>
+                <td>{{ s.full_name }}</td>
+                <td class="text-center">{{ s.class }}</td>
+                <td class="text-right">{{ "{:,.2f}".format(s.fees_paid) }}</td>
+                <td class="text-right {% if s.fees_balance > 0 %}text-danger{% endif %}">{{ "{:,.2f}".format(s.fees_balance) }}</td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="5" style="text-align: center;">No student records found.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <div class="totals">
+        <p>Total Fees Collected: UGX {{ "{:,.2f}".format(total_paid) }}</p>
+        <p>Total Outstanding Balance: UGX {{ "{:,.2f}".format(total_balance) }}</p>
+    </div>
+
+    <div class="footer">
+        <p>This is a system-generated report. No signature required.</p>
+    </div>
+
+    <div class="no-print" style="text-align: center; margin-top: 20px;">
+        <button onclick="window.print()" style="padding: 8px 20px; margin: 5px; cursor: pointer;">Print</button>
+        <button onclick="window.close()" style="padding: 8px 20px; margin: 5px; cursor: pointer;">Close</button>
+    </div>
+
+    <script>
+        window.onload = function() { window.print(); }
+    </script>
+</body>
+</html>

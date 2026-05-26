@@ -1,0 +1,155 @@
+{% extends "base.html" %}
+{% block title %}Inventory Reports{% endblock %}
+{% block content %}
+<div class="row">
+    <!-- Stock by Category -->
+    <div class="col-md-6 mb-4">
+        <div class="card shadow h-100">
+            <div class="card-header bg-primary text-white">
+                <i class="fas fa-chart-pie"></i> Stock by Category
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr><th>Category</th><th>Items</th><th>Total Quantity</th><th>Total Value (UGX)</th></tr>
+                        </thead>
+                        <tbody>
+                            {% for c in by_category %}
+                            <tr>
+                                <td>{{ c.category }}</td
+                                <td>{{ c.item_count or 0 }}</td
+                                <td>{{ c.total_quantity or 0 }}</td
+                                <td class="text-end">{{ "{:,.2f}".format(c.total_value or 0) }}</td
+                            </tr
+                            {% else %}
+                            <tr><td colspan="4">No data available.</td></tr
+                            {% endfor %}
+                        </tbody>
+                    </table
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Stock by Status -->
+    <div class="col-md-6 mb-4">
+        <div class="card shadow h-100">
+            <div class="card-header bg-info text-white">
+                <i class="fas fa-chart-bar"></i> Stock by Status
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr><th>Status</th><th>Items</th><th>Total Quantity</th></tr>
+                        </thead>
+                        <tbody>
+                            {% for s in by_status %}
+                            <tr>
+                                <td>
+                                    {% if s.status == 'working' %}
+                                        <span class="badge bg-success">Working</span>
+                                    {% elif s.status == 'spoilt' %}
+                                        <span class="badge bg-danger">Spoilt</span>
+                                    {% elif s.status == 'used_up' %}
+                                        <span class="badge bg-secondary">Used Up</span>
+                                    {% elif s.status == 'under_repair' %}
+                                        <span class="badge bg-warning">Under Repair</span>
+                                    {% else %}
+                                        {{ s.status }}
+                                    {% endif %}
+                                 </td
+                                <td>{{ s.count or 0 }}</td
+                                <td>{{ s.quantity or 0 }}</td
+                            </tr
+                            {% else %}
+                            <tr><td colspan="3">No data available.</td></tr
+                            {% endfor %}
+                        </tbody>
+                    </table
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Low Stock Items -->
+    <div class="col-md-12 mb-4">
+        <div class="card shadow">
+            <div class="card-header bg-warning text-dark">
+                <i class="fas fa-exclamation-triangle"></i> Low Stock Items
+            </div>
+            <div class="card-body">
+                {% if low_stock_items %}
+                <div class="table-responsive">
+                    <table class="table table-bordered">
+                        <thead class="table-dark">
+                            <tr><th>Code</th><th>Item Name</th><th>Category</th><th>Current Stock</th><th>Reorder Level</th><th>Unit</th><th>Location</th></tr>
+                        </thead>
+                        <tbody>
+                            {% for item in low_stock_items %}
+                            <tr class="table-danger">
+                                <td>{{ item.item_code }}</td
+                                <td><strong>{{ item.name }}</strong></td
+                                <td>{{ item.category_name }}</td
+                                <td class="fw-bold">{{ item.quantity }}</td
+                                <td>{{ item.reorder_level }}</td
+                                <td>{{ item.unit }}</td
+                                <td>{{ item.location or '-' }}</td
+                            </tr
+                            {% endfor %}
+                        </tbody>
+                    </table
+                </div>
+                {% else %}
+                <div class="text-center py-3">
+                    <i class="fas fa-check-circle fa-2x text-success"></i>
+                    <p>No low stock items.</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent Issues -->
+    <div class="col-md-12">
+        <div class="card shadow">
+            <div class="card-header bg-secondary text-white">
+                <i class="fas fa-arrow-up"></i> Recent Issues
+            </div>
+            <div class="card-body">
+                {% if recent_issues %}
+                <div class="table-responsive">
+                    <table class="table table-bordered">
+                        <thead class="table-dark">
+                            <tr><th>Date</th><th>Item</th><th>Quantity</th><th>Issued To</th><th>Purpose</th><th>Recorded By</th></tr>
+                        </thead>
+                        <tbody>
+                            {% for issue in recent_issues %}
+                            <tr>
+                                <td>{{ issue.transaction_date.strftime('%Y-%m-%d') if issue.transaction_date else issue.created_at.strftime('%Y-%m-%d') }}</td
+                                <td>{{ issue.item_name }}</td
+                                <td>{{ issue.quantity }}</td
+                                <td>{{ issue.issued_to }}</td
+                                <td>{{ issue.purpose[:50] }}</td
+                                <td>{{ issue.recorded_by }}</td
+                            </tr
+                            {% endfor %}
+                        </tbody>
+                    </table
+                </div>
+                {% else %}
+                <div class="text-center py-3">
+                    <p>No issue records found.</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="mt-3 no-print">
+    <button onclick="window.print()" class="btn btn-primary">Print Report</button>
+    <a href="{{ url_for('inventory_items') }}" class="btn btn-secondary">Back to Items</a>
+</div>
+{% endblock %}

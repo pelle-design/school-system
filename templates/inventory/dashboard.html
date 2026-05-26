@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+{% block title %}Inventory Dashboard{% endblock %}
+{% block content %}
+<style>
+    .stat-card { border-radius: 10px; padding: 15px; margin-bottom: 20px; color: white; }
+    .stat-card h3 { font-size: 28px; margin: 0; }
+    .stat-card p { margin: 0; opacity: 0.8; }
+    .alert-card { border-left: 4px solid #ffc107; margin-bottom: 10px; }
+    .bg-primary-custom { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+    .bg-success-custom { background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); }
+    .bg-warning-custom { background: linear-gradient(135deg, #f2994a 0%, #f2c94c 100%); }
+    .bg-danger-custom { background: linear-gradient(135deg, #eb3349 0%, #f45c43 100%); }
+</style>
+
+<div class="row">
+    <div class="col-md-3">
+        <div class="stat-card bg-primary-custom">
+            <p><i class="fas fa-boxes"></i> Total Items</p>
+            <h3>{{ total_items.total_items or 0 }}</h3>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="stat-card bg-warning-custom">
+            <p><i class="fas fa-exclamation-triangle"></i> Low Stock</p>
+            <h3>{{ low_stock.total_count or 0 }}</h3>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="stat-card bg-danger-custom">
+            <p><i class="fas fa-times-circle"></i> Spoilt/Used Up</p>
+            <h3>{{ spoilt.total_count or 0 }}</h3>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="stat-card bg-success-custom">
+            <p><i class="fas fa-dollar-sign"></i> Total Value</p>
+            <h3>UGX {{ "{:,.2f}".format(total_value.total_value or 0) }}</h3>
+        </div>
+    </div>
+</div>
+
+{% if session.role == 'stores_keeper' %}
+<div class="alert alert-info">
+    <i class="fas fa-user-shield"></i> 
+    <strong>Stores Keeper Dashboard</strong><br>
+    You can manage inventory, record receipts and issues, and monitor stock levels.
+    For financial reports and deletions, please contact the Bursar or Administrator.
+</div>
+{% endif %}
+<div class="row">
+    <div class="col-md-8">
+        <div class="card shadow">
+            <div class="card-header bg-primary text-white">
+                <i class="fas fa-history"></i> Recent Transactions
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Item</th>
+                                <th>Type</th>
+                                <th>Quantity</th>
+                                <th>Issued To</th>
+                                <th>Recorded By</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for t in recent_transactions %}
+                            <tr>
+                                <td>{{ t.transaction_date.strftime('%Y-%m-%d') if t.transaction_date else '-' }}</td>
+                                <td>{{ t.item_name }} ({{ t.item_code }})</td
+                                <td>
+                                    {% if t.transaction_type == 'purchase' %}
+                                        <span class="badge bg-info">Purchase</span>
+                                    {% elif t.transaction_type == 'received' %}
+                                        <span class="badge bg-success">Received</span>
+                                    {% elif t.transaction_type == 'issued' %}
+                                        <span class="badge bg-warning">Issued</span>
+                                    {% elif t.transaction_type == 'spoilt' %}
+                                        <span class="badge bg-danger">Spoilt</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">{{ t.transaction_type }}</span>
+                                    {% endif %}
+                                 </td
+                                <td>{{ t.quantity }} {{ t.unit }}</td
+                                <td>{{ t.issued_to or '-' }}</td
+                                <td>{{ t.recorded_by or '-' }}</td
+                            </tr
+                            {% endfor %}
+                        </tbody>
+                    </table
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card shadow">
+            <div class="card-header bg-danger text-white">
+                <i class="fas fa-bell"></i> Low Stock Alerts
+                <span class="badge bg-light text-dark float-end">{{ alerts|length }}</span>
+            </div>
+            <div class="card-body" style="max-height: 400px; overflow-y: auto;">
+                {% for a in alerts %}
+                <div class="alert-card">
+                    <div class="d-flex justify-content-between">
+                        <strong>{{ a.item_name }}</strong>
+                        <a href="{{ url_for('inventory_alert_read', alert_id=a.id) }}" class="btn btn-sm btn-link">Dismiss</a>
+                    </div>
+                    <small class="text-muted">{{ a.message }}</small><br>
+                    <small>Current: {{ a.quantity }} | Reorder: {{ a.reorder_level }}</small>
+                </div>
+                <hr>
+                {% else %}
+                <div class="text-center text-muted">
+                    <i class="fas fa-check-circle fa-2x"></i>
+                    <p>No active alerts</p>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

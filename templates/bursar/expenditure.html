@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+{% block title %}Expenditure Management{% endblock %}
+{% block content %}
+<div class="card shadow mb-4">
+    <div class="card-header bg-primary text-white d-flex justify-content-between">
+        <span>Expenditure / Payment Vouchers</span>
+        <button class="btn btn-light btn-sm" data-bs-toggle="modal" data-bs-target="#addExpenditureModal">+ New Expenditure</button>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Voucher No</th><th>Date</th><th>Category</th><th>Description</th><th>Amount (UGX)</th>
+                        <th>Payee</th><th>Method</th><th>Status</th><th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for e in expenditures %}
+                    <tr>
+                        <td>{{ e.voucher_no }}</td>
+                        <td>{{ e.expenditure_date }}</td>
+                        <td>{{ e.code }} - {{ e.category_name }}</td>
+                        <td>{{ e.description[:50] }}</td>
+                        <td>{{ e.amount|round(2) }}</td>
+                        <td>{{ e.payee_name or '-' }}</td>
+                        <td>{{ e.payment_method }}</td>
+                        <td>
+                            <span class="badge {% if e.status == 'paid' %}bg-success{% elif e.status == 'approved' %}bg-info{% else %}bg-warning{% endif %}">
+                                {{ e.status }}
+                            </span>
+                        </td>
+                        <td>
+                            <a href="#" class="btn btn-sm btn-info" onclick="window.print()">Print</a>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="9">No expenditure records found.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Add Expenditure Modal -->
+<div class="modal fade" id="addExpenditureModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title">Record Expenditure</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('bursar_expenditure_add') }}">
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-6 mb-2">
+                            <label>Budget Category *</label>
+                            <select name="category_id" class="form-select" required>
+                                <option value="">Select category</option>
+                                {% for c in categories %}
+                                <option value="{{ c.id }}">{{ c.code }} - {{ c.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-2">
+                            <label>Expenditure Date *</label>
+                            <input type="date" name="expenditure_date" class="form-control" value="{{ datetime.now().strftime('%Y-%m-%d') }}" required>
+                        </div>
+                    </div>
+                    <div class="mb-2">
+                        <label>Description *</label>
+                        <textarea name="description" class="form-control" rows="2" required></textarea>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-4 mb-2">
+                            <label>Amount (UGX) *</label>
+                            <input type="number" name="amount" class="form-control" step="0.01" required>
+                        </div>
+                        <div class="col-md-4 mb-2">
+                            <label>Payment Method</label>
+                            <select name="payment_method" class="form-select">
+                                <option>Cash</option><option>Bank Transfer</option><option>Cheque</option><option>Mobile Money</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4 mb-2">
+                            <label>Status</label>
+                            <select name="status" class="form-select">
+                                <option value="paid">Paid</option>
+                                <option value="approved">Approved</option>
+                                <option value="pending">Pending</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-2">
+                            <label>Payee Name</label>
+                            <input type="text" name="payee_name" class="form-control">
+                        </div>
+                        <div class="col-md-6 mb-2">
+                            <label>Payee Phone</label>
+                            <input type="text" name="payee_phone" class="form-control" placeholder="0712345678">
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="submit" class="btn btn-primary">Save Voucher</button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

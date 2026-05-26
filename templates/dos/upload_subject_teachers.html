@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Upload Subject Teachers{% endblock %}
+{% block content %}
+<div class="card shadow">
+    <div class="card-header bg-primary text-white">Upload Subject Teacher Assignments</div>
+    <div class="card-body">
+        <div class="alert alert-info">Excel columns: <code>username, class_name, subject</code></div>
+        <form method="POST" enctype="multipart/form-data">
+            <div class="mb-3"><label>Excel File (.xlsx)</label><input type="file" name="excel_file" class="form-control" accept=".xlsx, .xls" required></div>
+            <button type="submit" class="btn btn-primary">Upload</button>
+        </form>
+        <hr><h5>Example</h5><pre>username,class_name,subject
+john_teacher,S3,Mathematics
+john_teacher,S4,Physics</pre>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+{% block title %}Fee Management{% endblock %}
+{% block content %}
+<style>
+    .status-badge { padding: 5px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+    .table tbody tr:hover { background-color: #f5f5f5; }
+    .text-danger { color: #dc3545 !important; font-weight: bold; }
+</style>
+
+<div class="card shadow">
+    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+        <h5 class="mb-0"><i class="fas fa-users"></i> Student Fee Records</h5>
+        <div>
+            <button onclick="printSelectedStudents()" class="btn btn-light btn-sm">
+                <i class="fas fa-print"></i> Print Selected
+            </button>
+            <a href="{{ url_for('bursar_print_fees_list') }}" class="btn btn-light btn-sm" target="_blank">
+                <i class="fas fa-print"></i> Print All
+            </a>
+            <a href="{{ url_for('bursar_print_fees_list', status='defaulters') }}" class="btn btn-warning btn-sm" target="_blank">
+                <i class="fas fa-print"></i> Print All Defaulters
+            </a>
+            <button onclick="printDefaultersByClass()" class="btn btn-warning btn-sm">
+                <i class="fas fa-print"></i> Print Defaulters by Class
+            </button>
+        </div>
+    </div>
+    <div class="card-body">
+        <form method="GET" class="row g-2 mb-4">
+            <div class="col-md-4">
+                <input type="text" name="search" class="form-control form-control-sm" placeholder="Search by ID or Name" value="{{ search }}">
+            </div>
+            <div class="col-md-3">
+                <select name="class" class="form-select form-select-sm">
+                    <option value="">All Classes</option>
+                    {% for cls in classes %}
+                    <option value="{{ cls }}" {% if cls == class_filter %}selected{% endif %}>{{ cls }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-primary btn-sm w-100">Filter</button>
+            </div>
+            <div class="col-md-3">
+                <a href="{{ url_for('bursar_students') }}" class="btn btn-secondary btn-sm w-100">Reset</a>
+            </div>
+        </form>
+
+        <div class="table-responsive">
+            <table class="table table-bordered table-striped table-hover">
+                <thead class="table-dark">
+                    <tr style="text-align: center;">
+                        <th width="5%"><input type="checkbox" id="selectAll" onclick="toggleAll(this)"></th>
+                        <th width="10%">Student ID</th>
+                        <th width="20%">Full Name</th>
+                        <th width="8%">Class</th>
+                        <th width="12%">Total Fees (UGX)</th>
+                        <th width="12%">Paid (UGX)</th>
+                        <th width="12%">Balance (UGX)</th>
+                        <th width="12%">Parent Phone</th>
+                        <th width="9%">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for s in students %}
+                    <tr style="text-align: center;">
+                        <td><input type="checkbox" class="student-checkbox" value="{{ s.student_id }}"></td>
+                        <td><strong>{{ s.student_id }}</strong></td>
+                        <td style="text-align: left;"><strong>{{ s.full_name }}</strong></td>
+                        <td>{{ s.class }}</td>
+                        <td>{{ "{:,.2f}".format(s.fees_total|default(0)) }}</td>
+                        <td>{{ "{:,.2f}".format(s.fees_paid|default(0)) }}</td>
+                        <td class="{% if s.fees_balance|default(0) > 0 %}text-danger{% endif %}">
+                            {{ "{:,.2f}".format(s.fees_balance|default(0)) }}
+                        </td>
+                        <td>{{ s.parent_phone or '-' }}</td>
+                        <td>
+                            <div class="btn-group btn-group-sm">
+                                <a href="{{ url_for('bursar_student_detail', student_id=s.student_id) }}" class="btn btn-info" title="Record Payment">
+                                    <i class="fas fa-money-bill-wave"></i>
+                                </a>
+                                <a href="{{ url_for('bursar_send_reminder', student_id=s.student_id) }}" class="btn btn-warning" title="Send Reminder">
+                                    <i class="fas fa-bell"></i>
+                                </a>
+                                <a href="{{ url_for('bursar_clearance', student_id=s.student_id) }}" class="btn btn-success" title="Clearance Card">
+                                    <i class="fas fa-print"></i>
+                                </a>
+                            </div>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="9" class="text-center text-muted py-4">
+                            <i class="fas fa-folder-open fa-2x mb-2 d-block"></i>No students found.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+function toggleAll(source) {
+    var checkboxes = document.querySelectorAll('.student-checkbox');
+    for(var i = 0; i < checkboxes.length; i++) {
+        checkboxes[i].checked = source.checked;
+    }
+}
+
+function printSelectedStudents() {
+    var selected = [];
+    var checkboxes = document.querySelectorAll('.student-checkbox:checked');
+    for(var i = 0; i < checkboxes.length; i++) {
+        selected.push(checkboxes[i].value);
+    }
+    if(selected.length > 0) {
+        window.open('/bursar/print_fees_list?student_ids=' + selected.join(','), '_blank');
+    } else {
+        alert('Please select at least one student to print.');
+    }
+}
+
+function printDefaultersByClass() {
+    var className = prompt("Enter class (e.g., S3, S4) or leave empty for all classes:", "");
+    var url = '/bursar/print_fees_list?status=defaulters';
+    if(className && className.trim() !== '') {
+        url += '&class=' + encodeURIComponent(className.trim());
+    }
+    window.open(url, '_blank');
+}
+</script>
+{% endblock %}

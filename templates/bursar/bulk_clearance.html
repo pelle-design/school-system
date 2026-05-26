@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}Bulk Clearance Cards{% endblock %}
+{% block content %}
+<style>
+    @media print {
+        .no-print { display: none; }
+        .sidebar { display: none; }
+        .content-area { margin: 0; padding: 0; width: 100%; }
+        .clearance-card { page-break-inside: avoid; }
+    }
+    .clearance-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 15px;
+    }
+    .clearance-card {
+        border: 1px solid #000;
+        padding: 12px;
+        border-radius: 8px;
+        page-break-inside: avoid;
+        font-size: 10px;
+    }
+    .clearance-header { text-align: center; border-bottom: 1px solid #000; padding-bottom: 5px; margin-bottom: 8px; }
+    .clearance-title { font-size: 11px; font-weight: bold; text-transform: uppercase; }
+    .student-photo-small { width: 50px; height: 50px; object-fit: cover; border-radius: 50%; display: block; margin: 0 auto 8px auto; border: 1px solid #ddd; }
+    .cleared-text { font-size: 11px; font-weight: bold; color: green; text-align: center; margin: 6px 0; text-transform: uppercase; }
+    .signature { margin-top: 8px; text-align: center; border-top: 1px solid #000; padding-top: 5px; font-size: 8px; }
+    .student-details p { margin: 2px 0; }
+</style>
+
+<div class="no-print text-center mb-3">
+    <button onclick="window.print()" class="btn btn-primary">Print All Clearance Cards</button>
+    <a href="{{ url_for('bursar_students') }}" class="btn btn-secondary">Back</a>
+</div>
+
+<div class="clearance-grid">
+    {% for s in students %}
+    <div class="clearance-card">
+        <div class="clearance-header">
+            <div class="clearance-title">FEE CLEARANCE CARD</div>
+            <div><strong>{{ school_name|default('YOUR SCHOOL NAME') }}</strong></div>
+        </div>
+        
+        <div class="text-center">
+            <img src="{{ s.photo_url }}" class="student-photo-small" alt="Photo">
+        </div>
+        
+        <div class="student-details">
+            <p><strong>ID:</strong> {{ s.student_id }}</p>
+            <p><strong>Name:</strong> {{ s.full_name[:20] }}{% if s.full_name|length > 20 %}...{% endif %}</p>
+            <p><strong>Class:</strong> {{ s.class }}</p>
+        </div>
+        
+        <div class="cleared-text">✓ FULLY CLEARED ✓</div>
+        
+        <div class="signature">
+            <p>Authorized Signature & Stamp</p>
+            <p>{{ datetime.now().strftime('%d/%m/%Y') }}</p>
+        </div>
+    </div>
+    {% else %}
+    <div class="clearance-card">No students with zero balance found.</div>
+    {% endfor %}
+</div>
+{% endblock %}

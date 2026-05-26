@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Schedules{% endblock %}
+{% block content %}
+<div class="card shadow mb-4">
+    <div class="card-header bg-primary text-white">Upload Schedule</div>
+    <div class="card-body">
+        <form method="POST" enctype="multipart/form-data">
+            <div class="row"><div class="col-md-3"><select name="schedule_type" class="form-select" required><option>calendar</option><option>timetable</option></select></div>
+            <div class="col-md-3"><input name="term_scope" class="form-control" placeholder="e.g., 2024 Term 1" required></div>
+            <div class="col-md-6"><input type="file" name="schedule_file" class="form-control" accept=".csv"></div></div>
+            <div class="mt-2"><textarea name="schedule_text" rows="6" class="form-control" placeholder="Schedule content"></textarea></div>
+            <button type="submit" class="btn btn-primary mt-3">Save Schedule</button>
+        </form>
+    </div>
+</div>
+<div class="card shadow"><div class="card-header bg-secondary text-white">Existing Schedules</div><div class="card-body">
+    {% for sch in schedules %}<div class="mb-3"><h5>{{ sch[0]|capitalize }} - {{ sch[1] }} <small>({{ sch[3] }})</small></h5><pre class="bg-light p-2">{{ sch[2] }}</pre></div>{% else %}<p>No schedules yet.</p>{% endfor %}
+</div></div>
+{% endblock %}

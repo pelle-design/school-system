@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}Clearance Card - {{ student.full_name }}{% endblock %}
+{% block content %}
+<style>
+    @media print {
+        .no-print { display: none; }
+        .sidebar { display: none; }
+        .content-area { margin: 0; padding: 0; width: 100%; }
+        .clearance-card { border: 2px solid #000; box-shadow: none; margin: 0; }
+    }
+    .clearance-card {
+        max-width: 400px;
+        margin: 0 auto;
+        border: 2px solid #000;
+        border-radius: 10px;
+        padding: 20px;
+        background: white;
+    }
+    .clearance-header { text-align: center; border-bottom: 1px solid #000; padding-bottom: 10px; margin-bottom: 15px; }
+    .clearance-title { font-size: 18px; font-weight: bold; text-transform: uppercase; }
+    .student-photo { width: 100px; height: 100px; object-fit: cover; border-radius: 50%; border: 2px solid #ddd; display: block; margin: 0 auto 15px auto; }
+    .cleared-text { font-size: 18px; font-weight: bold; color: green; text-align: center; margin: 15px 0; text-transform: uppercase; }
+    .signature { margin-top: 20px; text-align: center; border-top: 1px solid #000; padding-top: 10px; }
+</style>
+
+<div class="no-print text-center mb-3">
+    <button onclick="window.print()" class="btn btn-primary">Print Clearance Card</button>
+    <a href="{{ url_for('bursar_student_detail', student_id=student.student_id) }}" class="btn btn-secondary">Back</a>
+</div>
+
+<div class="clearance-card">
+    <div class="clearance-header">
+        <div class="clearance-title">FEE CLEARANCE CARD</div>
+        <div><strong>{{ school_name|default('YOUR SCHOOL NAME') }}</strong></div>
+        <div style="font-size: 10px;">{{ school_address|default('P.O. Box 123, Kampala, Uganda') }}</div>
+    </div>
+    
+    <div class="text-center">
+        <img src="{{ student.photo_url }}" class="student-photo" alt="Student Photo">
+    </div>
+    
+    <p><strong>Student ID:</strong> {{ student.student_id }}</p>
+    <p><strong>Full Name:</strong> {{ student.full_name }}</p>
+    <p><strong>Class:</strong> {{ student.class }}</p>
+    <p><strong>Parent Phone:</strong> {{ student.parent_phone or 'Not registered' }}</p>
+    
+    <div class="cleared-text">✓ FULLY CLEARED ✓</div>
+    
+    <div class="signature">
+        <p>Authorized Signature & Stamp</p>
+        <p>Date: {{ datetime.now().strftime('%d/%m/%Y') }}</p>
+    </div>
+</div>
+
+<script>
+    window.onload = function() {
+        // Auto-print when page loads (optional - remove if not needed)
+        // window.print();
+    }
+</script>
+{% endblock %}

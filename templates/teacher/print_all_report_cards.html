@@ -1,0 +1,150 @@
+{% extends "base.html" %}
+{% block title %}All Report Cards - Class {{ class_name }}{% endblock %}
+{% block content %}
+<style>
+    @media print {
+        body { margin: 0; padding: 0; }
+        .no-print { display: none !important; }
+        .sidebar { display: none !important; }
+        .content-area { margin-left: 0 !important; padding: 0 !important; width: 100% !important; }
+        .card { box-shadow: none; border: none; margin: 0; padding: 0; page-break-after: always; }
+        .card:last-child { page-break-after: avoid; }
+        .marks-table th, .marks-table td { font-size: 9px !important; padding: 3px !important; white-space: nowrap; }
+        .student-photo { width: 80px !important; height: 80px !important; }
+        .school-logo { max-width: 60px !important; }
+        .school-header h2 { font-size: 16px; }
+        .school-header h3 { font-size: 14px; }
+        .school-header p { font-size: 10px; }
+        .comment-box p { font-size: 10px; }
+        .table-responsive { overflow: visible !important; }
+        .marks-table { width: 100% !important; table-layout: auto !important; }
+    }
+    @media screen {
+        .table-responsive { overflow-x: auto; }
+        .print-btn-container {
+            position: sticky;
+            top: 10px;
+            z-index: 1000;
+            background: white;
+            padding: 10px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+    }
+    .school-header { text-align: center; margin-bottom: 20px; }
+    .school-logo { max-width: 100px; height: auto; display: block; margin: 0 auto 10px auto; }
+    .student-photo { width: 100px; height: 100px; object-fit: cover; border-radius: 10px; }
+    .marks-table th, .marks-table td { text-align: center; vertical-align: middle; font-size: 11px; padding: 6px; }
+    .stamp { max-width: 100px; margin-top: 10px; }
+    .comment-box { border: 1px solid #ddd; padding: 10px; border-radius: 5px; background: #f9f9f9; }
+    .page-break { page-break-before: always; }
+</style>
+
+<!-- Print Button at the TOP -->
+<div class="print-btn-container no-print text-center">
+    <button onclick="window.print()" class="btn btn-primary btn-lg">
+        <i class="fas fa-print"></i> Print All Report Cards
+    </button>
+    <a href="{{ url_for('teacher_students') }}" class="btn btn-secondary btn-lg">
+        <i class="fas fa-arrow-left"></i> Back to Students
+    </a>
+</div>
+
+<!-- Report Cards -->
+{% for report in reports %}
+<div class="card shadow mb-4">
+    <div class="card-body">
+        <!-- School Header -->
+        <div class="school-header">
+            <img src="{{ school_logo_url }}" class="school-logo" alt="School Logo" onerror="this.style.display='none'">
+            <h2>{{ school_name }}</h2>
+            <p>{{ school_address }} | {{ school_phone }} | {{ school_email }}</p>
+            <hr>
+            <h3>END OF TERM REPORT CARD</h3>
+        </div>
+
+        <!-- Student Info -->
+        <div class="row mb-4">
+            <div class="col-md-2 text-center">
+                <img src="{{ report.photo_url }}" class="student-photo">
+            </div>
+            <div class="col-md-10">
+                <p><strong>Student Number:</strong> {{ report.student_id }}</p>
+                <p><strong>Full Name:</strong> {{ report.full_name }}</p>
+                <p><strong>Class:</strong> {{ class_name }} &nbsp;|&nbsp; <strong>Term:</strong> {{ term }} &nbsp;|&nbsp; <strong>Year:</strong> {{ year }}</p>
+            </div>
+        </div>
+
+        <!-- Marks Table -->
+        <div class="table-responsive">
+            <table class="table table-bordered marks-table">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Subject</th><th>AI1</th><th>AI2</th><th>AI3</th><th>AI4</th><th>AI5</th><th>AI6</th>
+                        <th>Avg(3.0)</th><th>AI(20%)</th><th>EOT(80%)</th><th>Total(100%)</th>
+                        <th>Grade</th><th>Identifier</th><th>Descriptor</th><th>Initials</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for m in report.marks %}
+                    <tr>
+                        <td>{{ m.subject }}</td>
+                        <td>{{ m.ai1 if m.ai1 else '-' }}</td>
+                        <td>{{ m.ai2 if m.ai2 else '-' }}</td>
+                        <td>{{ m.ai3 if m.ai3 else '-' }}</td>
+                        <td>{{ m.ai4 if m.ai4 else '-' }}</td>
+                        <td>{{ m.ai5 if m.ai5 else '-' }}</td>
+                        <td>{{ m.ai6 if m.ai6 else '-' }}</td>
+                        <td>{{ m.ai_average|round(1) if m.ai_average else '-' }}</td>
+                        <td>{{ m.ai_contribution|round(1) if m.ai_contribution else '-' }}</td>
+                        <td>{{ m.eot_score|round(1) if m.eot_score else '-' }}</td>
+                        <td>{{ m.total_score|round(1) if m.total_score else '-' }}</td>
+                        <td>{{ m.grade or '-' }}</td>
+                        <td>{{ m.identifier|round(1) if m.identifier else '-' }}</td>
+                        <td>{{ m.descriptor or '-' }}</td>
+                        <td>{{ m.teacher_initials or '-' }}</td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="16">No marks recorded.{% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- General Average -->
+        <div class="row mt-3">
+            <div class="col-md-6">
+                <p><strong>General Average (out of 3.0):</strong> {{ report.avg_out_of_3 }}</p>
+                <p><strong>General Grade:</strong> {{ report.general_grade }} - {{ report.general_descriptor }}</p>
+            </div>
+        </div>
+
+        <!-- COMMENTS SECTION - ADDED -->
+        <div class="row mt-4">
+            <div class="col-md-6">
+                    <strong>Class Teacher's Comment:</strong>
+                    <p>{{ report.teacher_comment or 'Not yet added' }}</p>
+            </div>
+            <div class="col-md-6">
+                    <strong>Headteacher's Comment & Stamp</strong>
+                    <p>{{ report.headteacher_comment or 'Not yet added' }}</p>
+                    {% if stamp_url %}
+                    <div class="text-center mt-3">
+                        <img src="{{ stamp_url }}" class="stamp" alt="Headteacher's Stamp">
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Term Dates -->
+        <div class="row mt-4">
+            <div class="col-md-12 text-center">
+                <p><strong>Next Term Begins:</strong> {{ next_term_begins or 'To be announced' }}</p>
+                <p><strong>Next Term Ends:</strong> {{ next_term_ends or 'To be announced' }}</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endfor %}
+{% endblock %}

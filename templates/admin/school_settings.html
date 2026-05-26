@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+{% block title %}School Settings{% endblock %}
+{% block content %}
+<div class="card shadow">
+    <div class="card-header bg-primary text-white">
+        <i class="fas fa-cogs"></i> School Settings
+    </div>
+    <div class="card-body">
+        <form method="POST" enctype="multipart/form-data">
+            <!-- School Information Section -->
+            <h5 class="mb-3">School Information</h5>
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label>School Name</label>
+                    <input type="text" name="school_name" class="form-control" value="{{ settings[3] if settings else 'YOUR SCHOOL NAME' }}">
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label>School Logo</label>
+                    <input type="file" name="logo" class="form-control" accept="image/*">
+                </div>
+                <div class="col-md-12 mb-3">
+                    <label>School Address</label>
+                    <input type="text" name="school_address" class="form-control" value="{{ settings[4] if settings else 'P.O. Box 123, Kampala, Uganda' }}">
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label>School Phone</label>
+                    <input type="text" name="school_phone" class="form-control" value="{{ settings[5] if settings else 'Tel: +256 712 345678' }}">
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label>School Email</label>
+                    <input type="email" name="school_email" class="form-control" value="{{ settings[6] if settings else 'info@school.com' }}">
+                </div>
+            </div>
+
+            <hr>
+
+            <!-- Term Dates Section -->
+            <h5 class="mb-3">Term Dates</h5>
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label>Next Term Begins</label>
+                    <input type="date" name="next_term_begins" class="form-control" value="{{ settings[0] }}">
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label>Next Term Ends</label>
+                    <input type="date" name="next_term_ends" class="form-control" value="{{ settings[1] }}">
+                </div>
+            </div>
+
+            <hr>
+
+            <!-- NSSF and PAYE Section -->
+            <h5 class="mb-3">NSSF & PAYE Tax Settings</h5>
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle"></i> These rates will be used to automatically calculate staff deductions during payroll generation.
+            </div>
+            <div class="row">
+                <div class="col-md-4 mb-3">
+                    <label>NSSF Employee Rate (%)</label>
+                    <input type="number" name="nssf_employee_rate" class="form-control" step="0.01" value="{{ nssf_rate|default(5.0) }}" required>
+                    <small class="text-muted">Percentage deducted from employee's gross salary</small>
+                </div>
+                <div class="col-md-4 mb-3">
+                    <label>PAYE Tax Rate (%)</label>
+                    <input type="number" name="paye_rate" class="form-control" step="0.01" value="{{ paye_rate|default(10.0) }}" required>
+                    <small class="text-muted">Percentage applied to taxable income</small>
+                </div>
+                <div class="col-md-4 mb-3">
+                    <label>PAYE Tax Threshold (UGX)</label>
+                    <input type="number" name="paye_threshold" class="form-control" step="0.01" value="{{ paye_threshold|default(235000) }}" required>
+                    <small class="text-muted">Income below this amount is not taxed</small>
+                </div>
+            </div>
+
+            <hr>
+
+            <!-- Stamp Section -->
+            <h5 class="mb-3">Headteacher Stamp</h5>
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label>Headteacher Stamp Image</label>
+                    <input type="file" name="stamp" class="form-control" accept="image/*">
+                    <small class="text-muted">Upload a stamp image (PNG or JPG)</small>
+                </div>
+                {% if settings and settings[2] %}
+                <div class="col-md-6 mb-3">
+                    <label>Current Stamp:</label><br>
+                    <img src="{{ url_for('uploaded_file', filename=settings[2]) }}" height="60" style="border:1px solid #ddd; padding:5px;">
+                </div>
+                {% endif %}
+            </div>
+
+            <hr>
+
+            <!-- Current Logo Display -->
+            {% if settings and settings[7] %}
+            <div class="mb-3">
+                <label>Current Logo:</label><br>
+                <img src="{{ url_for('uploaded_file', filename=settings[7]) }}" height="60" style="border:1px solid #ddd; padding:5px;">
+            </div>
+            {% endif %}
+
+            <button type="submit" class="btn btn-primary">Save All Settings</button>
+            <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">Cancel</a>
+        </form>
+    </div>
+</div>
+{% endblock %}

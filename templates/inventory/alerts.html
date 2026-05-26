@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}Inventory Alerts{% endblock %}
+{% block content %}
+<div class="card shadow">
+    <div class="card-header bg-danger text-white d-flex justify-content-between align-items-center">
+        <h5 class="mb-0"><i class="fas fa-bell"></i> Stock Alerts</h5>
+        <a href="{{ url_for('inventory_items') }}" class="btn btn-light btn-sm">
+            <i class="fas fa-boxes"></i> View All Items
+        </a>
+    </div>
+    <div class="card-body">
+        {% if alerts %}
+        <div class="table-responsive">
+            <table class="table table-bordered table-hover">
+                <thead class="table-dark">
+                    <tr style="text-align: center;">
+                        <th width="5%">#</th>
+                        <th width="15%">Item Code</th>
+                        <th width="25%">Item Name</th>
+                        <th width="10%">Current Stock</th>
+                        <th width="10%">Reorder Level</th>
+                        <th width="10%">Unit</th>
+                        <th width="15%">Alert Date</th>
+                        <th width="10%">Action</th>
+                    </td>
+                </thead>
+                <tbody>
+                    {% for alert in alerts %}
+                    <tr style="text-align: center;" class="table-warning">
+                        <td>{{ loop.index }}</td
+                        <td>{{ alert.item_code }}</td
+                        <td style="text-align: left;"><strong>{{ alert.item_name }}</strong></td
+                        <td class="text-danger fw-bold">{{ alert.quantity }}</td
+                        <td>{{ alert.reorder_level }}</td
+                        <td>{{ alert.unit }}</td
+                        <td>{{ alert.created_at.strftime('%Y-%m-%d %H:%M') if alert.created_at else '-' }}</td
+                        <td>
+                            <a href="{{ url_for('inventory_alert_read', alert_id=alert.id) }}" class="btn btn-sm btn-success" onclick="return confirm('Mark this alert as read?')">
+                                <i class="fas fa-check"></i> Acknowledge
+                            </a>
+                        </td
+                    </tr
+                    {% endfor %}
+                </tbody>
+            </table
+        </div>
+        {% else %}
+        <div class="text-center py-5">
+            <i class="fas fa-check-circle fa-4x text-success mb-3"></i>
+            <h4>No Active Alerts</h4>
+            <p class="text-muted">All inventory items are at satisfactory levels.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

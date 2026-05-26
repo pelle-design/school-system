@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block title %}View Payroll - {{ payroll.payroll_no }}{% endblock %}
+{% block content %}
+<div class="card shadow">
+    <div class="card-header bg-danger text-white">
+        <i class="fas fa-credit-card"></i> Payroll Details: {{ payroll.payroll_no }}
+    </div>
+    <div class="card-body">
+        <!-- Summary Row -->
+        <div class="row mb-4">
+            <div class="col-md-4">
+                <div class="alert alert-info">
+                    <strong>Month/Year:</strong> {{ payroll.month_year }}<br>
+                    <strong>Total Amount:</strong> UGX {{ "{:,.2f}".format(payroll.total_amount) }}<br>
+                    <strong>Staff Count:</strong> {{ staff_list|length }}
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="alert alert-warning">
+                    <strong>Approved By:</strong> {{ payroll.approved_by or 'Headteacher' }}<br>
+                    <strong>Approved Date:</strong> {{ payroll.approved_at.strftime('%Y-%m-%d %H:%M') if payroll.approved_at else '-' }}
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="alert alert-secondary">
+                    <strong>Status:</strong>
+                    {% if payroll.management_approval_status == 'pending' %}
+                        <span class="badge bg-warning">Pending Authorization</span>
+                    {% elif payroll.management_approval_status == 'approved' %}
+                        <span class="badge bg-success">Authorized</span>
+                    {% else %}
+                        <span class="badge bg-danger">Rejected</span>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Staff Table -->
+        <h5 class="mb-3"><i class="fas fa-list"></i> Staff Payment Details</h5>
+        <div class="table-responsive">
+            <table class="table table-bordered table-striped">
+                <thead class="table-dark">
+                    <tr style="text-align: center;">
+                        <th width="5%">#</th>
+                        <th width="20%">Staff Name</th>
+                        <th width="15%">Position</th>
+                        <th width="15%">Bank Account</th>
+                        <th width="15%">Bank Name</th>
+                        <th width="10%">NSSF No</th>
+                        <th width="10%">TIN No</th>
+                        <th width="10%">Net Salary (UGX)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for s in staff_list %}
+                    <tr style="text-align: center;">
+                        <td>{{ loop.index }}</td>
+                        <td style="text-align: left;"><strong>{{ s.full_name }}</strong></td>
+                        <td>{{ s.position }}</td>
+                        <td>{{ s.bank_account or 'Mobile Money' }}</td>
+                        <td>{{ s.bank_name or '-' }}</td>
+                        <td>{{ s.nssf_number or '-' }}</td>
+                        <td>{{ s.tin_number or '-' }}</td>
+                        <td class="bg-light fw-bold">UGX {{ "{:,.2f}".format(s.net_salary) }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                <tfoot class="table-secondary">
+                    <tr style="text-align: center;">
+                        <td colspan="7" class="text-end fw-bold"><strong>TOTAL:</strong></td>
+                        <td class="bg-success text-white fw-bold"><strong>UGX {{ "{:,.2f}".format(payroll.total_amount) }}</strong></td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="row mt-4">
+            <div class="col-md-12">
+                <a href="{{ url_for('management_pending_authorizations') }}" class="btn btn-secondary">
+                    <i class="fas fa-arrow-left"></i> Back to Authorizations
+                </a>
+                <div class="float-end">
+                    <a href="{{ url_for('management_reject_authorization', payroll_id=payroll.id) }}" class="btn btn-danger me-2" onclick="return confirm('Reject this payment authorization?')">
+                        <i class="fas fa-times-circle"></i> Reject
+                    </a>
+                    <a href="{{ url_for('management_authorization_access', token=payroll.management_access_token) }}" class="btn btn-success">
+                        <i class="fas fa-check-double"></i> Authorize Payment
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

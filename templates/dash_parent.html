@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Parent Dashboard{% endblock %}
+{% block content %}
+<div class="card shadow">
+    <div class="card-header bg-primary text-white">My Children</div>
+    <div class="card-body">
+        {% if children %}
+        <table class="table">
+            <thead>
+                <tr><th>Student ID</th><th>Full Name</th><th>Class</th></tr>
+            </thead>
+            <tbody>
+                {% for child in children %}
+                <tr>
+                    <td>{{ child[0] }}</td>
+                    <td>{{ child[1] }}</td>
+                    <td>{{ child[2] }}</td>
+                    <td><a href="{{ url_for('teacher_report_card', student_id=child[0]) }}" class="btn btn-sm btn-info">View Report Card</a></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p>No children linked to your account.</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

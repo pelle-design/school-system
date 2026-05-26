@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Print Receipts</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: Arial, sans-serif; background: #fff; padding: 10px; }
+        .receipt-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; }
+        .receipt {
+            border: 1px dashed #ccc;
+            padding: 12px;
+            border-radius: 8px;
+            page-break-inside: avoid;
+            font-size: 10px;
+        }
+        .receipt-header { text-align: center; margin-bottom: 8px; border-bottom: 1px solid #000; padding-bottom: 5px; }
+        .receipt-title { font-size: 14px; font-weight: bold; margin: 0; }
+        .receipt-school { font-size: 12px; font-weight: bold; }
+        .receipt-address { font-size: 9px; color: #555; }
+        .receipt-details { width: 100%; margin: 8px 0; border-collapse: collapse; }
+        .receipt-details td { padding: 3px 0; vertical-align: top; }
+        .receipt-details td:first-child { font-weight: bold; width: 35%; }
+        .amount-word { font-size: 9px; font-style: italic; margin: 5px 0; }
+        .receipt-footer { text-align: center; margin-top: 8px; padding-top: 5px; border-top: 1px dotted #ccc; font-size: 8px; }
+        .stamp { text-align: center; margin-top: 5px; font-family: cursive; font-size: 10px; }
+        @media print {
+            body { padding: 0; margin: 0; }
+            .no-print { display: none; }
+        }
+    </style>
+</head>
+<body>
+    <div class="no-print" style="text-align: center; margin-bottom: 20px;">
+        <button onclick="window.print()" class="btn btn-primary">Print Receipts</button>
+        <button onclick="window.close()" class="btn btn-secondary">Close</button>
+    </div>
+    
+    {% if receipts and receipts|length > 0 %}
+    <div class="receipt-grid">
+        {% for receipt in receipts %}
+        <div class="receipt">
+            <div class="receipt-header">
+                <div class="receipt-title">OFFICIAL RECEIPT</div>
+                <div class="receipt-school">{{ school_name|default('YOUR SCHOOL NAME') }}</div>
+                <div class="receipt-address">{{ school_address|default('P.O. Box 123, Kampala, Uganda') }}</div>
+            </div>
+            <table class="receipt-details">
+                <tr><td>Receipt No:</td><td>{{ receipt.receipt_no }}</td></tr>
+                <tr><td>Date:</td><td>{{ receipt.payment_date }}</td></tr>
+                <tr><td>Student Name:</td><td>{{ receipt.full_name }}</td></tr>
+                <tr><td>Student ID:</td><td>{{ receipt.student_id }}</td></tr>
+                <tr><td>Class:</td><td>{{ receipt.class }}</td></tr>
+                <tr><td>Amount Paid:</td><td><strong>UGX {{ "{:,.2f}".format(receipt.amount) }}</strong></td></tr>
+                <tr><td>Payment Method:</td><td>{{ receipt.payment_method }}</td></tr>
+                <tr><td>Received By:</td><td>{{ receipt.recorded_by or 'Bursar' }}</td></tr>
+            </table>
+            <div class="amount-word">
+                Amount in Words: {{ receipt.amount|word_format|default('') }}
+            </div>
+            <div class="stamp">AUTHORIZED SIGNATURE / STAMP</div>
+            <div class="receipt-footer">
+                {{ receipt_footer|default('Thank you for your payment') }}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="receipt" style="text-align: center; padding: 40px;">
+        No receipts selected. Please go back and select at least one receipt.
+    </div>
+    {% endif %}
+    
+    <script>
+        {% if receipts and receipts|length > 0 %}
+        window.onload = function() { window.print(); }
+        {% endif %}
+    </script>
+</body>
+</html>

@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %}Pending Approvals{% endblock %}
+{% block content %}
+<style>
+    .status-badge { display: inline-block; padding: 5px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+    .table th, .table td { vertical-align: middle; padding: 12px; }
+    .action-buttons { display: flex; gap: 5px; justify-content: center; }
+</style>
+
+<div class="card shadow">
+    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+        <h5 class="mb-0"><i class="fas fa-clock"></i> Pending Payroll Approvals</h5>
+        <span class="badge bg-light text-dark">{{ pending|length }} pending</span>
+    </div>
+    <div class="card-body">
+        {% if pending %}
+        <div class="table-responsive">
+            <table class="table table-bordered table-striped table-hover">
+                <thead class="table-dark">
+                    <tr>
+                        <th style="text-align: center; width: 5%;">#</th>
+                        <th style="text-align: left; width: 20%;">Payroll No</th>
+                        <th style="text-align: left; width: 12%;">Month/Year</th>
+                        <th style="text-align: right; width: 18%;">Total Amount (UGX)</th>
+                        <th style="text-align: center; width: 10%;">Staff Count</th>
+                        <th style="text-align: left; width: 15%;">Created</th>
+                        <th style="text-align: center; width: 20%;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for p in pending %}
+                    <tr>
+                        <td style="text-align: center;">{{ loop.index }}</td>
+                        <td style="text-align: left;"><strong>{{ p.payroll_no }}</strong></td>
+                        <td style="text-align: left;">{{ p.month_year }}</td>
+                        <td style="text-align: right;">{{ "{:,.2f}".format(p.total_amount) }}</td>
+                        <td style="text-align: center;">{{ p.staff_count or 0 }}</td>
+                        <td style="text-align: left;">{{ p.created_at.strftime('%Y-%m-%d %H:%M') if p.created_at else '-' }}</td>
+                        <td style="text-align: center;">
+                            <div class="action-buttons">
+                                <a href="{{ url_for('headteacher_view_payroll', payroll_id=p.id) }}" class="btn btn-info btn-sm" title="View Details">
+                                    <i class="fas fa-eye"></i> View
+                                </a>
+                                <a href="{{ url_for('headteacher_approval_access', token=p.headteacher_access_token) }}" class="btn btn-success btn-sm" title="Approve">
+                                    <i class="fas fa-check-circle"></i> Approve
+                                </a>
+                                <a href="{{ url_for('headteacher_reject_payroll', payroll_id=p.id) }}" class="btn btn-danger btn-sm" onclick="return confirm('Reject this payroll?')" title="Reject">
+                                    <i class="fas fa-times-circle"></i> Reject
+                                </a>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                <tfoot class="table-secondary">
+                    <tr>
+                        <td colspan="3" style="text-align: right;"><strong>TOTAL:</strong></td>
+                        <td style="text-align: right;"><strong>UGX {{ "{:,.2f}".format(pending|sum(attribute='total_amount')) }}</strong></td>
+                        <td colspan="3"></td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+        {% else %}
+        <div class="alert alert-success text-center py-4">
+            <i class="fas fa-check-circle fa-3x mb-2 d-block"></i>
+            <h5>No Pending Approvals</h5>
+            <p class="mb-0">All payrolls have been processed.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

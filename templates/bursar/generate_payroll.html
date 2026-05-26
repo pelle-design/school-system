@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}Generate Payroll{% endblock %}
+{% block content %}
+<div class="card shadow">
+    <div class="card-header bg-primary text-white">Generate Monthly Payroll</div>
+    <div class="card-body">
+        <form method="POST">
+            <div class="mb-3">
+                <label>Month/Year</label>
+                <input type="month" name="month_year" class="form-control" required>
+            </div>
+            <div class="mb-3">
+                <label>Select Staff to Pay</label>
+                <div class="border p-3" style="max-height: 400px; overflow-y: auto;">
+                    <div class="mb-2">
+                        <input type="checkbox" id="selectAll" onclick="toggleAll(this)"> Select All
+                    </div>
+                    {% for staff in staff_list %}
+                    <div class="form-check">
+                        <input type="checkbox" class="form-check-input staff-checkbox" name="staff_ids" value="{{ staff.id }}">
+                        <label class="form-check-label">
+                            {{ staff.full_name }} - {{ staff.position }} (UGX {{ "{:,.2f}".format(staff.salary_net) }})
+                        </label>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            <button type="submit" class="btn btn-primary">Generate Payroll</button>
+            <a href="{{ url_for('bursar_staff') }}" class="btn btn-secondary">Cancel</a>
+        </form>
+    </div>
+</div>
+<script>
+function toggleAll(source) {
+    var checkboxes = document.querySelectorAll('.staff-checkbox');
+    for(var i = 0; i < checkboxes.length; i++) {
+        checkboxes[i].checked = source.checked;
+    }
+}
+</script>
+{% endblock %}

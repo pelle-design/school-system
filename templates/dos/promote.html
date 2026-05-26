@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}Promote Students{% endblock %}
+{% block content %}
+<div class="card shadow">
+    <div class="card-header bg-primary text-white">Promote Students to Next Class</div>
+    <div class="card-body">
+        <form method="POST">
+            <div class="mb-3"><label>Select Class to Promote</label><select name="from_class" class="form-select" required><option value="">-- Choose class --</option>{% for cls in classes %}<option value="{{ cls }}">{{ cls }}</option>{% endfor %}</select></div>
+            <button type="submit" class="btn btn-warning" onclick="return confirm('Promote all students?')">Promote</button>
+        </form>
+    </div>
+</div>
+{% endblock %}

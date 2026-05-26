@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+{% block title %}Fee Details - {{ student.full_name }}{% endblock %}
+{% block content %}
+<div class="row">
+    <div class="col-md-4 mb-3">
+        <div class="card shadow">
+            <div class="card-header bg-primary text-white">Student Information</div>
+            <div class="card-body">
+                <p><strong>Student ID:</strong> {{ student.student_id }}</p>
+                <p><strong>Full Name:</strong> {{ student.full_name }}</p>
+                <p><strong>Class:</strong> {{ student.class }}</p>
+                <p><strong>Parent Phone:</strong> {{ student.parent_phone or 'Not registered' }}</p>
+                <hr>
+                <p><strong>Total Fees:</strong> UGX {{ student.fees_total|round(2) }}</p>
+                <p><strong>Amount Paid:</strong> UGX {{ student.fees_paid|round(2) }}</p>
+                <p class="fw-bold {% if student.fees_balance > 0 %}text-danger{% else %}text-success{% endif %}">
+                    <strong>Balance:</strong> UGX {{ student.fees_balance|round(2) }}
+                </p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-8 mb-3">
+        <div class="card shadow">
+            <div class="card-header bg-primary text-white">Record Payment</div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('bursar_record_payment') }}">
+                    <input type="hidden" name="student_id" value="{{ student.student_id }}">
+                    <div class="row">
+                        <div class="col-md-4 mb-2">
+                            <label>Amount (UGX)</label>
+                            <input type="number" name="amount" class="form-control" step="0.01" required>
+                        </div>
+                        <div class="col-md-3 mb-2">
+                            <label>Payment Method</label>
+                            <select name="payment_method" class="form-select">
+                                <option>Cash</option>
+                                <option>Bank Transfer</option>
+                                <option>Mobile Money</option>
+                                <option>Cheque</option>
+                            </select>
+                        </div>
+                        <div class="col-md-5 mb-2">
+                            <label>Notes (Optional)</label>
+                            <input type="text" name="notes" class="form-control" placeholder="Receipt notes...">
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-success mt-2">Record Payment</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+<div class="card shadow">
+    <div class="card-header bg-secondary text-white d-flex justify-content-between">
+        <span>Payment History</span>
+        <button onclick="printSelectedReceipts()" class="btn btn-light btn-sm">Print Selected Receipts</button>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th><input type="checkbox" id="selectAll" onclick="toggleAll(this)"></th>
+                        <th>Receipt No</th>
+                        <th>Amount</th>
+                        <th>Date</th>
+                        <th>Method</th>
+                        <th>Recorded By</th>
+                        <th>Notes</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for p in payments %}
+                    <tr>
+                        <td><input type="checkbox" class="receipt-checkbox" value="{{ p.id }}"></td>
+                        <td>{{ p.receipt_no }}</td>
+                        <td>UGX {{ "{:,.2f}".format(p.amount) }}</td>
+                        <td>{{ p.payment_date }}</td>
+                        <td>{{ p.payment_method }}</td>
+                        <td>{{ p.recorded_by or '-' }}</td>
+                        <td>{{ p.notes or '-' }}</td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="7">No payment records found.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div class="mt-3">
+    <a href="{{ url_for('bursar_clearance', student_id=student.student_id) }}" class="btn btn-info">
+    <i class="fas fa-print"></i> Clearance Card
+    </a>
+    <a href="{{ url_for('bursar_send_reminder', student_id=student.student_id) }}" class="btn btn-warning">Send Reminder</a>
+    <a href="{{ url_for('bursar_students') }}" class="btn btn-outline-primary">Back to Students</a>
+</div>
+<script>
+function toggleAll(source) {
+    var checkboxes = document.querySelectorAll('.receipt-checkbox');
+    for(var i = 0; i < checkboxes.length; i++) {
+        checkboxes[i].checked = source.checked;
+    }
+}
+
+function printSelectedReceipts() {
+    var selected = [];
+    var checkboxes = document.querySelectorAll('.receipt-checkbox:checked');
+    for(var i = 0; i < checkboxes.length; i++) {
+        selected.push(checkboxes[i].value);
+    }
+    if(selected.length > 0) {
+        window.open('/bursar/print_receipts?ids=' + selected.join(','), '_blank');
+    } else {
+        alert('Please select at least one receipt');
+    }
+}
+</script>
+{% endblock %}

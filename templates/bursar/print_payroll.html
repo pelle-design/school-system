@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Payroll Report</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .header { text-align: center; margin-bottom: 30px; }
+        .header h2 { margin: 5px 0; }
+        .header p { color: #666; font-size: 12px; }
+        .header h3 { margin: 10px 0; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 12px; }
+        th, td { border: 1px solid #ddd; padding: 6px; }
+        th { background-color: #f2f2f2; font-weight: bold; text-align: center; }
+        td { text-align: left; }
+        .text-right { text-align: right; }
+        .footer { margin-top: 30px; text-align: center; font-size: 12px; color: #666; }
+        .totals { margin-top: 20px; padding-top: 10px; border-top: 2px solid #000; }
+        .totals table { width: auto; float: right; margin-top: 0; }
+        .totals td { border: none; padding: 5px; }
+        @media print {
+            body { padding: 0; margin: 0; }
+            .no-print { display: none; }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h2>{{ school_name|default('YOUR SCHOOL NAME') }}</h2>
+        <p>{{ school_address|default('P.O. Box 123, Kampala, Uganda') }} | {{ school_phone|default('Tel: +256 712 345678') }}</p>
+        <h3>PAYROLL REPORT</h3>
+        <p>Date: {{ datetime.now().strftime('%d/%m/%Y') }}</p>
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th rowspan="2">Staff No</th>
+                <th rowspan="2">Full Name</th>
+                <th rowspan="2">Position</th>
+                <th colspan="3">Earnings (UGX)</th>
+                <th colspan="3">Deductions (UGX)</th>
+                <th rowspan="2">Net Salary (UGX)</th>
+            </tr>
+            <tr style="text-align: center;">
+                <th>Basic</th><th>Allowances</th><th>Gross</th>
+                <th>NSSF</th><th>PAYE</th><th>Other</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for s in staff_list %}
+            <tr>
+                <td style="text-align: center;">{{ s.staff_no }}</td>
+                <td>{{ s.full_name }}</td>
+                <td>{{ s.position }}</td>
+                <td class="text-right">{{ "{:,.2f}".format(s.salary_basic) }}</td>
+                <td class="text-right">{{ "{:,.2f}".format(s.salary_allowances) }}</td>
+                <td class="text-right"><strong>{{ "{:,.2f}".format(s.salary_basic + s.salary_allowances) }}</strong></td>
+                <td class="text-right">{{ "{:,.2f}".format(s.nssf_employee|default(0)) }}</td>
+                <td class="text-right">{{ "{:,.2f}".format(s.paye_tax|default(0)) }}</td>
+                <td class="text-right">{{ "{:,.2f}".format(s.salary_deductions) }}</td>
+                <td class="text-right"><strong>{{ "{:,.2f}".format(s.salary_net) }}</strong></td>
+            </tr>
+            {% else %}
+            <tr><td colspan="10" style="text-align: center;">No staff records found.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <div class="totals">
+        <table>
+            <tr><td><strong>Total Basic:</strong></td><td class="text-right"><strong>{{ "{:,.2f}".format(total_basic) }}</strong></td></tr>
+            <tr><td><strong>Total Allowances:</strong></td><td class="text-right"><strong>{{ "{:,.2f}".format(total_allowances) }}</strong></td></tr>
+            <tr><td><strong>Total Gross:</strong></td><td class="text-right"><strong>{{ "{:,.2f}".format(total_gross) }}</strong></td></tr>
+            <tr><td><strong>Total NSSF:</strong></td><td class="text-right"><strong>{{ "{:,.2f}".format(total_nssf) }}</strong></td></tr>
+            <tr><td><strong>Total PAYE:</strong></td><td class="text-right"><strong>{{ "{:,.2f}".format(total_paye) }}</strong></td></tr>
+            <tr><td><strong>Total Other Deductions:</strong></td><td class="text-right"><strong>{{ "{:,.2f}".format(total_deductions) }}</strong></td></tr>
+            <tr style="border-top: 2px solid #000;"><td><strong>GRAND TOTAL (NET):</strong></td><td class="text-right"><strong>{{ "{:,.2f}".format(total_net) }}</strong></td></tr>
+        </table>
+        <div style="clear: both;"></div>
+    </div>
+
+    <div class="footer">
+        <p>This is a system-generated report. No signature required.</p>
+        <p>NSSF Employee Rate: {{ nssf_rate|default('5') }}% | PAYE Rate: {{ paye_rate|default('10') }}% (on amounts above UGX {{ paye_threshold|default('235,000') }})</p>
+    </div>
+
+    <div class="no-print" style="text-align: center; margin-top: 20px;">
+        <button onclick="window.print()" style="padding: 8px 20px; margin: 5px; cursor: pointer;">Print</button>
+        <button onclick="window.close()" style="padding: 8px 20px; margin: 5px; cursor: pointer;">Close</button>
+    </div>
+
+    <script>
+        window.onload = function() { window.print(); }
+    </script>
+</body>
+</html>

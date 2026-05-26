@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+{% block title %}Class Lists{% endblock %}
+{% block content %}
+<style>
+    @media print {
+        .no-print { display: none !important; }
+        .sidebar { display: none !important; }
+        .content-area { margin-left: 0 !important; padding: 0 !important; width: 100% !important; }
+        .card { box-shadow: none; border: 1px solid #ddd; }
+        .card-header { background: white !important; color: black !important; }
+        .table th, .table td { padding: 4px !important; font-size: 10px !important; }
+        .student-photo { width: 25px !important; height: 25px !important; }
+        .print-title { display: block !important; }
+        .action-column { display: none !important; }
+        .filter-form { display: none; }
+        .btn { display: none; }
+        .badge { font-size: 8px !important; }
+    }
+    .print-title { display: none; margin-bottom: 20px; text-align: center; }
+    .print-title h3 { margin: 0; font-size: 18px; }
+    .print-title p { margin: 5px 0; color: #666; font-size: 12px; }
+    .student-photo { width: 40px; height: 40px; object-fit: cover; border-radius: 50%; }
+    .badge-local { background-color: #28a745; color: white; padding: 3px 8px; border-radius: 15px; font-size: 10px; }
+    .badge-online { background-color: #17a2b8; color: white; padding: 3px 8px; border-radius: 15px; font-size: 10px; }
+    .table th { white-space: nowrap; }
+    .table td { vertical-align: middle; }
+</style>
+
+<div class="card shadow">
+    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+        <h5 class="mb-0"><i class="fas fa-users"></i> Student Class Lists</h5>
+        <button onclick="window.print()" class="btn btn-light btn-sm no-print">
+            <i class="fas fa-print"></i> Print List
+        </button>
+    </div>
+    <div class="card-body">
+        <!-- Print Title -->
+        <div class="print-title">
+            <h3>Student Class List</h3>
+            <p>
+                <strong>Class:</strong> {% if selected_class %}{{ selected_class }}{% else %}All Classes{% endif %} &nbsp;|&nbsp;
+                <strong>Term:</strong> {{ request.args.get('term', 'Term 1') }} &nbsp;|&nbsp;
+                <strong>Year:</strong> {{ datetime.now().year }} &nbsp;|&nbsp;
+                <strong>Date:</strong> {{ datetime.now().strftime('%d/%m/%Y') }}
+            </p>
+            <hr>
+        </div>
+
+        <!-- Filter Form -->
+        <form method="GET" class="row g-2 mb-4 filter-form no-print">
+            <div class="col-md-2">
+                <select name="class" class="form-select form-select-sm">
+                    <option value="">All Classes</option>
+                    {% for cls in classes %}
+                    <option value="{{ cls }}" {% if cls == selected_class %}selected{% endif %}>{{ cls }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <select name="source" class="form-select form-select-sm">
+                    <option value="">All Sources</option>
+                    <option value="local">Local</option>
+                    <option value="online">Online</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <input type="text" name="term" class="form-control form-control-sm" value="{{ request.args.get('term', 'Term 1') }}" placeholder="Term">
+            </div>
+            <div class="col-md-3">
+                <input type="text" name="search" class="form-control form-control-sm" value="{{ search|default('') }}" placeholder="Search ID or Name">
+            </div>
+            <div class="col-md-3">
+                <button type="submit" class="btn btn-primary btn-sm">Filter</button>
+                <a href="{{ url_for('dos_class_lists') }}" class="btn btn-secondary btn-sm">Reset</a>
+            </div>
+        </form>
+
+        <!-- Student Table -->
+        <div class="table-responsive">
+            <table class="table table-bordered table-striped table-hover">
+                <thead class="table-dark">
+                    <tr style="text-align: center;">
+                        <th style="width: 5%;">#</th>
+                        <th style="width: 12%;">Student ID</th>
+                        <th style="width: 8%;">Photo</th>
+                        <th style="width: 18%;">Full Name</th>
+                        <th style="width: 8%;">Class</th>
+                        <th style="width: 6%;">Sex</th>
+                        <th style="width: 5%;">Age</th>
+                        <th style="width: 10%;">House</th>
+                        <th style="width: 10%;">LIN</th>
+                        <th style="width: 8%;">Source</th>
+                        <th style="width: 10%;">Parent Phone</th>
+                        <th style="width: 10%;" class="action-column">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for s in students %}
+                    <tr style="text-align: center;">
+                        <td>{{ loop.index }}</td>
+                        <td>{{ s.student_id }}</td>
+                        <td><img src="{{ s.photo_url }}" class="student-photo" alt="Photo"></td>
+                        <td style="text-align: left;"><strong>{{ s.full_name }}</strong></td>
+                        <td><span class="badge bg-secondary">{{ s.class }}</span></td>
+                        <td>{{ s.sex or '-' }}</td>
+                        <td>{{ s.age or '-' }}</td>
+                        <td>{{ s.preferred_house or '-' }}</td>
+                        <td>{{ s.lin or '-' }}</td>
+                        <td>
+                            {% if s.admission_source == 'local' %}
+                                <span class="badge-local">Local</span>
+                            {% elif s.admission_source == 'online' %}
+                                <span class="badge-online">Online</span>
+                            {% else %}
+                                <span class="badge bg-warning">Pending</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ s.parent_phone or '-' }}</td>
+                        <td class="action-column">
+                            <div class="btn-group btn-group-sm">
+                                <a href="{{ url_for('dos_report_card', student_id=s.student_id) }}" class="btn btn-info" title="View Report">
+                                    <i class="fas fa-eye"></i>
+                                </a>
+                                <form method="POST" action="{{ url_for('dos_remove_student', student_id=s.student_id) }}" style="display:inline;" onsubmit="return confirm('Remove this student permanently?')">
+                                    <button type="submit" class="btn btn-danger" title="Remove">
+                                        <i class="fas fa-trash-alt"></i>
+                                    </button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="12" class="text-center text-muted py-4">
+                            <i class="fas fa-folder-open fa-2x mb-2 d-block"></i>No students found.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

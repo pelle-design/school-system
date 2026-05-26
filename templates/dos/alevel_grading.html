@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}A-Level Grading{% endblock %}
+{% block content %}
+<div class="card shadow mb-4">
+    <div class="card-header bg-primary text-white">A-Level Grading System</div>
+    <div class="card-body">
+        <form method="POST" enctype="multipart/form-data">
+            <div class="mb-3"><label>Excel File (.xlsx)</label><input type="file" name="grading_file" class="form-control" accept=".xlsx, .xls" required></div>
+            <button type="submit" class="btn btn-primary">Upload & Replace</button>
+        </form>
+        <hr><h5>Current Rules</h5>
+        <table class="table table-sm"><thead><tr><th>Min Score</th><th>Max Score</th><th>Grade</th><th>Points</th></tr></thead>
+        <tbody>{% for r in rules %}<tr><td>{{ r[0] }}</td><td>{{ r[1] }}</td><td>{{ r[2] }}</td><td>{{ r[3] }}</td></tr>{% endfor %}</tbody></table>
+    </div>
+</div>
+{% endblock %}

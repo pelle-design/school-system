@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Approve Payroll</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; }
+        .card { border-radius: 20px; }
+        .table td, .table th { vertical-align: middle; }
+    </style>
+</head>
+<body class="d-flex align-items-center">
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-md-10">
+            <div class="card shadow">
+                <div class="card-header bg-primary text-white text-center">
+                    <h4>Approve Payroll</h4>
+                </div>
+                <div class="card-body">
+                    {% if remaining_minutes %}
+                    <div class="alert alert-warning">
+                        <i class="fas fa-clock"></i> This link expires in <strong>{{ remaining_minutes }}</strong> minutes.
+                    </div>
+                    {% endif %}
+                    
+                    <div class="alert alert-info">
+                        <strong>Payroll No:</strong> {{ payroll.payroll_no }}<br>
+                        <strong>Month/Year:</strong> {{ payroll.month_year }}<br>
+                        <strong>Total Amount:</strong> UGX {{ "{:,.2f}".format(payroll.total_amount) }}<br>
+                        <strong>Staff Count:</strong> {{ staff_list|length }}
+                    </div>
+                    
+                    <h5>Staff Details</h5>
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-striped">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th>Staff Name</th>
+                                    <th>Position</th>
+                                    <th>Gross Salary</th>
+                                    <th>NSSF</th>
+                                    <th>PAYE</th>
+                                    <th>Other Deductions</th>
+                                    <th>Net Salary</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for s in staff_list %}
+                                <tr>
+                                    <td>{{ s.full_name }}</td>
+                                    <td>{{ s.position }}</td>
+                                    <td class="text-end">UGX {{ "{:,.2f}".format(s.gross_salary) }}</td>
+                                    <td class="text-end">UGX {{ "{:,.2f}".format(s.nssf_employee) }}</td>
+                                    <td class="text-end">UGX {{ "{:,.2f}".format(s.paye_tax) }}</td>
+                                    <td class="text-end">UGX {{ "{:,.2f}".format(s.deductions) }}</td>
+                                    <td class="text-end fw-bold">UGX {{ "{:,.2f}".format(s.net_salary) }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                            <tfoot class="table-secondary">
+                                <tr>
+                                    <td colspan="6" class="text-end fw-bold">Total:</td>
+                                    <td class="text-end fw-bold">UGX {{ "{:,.2f}".format(payroll.total_amount) }}</td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                    
+                    <form method="POST" class="mt-4">
+                        <div class="mb-3">
+                            <label>Approval Code (sent to your phone)</label>
+                            <input type="text" name="approval_code" class="form-control" required placeholder="Enter 6-digit code">
+                        </div>
+                        <div class="mb-3">
+                            <label>Decision</label>
+                            <select name="action" class="form-select" required>
+                                <option value="approve">Approve Payroll</option>
+                                <option value="reject">Reject Payroll</option>
+                            </select>
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100">Submit Decision</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+</body>
+</html>

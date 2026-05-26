@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}All Students{% endblock %}
+{% block content %}
+<div class="card shadow">
+    <div class="card-header bg-primary text-white">
+        <i class="fas fa-users"></i> All Students
+    </div>
+    <div class="card-body">
+        <!-- Search Form -->
+        <form method="GET" class="row g-3 mb-4">
+            <div class="col-md-4">
+                <input type="text" name="search" class="form-control" placeholder="Search by ID or Name" value="{{ search }}">
+            </div>
+            <div class="col-md-3">
+                <select name="class" class="form-select">
+                    <option value="">All Classes</option>
+                    {% for cls in classes %}
+                    <option value="{{ cls }}" {% if cls == class_filter %}selected{% endif %}>{{ cls }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-primary w-100">Filter</button>
+            </div>
+            <div class="col-md-3">
+                <a href="{{ url_for('headteacher_students') }}" class="btn btn-secondary w-100">Reset</a>
+            </div>
+        </form>
+
+        <!-- Students Table -->
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead class="table-light">
+                    <tr>
+                        <th>Student ID</th>
+                        <th>Photo</th>
+                        <th>Full Name</th>
+                        <th>Class</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for s in students %}
+                    <tr>
+                        <td>{{ s.student_id }}</td>
+                        <td><img src="{{ s.photo_url }}" width="40" class="rounded-circle"></td>
+                        <td>{{ s.full_name }}</td>
+                        <td>{{ s.class }}</td>
+                        <td>
+                            <a href="{{ url_for('teacher_report_card', student_id=s.student_id) }}" class="btn btn-sm btn-info">
+                                <i class="fas fa-eye"></i> Add Comment
+                            </a>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="5">No students found.{% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

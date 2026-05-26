@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% block title %}View Payroll - {{ payroll.payroll_no }}{% endblock %}
+{% block content %}
+<style>
+    .summary-box { border-radius: 10px; padding: 15px; margin-bottom: 15px; }
+    .summary-box h6 { margin: 0 0 5px 0; font-size: 13px; opacity: 0.9; }
+    .summary-box h3 { margin: 0; font-size: 22px; font-weight: bold; }
+    .table th, .table td { vertical-align: middle; padding: 12px; }
+</style>
+
+<div class="card shadow">
+    <div class="card-header bg-primary text-white">
+        <i class="fas fa-credit-card"></i> Payroll Details: {{ payroll.payroll_no }}
+    </div>
+    <div class="card-body">
+        <!-- Summary Row - Fixed Alignment -->
+        <div class="row">
+            <div class="col-md-3">
+                <div class="summary-box bg-info text-white">
+                    <h6><i class="fas fa-calendar"></i> Month/Year</h6>
+                    <h3>{{ payroll.month_year }}</h3>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="summary-box bg-success text-white">
+                    <h6><i class="fas fa-money-bill-wave"></i> Total Amount</h6>
+                    <h3>UGX {{ "{:,.0f}".format(payroll.total_amount) }}</h3>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="summary-box bg-warning text-dark">
+                    <h6><i class="fas fa-users"></i> Staff Count</h6>
+                    <h3>{{ staff_list|length }}</h3>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="summary-box bg-secondary text-white">
+                    <h6><i class="fas fa-clock"></i> Status</h6>
+                    <h3>
+                        {% if payroll.approval_status == 'pending' %}
+                            <span class="badge bg-warning text-dark">Pending</span>
+                        {% else %}
+                            <span class="badge bg-success">Approved</span>
+                        {% endif %}
+                    </h3>
+                </div>
+            </div>
+        </div>
+
+        <!-- Staff Table -->
+        <h5 class="mt-4 mb-3"><i class="fas fa-list"></i> Staff in this Payroll</h5>
+        <div class="table-responsive">
+            <table class="table table-bordered table-striped">
+                <thead class="table-dark">
+                    <tr>
+                        <th style="text-align: center; width: 5%;">#</th>
+                        <th style="text-align: left; width: 35%;">Staff Name</th>
+                        <th style="text-align: left; width: 35%;">Position</th>
+                        <th style="text-align: right; width: 25%;">Net Salary (UGX)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for s in staff_list %}
+                    <tr>
+                        <td style="text-align: center;">{{ loop.index }}</td>
+                        <td style="text-align: left;"><strong>{{ s.full_name }}</strong></td>
+                        <td style="text-align: left;">{{ s.position }}</td>
+                        <td style="text-align: right;">{{ "{:,.0f}".format(s.net_salary) }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                <tfoot class="table-secondary">
+                    <tr>
+                        <td colspan="3" style="text-align: right;"><strong>TOTAL:</strong></td>
+                        <td style="text-align: right;"><strong>UGX {{ "{:,.0f}".format(payroll.total_amount) }}</strong></td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="row mt-4">
+            <div class="col-md-12">
+                <a href="{{ url_for('headteacher_approvals') }}" class="btn btn-secondary">
+                    <i class="fas fa-arrow-left"></i> Back to Approvals
+                </a>
+                <div class="float-end">
+                    <a href="{{ url_for('headteacher_reject_payroll', payroll_id=payroll.id) }}" class="btn btn-danger" onclick="return confirm('Reject this payroll?')">
+                        <i class="fas fa-times-circle"></i> Reject
+                    </a>
+                    <a href="{{ url_for('headteacher_approval_access', token=payroll.headteacher_access_token) }}" class="btn btn-success ms-2">
+                        <i class="fas fa-check-circle"></i> Approve Payroll
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

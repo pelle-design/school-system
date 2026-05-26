@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}Expenditure Report{% endblock %}
+{% block content %}
+<div class="card shadow">
+    <div class="card-header bg-primary text-white">Expenditure Report</div>
+    <div class="card-body">
+        <form method="GET" class="row g-2 mb-4">
+            <div class="col-md-4">
+                <label>Start Date</label>
+                <input type="date" name="start_date" class="form-control" value="{{ start_date }}">
+            </div>
+            <div class="col-md-4">
+                <label>End Date</label>
+                <input type="date" name="end_date" class="form-control" value="{{ end_date }}">
+            </div>
+            <div class="col-md-4 align-self-end">
+                <button type="submit" class="btn btn-primary">Generate Report</button>
+                <button onclick="window.print()" class="btn btn-secondary">Print</button>
+            </div>
+        </form>
+        
+        <h4>Total Expenditure: UGX 
+            {% if total and total.total_expenditure %}
+                {{ "{:,.2f}".format(total.total_expenditure) }}
+            {% else %}
+                0.00
+            {% endif %}
+        </h4>
+        <hr>
+        
+        <h5>By Budget Category</h5>
+        <table class="table table-sm">
+            <thead>
+                <tr><th>Code</th><th>Category</th><th>Amount Spent (UGX)</th></tr>
+            </thead>
+            <tbody>
+                {% for c in by_category %}
+                <tr>
+                    <td>{{ c.code }}</td>
+                    <td>{{ c.name }}</td>
+                    <td>{{ "{:,.2f}".format(c.total_spent) if c.total_spent else '0.00' }}</td>
+                </tr>
+                {% else %}
+                <tr><td colspan="3">No expenditures found.{% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

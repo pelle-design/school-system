@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=yes">
+    <title>{% block title %}School Management{% endblock %}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <link rel="manifest" href="/static/manifest.json">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="SchoolSys">
+<link rel="apple-touch-icon" href="/static/icons/icon-192x192.png">
+
+
+</script>
+    <style>
+
+        body { background: #f4f6f9; }
+        .sidebar { background: #2c3e50; min-height: 100vh; position: sticky; top: 0; }
+        .sidebar a {
+            color: #ecf0f1; text-decoration: none; display: block;
+            padding: 12px 20px; border-radius: 8px; margin: 5px 10px;
+        }
+        .sidebar a:hover, .sidebar a.active { background: #3498db; }
+        .content-area { padding: 20px; }
+        @media print {
+            .no-print { display: none !important; }
+            .sidebar { display: none !important; }
+            .content-area { margin-left: 0 !important; padding: 0 !important; width: 100% !important; }
+        }
+        .dropdown-menu-item {
+            position: relative;
+            margin: 2px 0;
+        }
+        .dropdown-menu-item > a {
+            cursor: pointer;
+            display: block;
+            padding: 12px 20px;
+            color: #ecf0f1;
+            text-decoration: none;
+            border-radius: 8px;
+            margin: 5px 10px;
+        }
+        .dropdown-menu-item > a:hover { background: #3498db; }
+        .dropdown-submenu {
+            margin-left: 20px;
+            background: rgba(255,255,255,0.05);
+            border-radius: 8px;
+            display: none;
+        }
+        .dropdown-submenu a { padding-left: 40px !important; font-size: 0.9rem; }
+        .dropdown-submenu a:hover { background: #3498db; color: white; }
+        .chevron { transition: transform 0.2s; float: right; }
+        .chevron.rotated { transform: rotate(180deg); }
+    </style>
+</head>
+<body>
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-md-3 col-lg-2 sidebar">
+            <div class="text-white text-center py-4">
+                <i class="fas fa-school fa-2x"></i>
+                <h5 class="mt-2">{{ session.role|capitalize }} Panel</h5>
+            </div>
+            <hr class="bg-white">
+            <a href="{{ url_for('dashboard') }}" class="{% if request.endpoint == 'dashboard' %}active{% endif %}">
+                <i class="fas fa-home"></i> Dashboard Home
+            </a>
+
+            {% if session.role == 'admin' %}
+                <a href="#" data-bs-toggle="modal" data-bs-target="#addUserModal"><i class="fas fa-user-plus"></i> Add User</a>
+                <a href="{{ url_for('admin_teacher_assignments') }}"><i class="fas fa-chalkboard-teacher"></i> Teacher Assignments</a>
+                <a href="{{ url_for('school_settings') }}"><i class="fas fa-cogs"></i> School Settings</a>
+                <a href="{{ url_for('admin_predefined_comments') }}" class="{% if request.endpoint == 'admin_predefined_comments' %}active{% endif %}">
+                    <i class="fas fa-comment-dots"></i> Predefined Comments
+                </a>
+                <a href="{{ url_for('logout') }}"><i class="fas fa-sign-out-alt"></i> Logout</a>
+
+
+           {% elif session.role == 'dos' %}
+            <!-- Student Management Dropdown -->
+            <div class="dropdown-menu-item">
+                <a href="#" onclick="toggleDropdown(this); return false;">
+                    <i class="fas fa-users"></i> Student Management
+                    <i class="fas fa-chevron-down chevron"></i>
+                </a>
+                <div class="dropdown-submenu">
+                    <!-- Admission Management Dropdown -->
+                <div class="dropdown-menu-item">
+                    <a href="#" onclick="toggleDropdown(this); return false;">
+                        <i class="fas fa-graduation-cap"></i> Admission Management
+                        <i class="fas fa-chevron-down chevron"></i>
+                    </a>
+                    <div class="dropdown-submenu">
+                        <a href="{{ url_for('dos_admit') }}" class="{% if request.endpoint == 'dos_admit' %}active{% endif %}">
+                            <i class="fas fa-user-plus"></i> Local Admission
+                        </a>
+                        <a href="{{ url_for('dos_pending_admissions') }}" class="{% if request.endpoint == 'dos_pending_admissions' %}active{% endif %}">
+                            <i class="fas fa-users"></i> Online Applications
+                        </a>
+                    </div>
+                </div>
+                    <a href="{{ url_for('dos_class_lists') }}" class="{% if request.endpoint == 'dos_class_lists' %}active{% endif %}">
+                        <i class="fas fa-list"></i> Class Lists
+                    </a>
+                    <a href="{{ url_for('dos_promote') }}" class="{% if request.endpoint == 'dos_promote' %}active{% endif %}">
+                        <i class="fas fa-arrow-up"></i> Promote Students
+                    </a>
+                    <a href="{{ url_for('dos_attendance') }}" class="{% if request.endpoint == 'dos_attendance' %}active{% endif %}">
+                        <i class="fas fa-calendar-check"></i> Attendance
+                    </a>
+                    <a href="{{ url_for('teacher_upload_marks') }}" class="{% if request.endpoint == 'teacher_upload_marks' %}active{% endif %}">
+                        <i class="fas fa-upload"></i> Upload Marks
+                    </a>
+                </div>
+            </div>
+
+            <!-- Teacher Management Dropdown -->
+            <div class="dropdown-menu-item">
+                <a href="#" onclick="toggleDropdown(this); return false;">
+                    <i class="fas fa-chalkboard-teacher"></i> Teacher Management
+                    <i class="fas fa-chevron-down chevron"></i>
+                </a>
+                <div class="dropdown-submenu">
+                    <a href="{{ url_for('dos_teacher_assignments') }}" class="{% if request.endpoint == 'dos_teacher_assignments' %}active{% endif %}">
+                        <i class="fas fa-eye"></i> View Assignments
+                    </a>
+                    <a href="{{ url_for('dos_upload_subject_teachers') }}" class="{% if request.endpoint == 'dos_upload_subject_teachers' %}active{% endif %}">
+                        <i class="fas fa-upload"></i> Upload Subject Teachers
+                    </a>
+                </div>
+            </div>
+
+            <!-- Grading Systems Dropdown -->
+            <div class="dropdown-menu-item">
+                <a href="#" onclick="toggleDropdown(this); return false;">
+                    <i class="fas fa-chart-line"></i> Grading Systems
+                    <i class="fas fa-chevron-down chevron"></i>
+                </a>
+                <div class="dropdown-submenu">
+                    <a href="{{ url_for('dos_olevel_grading') }}" class="{% if request.endpoint == 'dos_olevel_grading' %}active{% endif %}">
+                        <i class="fas fa-chart-line"></i> O-Level Grading
+                    </a>
+                    <a href="{{ url_for('dos_alevel_grading') }}" class="{% if request.endpoint == 'dos_alevel_grading' %}active{% endif %}">
+                        <i class="fas fa-chart-line"></i> A-Level Grading
+                    </a>
+                    <a href="{{ url_for('dos_identifier_grading') }}" class="{% if request.endpoint == 'dos_identifier_grading' %}active{% endif %}">
+                        <i class="fas fa-chart-simple"></i> Identifier Grading
+                    </a>
+                </div>
+            </div>
+
+            <!-- Standalone Items -->
+            <a href="{{ url_for('dos_schedules') }}" class="{% if request.endpoint == 'dos_schedules' %}active{% endif %}">
+                <i class="fas fa-clock"></i> Schedules
+            </a>
+            <a href="{{ url_for('logout') }}"><i class="fas fa-sign-out-alt"></i> Logout</a>
+            {% elif session.role in ['classteacher', 'subject_teacher'] %}
+                <a href="{{ url_for('teacher_students') }}"><i class="fas fa-users"></i> My Students</a>
+                <a href="{{ url_for('teacher_upload_marks') }}"><i class="fas fa-upload"></i> Upload Marks</a>
+                {% if session.role == 'classteacher' %}
+                <a href="{{ url_for('teacher_attendance') }}"><i class="fas fa-check-circle"></i> Mark Attendance</a>
+                {% endif %}
+                <a href="{{ url_for('logout') }}"><i class="fas fa-sign-out-alt"></i> Logout</a>
+
+            {% elif session.role == 'parent' %}
+                <a href="{{ url_for('dashboard') }}"><i class="fas fa-home"></i> Dashboard</a>
+                <a href="{{ url_for('logout') }}"><i class="fas fa-sign-out-alt"></i> Logout</a>
+
+            {% if session.role in ['admin', 'bursar', 'dos'] %}
+            <div class="dropdown-menu-item">
+                <a href="#" onclick="toggleDropdown(this); return false;">
+                    <i class="fas fa-boxes"></i> Inventory
+                    <i class="fas fa-chevron-down chevron"></i>
+                </a>
+                <div class="dropdown-submenu">
+                    <a href="{{ url_for('inventory_dashboard') }}">Dashboard</a>
+                    <a href="{{ url_for('inventory_items') }}">All Items</a>
+                    <a href="{{ url_for('inventory_transactions') }}">Transactions</a>
+                    <a href="{{ url_for('inventory_alerts') }}">Alerts</a>
+                    <a href="{{ url_for('inventory_reports') }}">Reports</a>
+                </div>
+            </div>
+
+            {% elif session.role == 'bursar' %}
+                <a href="{{ url_for('bursar_students') }}"><i class="fas fa-users"></i> Fee Management</a>
+                <div class="dropdown-menu-item">
+                    <a href="#" onclick="toggleDropdown(this); return false;">
+                        <i class="fas fa-user-tie"></i> Staff Payroll <i class="fas fa-chevron-down chevron"></i>
+                    </a>
+                    <div class="dropdown-submenu">
+                        <a href="{{ url_for('bursar_staff') }}">Staff List</a>
+                        <a href="{{ url_for('bursar_generate_payroll') }}">Generate Payroll</a>
+                        <a href="{{ url_for('bursar_payroll_list') }}">Payroll Records</a>
+                    </div>
+                </div>
+                <a href="{{ url_for('bursar_budget') }}"><i class="fas fa-chart-pie"></i> Budget</a>
+                <a href="{{ url_for('bursar_expenditure') }}"><i class="fas fa-receipt"></i> Expenditure</a>
+                <div class="dropdown-menu-item">
+                    <a href="#" onclick="toggleDropdown(this); return false;">
+                        <i class="fas fa-chart-line"></i> Reports <i class="fas fa-chevron-down chevron"></i>
+                    </a>
+                    <div class="dropdown-submenu">
+                        <a href="{{ url_for('bursar_income_report') }}">Income Report</a>
+                        <a href="{{ url_for('bursar_expenditure_report') }}">Expenditure Report</a>
+                    </div>
+                </div>
+                <div class="dropdown-menu-item">
+                    <a href="#" onclick="toggleDropdown(this); return false;">
+                        <i class="fas fa-plug"></i> Integration <i class="fas fa-chevron-down chevron"></i>
+                    </a>
+                    <div class="dropdown-submenu">
+                        <a href="{{ url_for('bursar_school_pay_config') }}">School Pay Config</a>
+                        <a href="{{ url_for('bursar_process_webhooks') }}">Process Webhooks</a>
+                    </div>
+                </div>
+                <a href="{{ url_for('logout') }}"><i class="fas fa-sign-out-alt"></i> Logout</a>
+
+            {% elif session.role == 'headteacher' %}
+                <a href="{{ url_for('headteacher_approvals') }}" class="{% if request.endpoint == 'headteacher_approvals' %}active{% endif %}">
+                    <i class="fas fa-check-double"></i> Pending Approvals
+                </a>
+                <a href="{{ url_for('headteacher_students') }}" class="{% if request.endpoint == 'headteacher_students' %}active{% endif %}">
+                    <i class="fas fa-users"></i> View All Students
+                </a>
+                <a href="{{ url_for('school_settings') }}"><i class="fas fa-cogs"></i> School Settings</a>
+                <a href="{{ url_for('logout') }}"><i class="fas fa-sign-out-alt"></i> Logout</a>
+
+            {% elif session.role == 'management' %}
+                <a href="{{ url_for('management_pending_authorizations') }}" class="{% if request.endpoint == 'management_pending_authorizations' %}active{% endif %}">
+                    <i class="fas fa-shield-alt"></i> Pending Authorizations
+                </a>
+                <a href="{{ url_for('logout') }}"><i class="fas fa-sign-out-alt"></i> Logout</a>
+
+
+                {% elif session.role == 'stores_keeper' %}
+                <a href="{{ url_for('inventory_dashboard') }}" class="{% if request.endpoint == 'inventory_dashboard' %}active{% endif %}">
+                    <i class="fas fa-tachometer-alt"></i> Dashboard
+                </a>
+                <a href="{{ url_for('inventory_items') }}" class="{% if request.endpoint == 'inventory_items' %}active{% endif %}">
+                    <i class="fas fa-boxes"></i> All Items
+                </a>
+                <a href="{{ url_for('inventory_transactions') }}" class="{% if request.endpoint == 'inventory_transactions' %}active{% endif %}">
+                    <i class="fas fa-history"></i> Transactions
+                </a>
+                <a href="{{ url_for('inventory_alerts') }}" class="{% if request.endpoint == 'inventory_alerts' %}active{% endif %}">
+                    <i class="fas fa-bell"></i> Alerts
+                    <span id="alertBadge" class="badge bg-danger float-end" style="display: none;">0</span>
+                </a>
+                <a href="{{ url_for('inventory_reports') }}" class="{% if request.endpoint == 'inventory_reports' %}active{% endif %}">
+                    <i class="fas fa-chart-bar"></i> Reports
+                </a>
+                <a href="{{ url_for('logout') }}"><i class="fas fa-sign-out-alt"></i> Logout</a>
+        </div>
+
+        <div class="col-md-9 col-lg-10 content-area">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% for cat, msg in messages %}
+                    <div class="alert alert-{{ cat }} alert-dismissible fade show">
+                        {{ msg }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                {% endfor %}
+            {% endwith %}
+            <h2 class="mb-4 no-print">Welcome, {{ session.username }} <span class="badge bg-secondary">{{ session.role }}</span></h2>
+            {% block content %}{% endblock %}
+
+            <!-- Notification Bar -->
+                {% if notification_count > 0 %}
+                <div class="alert alert-info alert-dismissible fade show notification-bar" role="alert">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <i class="fas fa-bell"></i>
+                            <strong>You have {{ notification_count }} unread notification(s)</strong>
+                        </div>
+                        <div>
+                            <a href="{{ url_for('view_all_notifications') }}" class="btn btn-sm btn-outline-primary me-2">View All</a>
+                            <a href="{{ url_for('mark_all_notifications_read_route') }}" class="btn btn-sm btn-outline-secondary">Mark All Read</a>
+                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- Recent Notifications Dropdown (optional - in navbar) -->
+                {% if notifications %}
+                <div class="position-relative d-inline-block me-3 no-print">
+                    <a href="#" class="text-dark" id="notificationDropdown" data-bs-toggle="dropdown">
+                        <i class="fas fa-bell"></i>
+                        {% if notification_count > 0 %}
+                        <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">
+                            {{ notification_count }}
+                        </span>
+                        {% endif %}
+                    </a>
+                    <ul class="dropdown-menu dropdown-menu-end" style="width: 300px;" aria-labelledby="notificationDropdown">
+                        <li class="dropdown-header">Notifications</li>
+                        <li><hr class="dropdown-divider"></li>
+                        {% for n in notifications[:5] %}
+                        <li>
+                            <a class="dropdown-item" href="{{ n.link or '#' }}" style="white-space: normal;">
+                                <small>{{ n.message }}</small><br>
+                                <small class="text-muted">{{ n.created_at.strftime('%Y-%m-%d %H:%M') if n.created_at else '' }}</small>
+                            </a>
+                        </li>
+                        <li><hr class="dropdown-divider"></li>
+                        {% else %}
+                        <li><span class="dropdown-item">No new notifications</span></li>
+                        {% endfor %}
+                        <li><a class="dropdown-item text-center" href="{{ url_for('view_all_notifications') }}">View All</a></li>
+                    </ul>
+                </div>
+                {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Add User Modal -->
+{% if session.role == 'admin' %}
+<div class="modal fade" id="addUserModal" tabindex="-1">
+    <div class="modal-dialog"><div class="modal-content">
+        <div class="modal-header bg-primary text-white"><h5>Add User</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+        <form method="POST" action="{{ url_for('add_user') }}">
+            <div class="modal-body">
+                <input type="text" name="username" class="form-control mb-2" placeholder="Username" required>
+                <input type="password" name="password" class="form-control mb-2" placeholder="Password" required>
+                <input type="text" name="phone" class="form-control mb-2" placeholder="Phone">
+                <select name="role" class="form-select mb-2">
+                    <option>headteacher</option><option>admin</option><option>dos</option>
+                    <option>classteacher</option><option>subject_teacher</option><option>parent</option>
+                    <option>student</option><option>bursar</option><option>management</option>
+                </select>
+                <input type="text" name="assigned_class" class="form-control mb-2" placeholder="Assigned Class">
+                <input type="text" name="child_id" class="form-control mb-2" placeholder="Child ID">
+            </div>
+            <div class="modal-footer"><button type="submit" class="btn btn-primary">Create</button></div>
+        </form>
+    </div></div>
+</div>
+{% endif %}
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+function toggleDropdown(element) {
+    var parent = element.closest('.dropdown-menu-item');
+    var submenu = parent.querySelector('.dropdown-submenu');
+    var chevron = parent.querySelector('.chevron');
+    if (submenu.style.display === 'none' || submenu.style.display === '') {
+        submenu.style.display = 'block';
+        if (chevron) chevron.classList.add('rotated');
+    } else {
+        submenu.style.display = 'none';
+        if (chevron) chevron.classList.remove('rotated');
+    }
+}
+document.addEventListener('click', function(e) {
+    if (!e.target.closest('.dropdown-menu-item')) {
+        document.querySelectorAll('.dropdown-submenu').forEach(s => s.style.display = 'none');
+        document.querySelectorAll('.chevron').forEach(c => c.classList.remove('rotated'));
+    }
+
+if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/static/sw.js');
+}
+});
+// Fetch unread alert count for stores keeper
+function fetchAlertCount() {
+    if ('{{ session.role }}' === 'stores_keeper') {
+        fetch('/inventory/alert/count')
+            .then(response => response.json())
+            .then(data => {
+                const badge = document.getElementById('alertBadge');
+                if (badge && data.count > 0) {
+                    badge.style.display = 'inline-block';
+                    badge.innerText = data.count;
+                } else if (badge) {
+                    badge.style.display = 'none';
+                }
+            })
+            .catch(error => console.error('Error fetching alerts:', error));
+    }
+}
+// Fetch every 30 seconds
+setInterval(fetchAlertCount, 30000);
+fetchAlertCount();
+</script>
+</body>
+</html>

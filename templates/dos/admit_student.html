@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% block title %}Local Student Admission{% endblock %}
+{% block content %}
+<div class="card shadow">
+    <div class="card-header bg-primary text-white">
+        <i class="fas fa-user-graduate"></i> Local Student Admission
+    </div>
+    <div class="card-body">
+        <form method="POST" enctype="multipart/form-data">
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label>Full Name *</label>
+                    <input type="text" name="full_name" class="form-control" required>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label>Class *</label>
+                    <input type="text" name="class" class="form-control" placeholder="e.g., S1, S2, S3" required>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-md-4 mb-3">
+                    <label>Date of Birth</label>
+                    <input type="date" name="date_of_birth" class="form-control" id="dobInput" onchange="calculateAge()">
+                </div>
+                <div class="col-md-2 mb-3">
+                    <label>Age</label>
+                    <input type="text" name="age" class="form-control" id="ageInput" readonly>
+                </div>
+                <div class="col-md-3 mb-3">
+                    <label>Sex</label>
+                    <select name="sex" class="form-select">
+                        <option value="">Select</option>
+                        <option value="Male">Male</option>
+                        <option value="Female">Female</option>
+                    </select>
+                </div>
+                <div class="col-md-3 mb-3">
+                    <label>Preferred House</label>
+                    <select name="preferred_house" class="form-select">
+                        <option value="">Select</option>
+                        {% for house in houses %}
+                        <option value="{{ house.name }}">{{ house.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label>LIN (Learner Identification Number)</label>
+                    <input type="text" name="lin" class="form-control" placeholder="e.g., LIN-12345">
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label>Disability (if any)</label>
+                    <input type="text" name="disability" class="form-control" placeholder="e.g., None, Visual impairment">
+                </div>
+            </div>
+            <div class="mb-3">
+                <label>Sports Activities</label>
+                <select name="sports_activities" multiple class="form-select" size="4">
+                    {% for sport in sports %}
+                    <option value="{{ sport.name }}">{{ sport.name }}</option>
+                    {% endfor %}
+                </select>
+                <small class="text-muted">Hold Ctrl to select multiple</small>
+            </div>
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label>Parent Phone</label>
+                    <input type="text" name="parent_phone" class="form-control" placeholder="0712345678">
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label>Photo</label>
+                    <input type="file" name="photo" class="form-control" accept="image/*">
+                </div>
+            </div>
+            <button type="submit" class="btn btn-primary">Admit Student</button>
+        </form>
+    </div>
+</div>
+
+<script>
+function calculateAge() {
+    var dob = document.getElementById('dobInput').value;
+    if (dob) {
+        var birthDate = new Date(dob);
+        var today = new Date();
+        var age = today.getFullYear() - birthDate.getFullYear();
+        var m = today.getMonth() - birthDate.getMonth();
+        if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+            age--;
+        }
+        document.getElementById('ageInput').value = age;
+    }
+}
+</script>
+{% endblock %}
