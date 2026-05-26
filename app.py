@@ -3675,5 +3675,40 @@ def mobile_dashboard():
         return jsonify({'total_users': users[0] if users else 0, 'total_students': students[0] if students else 0})
     return jsonify({})
 
+
+@app.route('/debug_db')
+def debug_db():
+    import sqlite3
+    conn = sqlite3.connect('school_system.db')
+    cur = conn.cursor()
+    cur.execute("SELECT id, username, role, status FROM users")
+    users = cur.fetchall()
+    conn.close()
+    
+    if not users:
+        return "No users found in database!"
+    
+    result = "<h2>Users in Database:</h2>"
+    for u in users:
+        result += f"<p>ID: {u[0]}, Username: {u[1]}, Role: {u[2]}, Status: {u[3]}</p>"
+    result += "<br><a href='/login'>Go to Login</a>"
+    return result
+
+@app.route('/force_admin')
+def force_admin():
+    import sqlite3
+    from werkzeug.security import generate_password_hash
+    
+    conn = sqlite3.connect('school_system.db')
+    cur = conn.cursor()
+    
+    cur.execute("DELETE FROM users WHERE username = 'admin'")
+    hashed = generate_password_hash('admin123')
+    cur.execute("INSERT INTO users (username, password, role, status, phone, must_change_password) VALUES (?, ?, 'admin', 1, '0700000000', 0)", ('admin', hashed))
+    
+    conn.commit()
+    conn.close()
+    
+    return "Admin created! Username: admin, Password: admin123. <a href='/login'>Login here</a>"
 if __name__ == '__main__':
     app.run(debug=True)
