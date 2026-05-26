@@ -1,6 +1,6 @@
+# ==================== IMPORTS ====================
 import os
 import re
-import math
 import io
 import csv
 import json
@@ -8,31 +8,575 @@ import time
 import secrets
 import random
 import string
+import sqlite3
 import pandas as pd
 from datetime import datetime, timedelta
-from flask import Flask, render_template, request, redirect, url_for, session, flash, abort, send_from_directory, jsonify
-from flask_mysqldb import MySQL
-from werkzeug.utils import secure_filename
 from functools import wraps
 from markupsafe import escape
-from MySQLdb.cursors import DictCursor
+
+from flask import Flask, render_template, request, redirect, url_for, session, flash, abort, send_from_directory, jsonify, g
+from werkzeug.utils import secure_filename
 
 # ==================== APP CONFIGURATION ====================
 app = Flask(__name__)
 app.secret_key = 'your_secret_key_here'
-
-app.config['MYSQL_HOST'] = 'localhost'
-app.config['MYSQL_USER'] = 'root'
-app.config['MYSQL_PASSWORD'] = ''
-app.config['MYSQL_DB'] = 'school_system'
 app.config['UPLOAD_FOLDER'] = 'static/uploads'
+
 ALLOWED_IMAGE_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
 
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
-mysql = MySQL(app)
 
+# ==================== SQLITE DATABASE SETUP ====================
+DATABASE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'school_system.db')
+
+def get_db():
+    """Get database connection"""
+    db = getattr(g, '_database', None)
+    if db is None:
+        db = g._database = sqlite3.connect(DATABASE)
+        db.row_factory = sqlite3.Row
+    return db
+
+@app.teardown_appcontext
+def close_connection(exception):
+    db = getattr(g, '_database', None)
+    if db is not None:
+        db.close()
+
+def init_db():
+    """Initialize database with all tables"""
+    db = get_db()
+    cursor = db.cursor()
+    
+    # Create all tables
+    cursor.executescript('''
+        -- Users table
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT UNIQUE NOT NULL,
+            password TEXT NOT NULL,
+            role TEXT NOT NULL,
+            phone TEXT,
+            status INTEGER DEFAULT 1,
+            child_id TEXT,
+            profile_pic TEXT DEFAULT 'default_avatar.png',
+            must_change_password INTEGER DEFAULT 0
+        );
+        
+        -- Students table
+        CREATE TABLE IF NOT EXISTS students (
+            student_id TEXT PRIMARY KEY,
+            full_name TEXT NOT NULL,
+            class TEXT NOT NULL,
+            photo_path TEXT DEFAULT 'default_avatar.png',
+            fees_paid REAL DEFAULT 0,
+            fees_balance REAL DEFAULT 0,
+            fees_total REAL DEFAULT 0,
+            admission_date DATE,
+            parent_phone TEXT,
+            date_of_birth DATE,
+            age INTEGER,
+            sex TEXT,
+            preferred_house TEXT,
+            disability TEXT,
+            sports_activities TEXT,
+            lin TEXT,
+            admission_source TEXT DEFAULT 'local',
+            admission_status TEXT DEFAULT 'approved',
+            application_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        
+        -- Staff table
+        CREATE TABLE IF NOT EXISTS staff (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            staff_no TEXT UNIQUE,
+            full_name TEXT NOT NULL,
+            position TEXT NOT NULL,
+            department TEXT,
+            phone TEXT,
+            email TEXT,
+            nssf_number TEXT,
+            tin_number TEXT,
+            bank_account TEXT,
+            bank_name TEXT,
+            salary_basic REAL DEFAULT 0,
+            salary_allowances REAL DEFAULT 0,
+            salary_deductions REAL DEFAULT 0,
+            salary_net REAL GENERATED ALWAYS AS (salary_basic + salary_allowances - salary_deductions) STORED,
+            status TEXT DEFAULT 'active',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        
+        -- Payroll table
+        CREATE TABLE IF NOT EXISTS payroll (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            payroll_no TEXT UNIQUE,
+            month_year DATE,
+            total_amount REAL DEFAULT 0,
+            approval_code TEXT,
+            approval_status TEXT DEFAULT 'pending',
+            approved_by TEXT,
+            approved_at TIMESTAMP,
+            recorded_by TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            headteacher_access_token TEXT,
+            token_expires_at TIMESTAMP,
+            management_approval_code TEXT,
+            management_access_token TEXT,
+            management_token_expires_at TIMESTAMP,
+            management_approval_status TEXT DEFAULT 'pending',
+            management_approved_by TEXT,
+            management_approved_at TIMESTAMP,
+            bank_authorization_token TEXT,
+            bank_transaction_ref TEXT,
+            bank_payment_status TEXT DEFAULT 'pending',
+            bank_payment_response TEXT,
+            token_resend_count INTEGER DEFAULT 0,
+            last_resend_at TIMESTAMP
+        );
+        
+        -- Salary payments table
+        CREATE TABLE IF NOT EXISTS salary_payments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            staff_id INTEGER,
+            payroll_id INTEGER,
+            month_year DATE,
+            basic REAL,
+            allowances REAL,
+            deductions REAL,
+            gross_salary REAL,
+            nssf_employee REAL,
+            paye_tax REAL,
+            net_salary REAL,
+            payment_date DATE,
+            payment_method TEXT,
+            approval_code TEXT,
+            approval_status TEXT DEFAULT 'pending',
+            transaction_ref TEXT,
+            recorded_by TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (staff_id) REFERENCES staff(id),
+            FOREIGN KEY (payroll_id) REFERENCES payroll(id)
+        );
+        
+        -- Marks table
+        CREATE TABLE IF NOT EXISTS marks (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            student_id TEXT,
+            subject TEXT,
+            term TEXT,
+            year INTEGER,
+            ai1 REAL,
+            ai2 REAL,
+            ai3 REAL,
+            ai4 REAL,
+            ai5 REAL,
+            ai6 REAL,
+            ai_average REAL,
+            ai_contribution REAL,
+            eot_score REAL,
+            total_score REAL,
+            grade TEXT,
+            identifier REAL,
+            descriptor TEXT,
+            teacher_initials TEXT,
+            teacher_id INTEGER,
+            paper1 REAL,
+            paper2 REAL,
+            points INTEGER,
+            FOREIGN KEY (student_id) REFERENCES students(student_id)
+        );
+        
+        -- Attendance table
+        CREATE TABLE IF NOT EXISTS attendance (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            student_id TEXT,
+            date DATE,
+            status TEXT,
+            FOREIGN KEY (student_id) REFERENCES students(student_id),
+            UNIQUE(student_id, date)
+        );
+        
+        -- Schedules table
+        CREATE TABLE IF NOT EXISTS schedules (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            type TEXT,
+            term_scope TEXT,
+            content TEXT,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        
+        -- Grading system tables
+        CREATE TABLE IF NOT EXISTS grading_system (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            min_score REAL,
+            max_score REAL,
+            grade TEXT,
+            descriptor TEXT
+        );
+        
+        CREATE TABLE IF NOT EXISTS alevel_grading (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            min_score REAL,
+            max_score REAL,
+            grade TEXT,
+            points INTEGER,
+            is_subsidiary INTEGER DEFAULT 0
+        );
+        
+        CREATE TABLE IF NOT EXISTS identifier_grading (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            min_value REAL,
+            max_value REAL,
+            descriptor TEXT
+        );
+        
+        -- Teacher comments table
+        CREATE TABLE IF NOT EXISTS teacher_comments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            student_id TEXT,
+            term TEXT,
+            year INTEGER,
+            comment TEXT,
+            headteacher_comment TEXT,
+            class_teacher_comment_locked INTEGER DEFAULT 0,
+            headteacher_comment_locked INTEGER DEFAULT 0,
+            FOREIGN KEY (student_id) REFERENCES students(student_id)
+        );
+        
+        -- Teacher class assignments
+        CREATE TABLE IF NOT EXISTS teacher_class_assignments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            class_name TEXT,
+            subject TEXT,
+            assignment_type TEXT,
+            assigned_by TEXT,
+            assigned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id),
+            UNIQUE(user_id, class_name, subject, assignment_type)
+        );
+        
+        -- Notifications table
+        CREATE TABLE IF NOT EXISTS notifications (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_role TEXT,
+            message TEXT,
+            link TEXT,
+            is_read INTEGER DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        
+        -- School settings
+        CREATE TABLE IF NOT EXISTS school_settings (
+            id INTEGER PRIMARY KEY DEFAULT 1,
+            next_term_begins DATE,
+            next_term_ends DATE,
+            headteacher_stamp TEXT,
+            school_name TEXT DEFAULT 'YOUR SCHOOL NAME',
+            school_address TEXT DEFAULT 'P.O. Box 123, Kampala, Uganda',
+            school_phone TEXT DEFAULT 'Tel: +256 712 345678',
+            school_email TEXT DEFAULT 'info@school.com',
+            logo_url TEXT,
+            nssf_employee_rate REAL DEFAULT 5.0,
+            paye_rate REAL DEFAULT 10.0,
+            paye_threshold REAL DEFAULT 235000
+        );
+        
+        -- Predefined comments
+        CREATE TABLE IF NOT EXISTS predefined_comments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            comment_type TEXT,
+            comment_text TEXT,
+            is_active INTEGER DEFAULT 1,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        
+        -- Payments table
+        CREATE TABLE IF NOT EXISTS payments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            student_id TEXT,
+            amount REAL,
+            payment_date DATE,
+            receipt_no TEXT UNIQUE,
+            payment_method TEXT,
+            notes TEXT,
+            recorded_by TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (student_id) REFERENCES students(student_id)
+        );
+        
+        -- Budget categories
+        CREATE TABLE IF NOT EXISTS budget_categories (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            code TEXT UNIQUE,
+            name TEXT,
+            description TEXT,
+            allocated_amount REAL,
+            year INTEGER
+        );
+        
+        -- Expenditures
+        CREATE TABLE IF NOT EXISTS expenditures (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            voucher_no TEXT UNIQUE,
+            category_id INTEGER,
+            description TEXT,
+            amount REAL,
+            expenditure_date DATE,
+            payment_method TEXT,
+            payee_name TEXT,
+            payee_phone TEXT,
+            status TEXT,
+            recorded_by TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (category_id) REFERENCES budget_categories(id)
+        );
+        
+        -- Inventory tables
+        CREATE TABLE IF NOT EXISTS inventory_categories (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            description TEXT,
+            warning_level INTEGER DEFAULT 10,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        
+        CREATE TABLE IF NOT EXISTS inventory_items (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            item_code TEXT UNIQUE NOT NULL,
+            name TEXT NOT NULL,
+            category_id INTEGER,
+            unit TEXT DEFAULT 'pieces',
+            quantity INTEGER DEFAULT 0,
+            minimum_quantity INTEGER DEFAULT 10,
+            maximum_quantity INTEGER DEFAULT 0,
+            reorder_level INTEGER DEFAULT 5,
+            location TEXT,
+            supplier TEXT,
+            purchase_date DATE,
+            purchase_price REAL,
+            current_value REAL,
+            status TEXT DEFAULT 'working',
+            condition_notes TEXT,
+            last_maintenance DATE,
+            next_maintenance DATE,
+            responsible_person TEXT,
+            responsible_role TEXT,
+            image_path TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (category_id) REFERENCES inventory_categories(id)
+        );
+        
+        CREATE TABLE IF NOT EXISTS inventory_transactions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            item_id INTEGER,
+            transaction_type TEXT,
+            quantity INTEGER,
+            unit_price REAL,
+            total_amount REAL,
+            transaction_date DATE,
+            issued_to TEXT,
+            issued_to_role TEXT,
+            purpose TEXT,
+            reference_no TEXT,
+            recorded_by TEXT,
+            approved_by TEXT,
+            notes TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (item_id) REFERENCES inventory_items(id)
+        );
+        
+        CREATE TABLE IF NOT EXISTS inventory_alerts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            item_id INTEGER,
+            alert_type TEXT,
+            message TEXT,
+            is_read INTEGER DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (item_id) REFERENCES inventory_items(id)
+        );
+        
+        -- Houses and sports
+        CREATE TABLE IF NOT EXISTS houses (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT UNIQUE,
+            description TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        
+        CREATE TABLE IF NOT EXISTS sports_activities (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT UNIQUE
+        );
+        
+        -- Payment webhooks
+        CREATE TABLE IF NOT EXISTS payment_webhooks (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            transaction_id TEXT,
+            amount REAL,
+            phone_number TEXT,
+            student_id TEXT,
+            reference TEXT,
+            payment_method TEXT,
+            raw_data TEXT,
+            status TEXT,
+            processed INTEGER DEFAULT 0,
+            received_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        
+        -- Payment gateway config
+        CREATE TABLE IF NOT EXISTS payment_gateway_config (
+            id INTEGER PRIMARY KEY DEFAULT 1,
+            gateway_name TEXT DEFAULT 'School Pay',
+            api_key TEXT,
+            api_secret TEXT,
+            webhook_secret TEXT,
+            callback_url TEXT,
+            status TEXT DEFAULT 'inactive'
+        );
+        
+        -- Bank transaction logs
+        CREATE TABLE IF NOT EXISTS bank_transaction_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            payroll_id INTEGER,
+            staff_id INTEGER,
+            transaction_ref TEXT,
+            amount REAL,
+            recipient_account TEXT,
+            recipient_phone TEXT,
+            status TEXT,
+            response TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (payroll_id) REFERENCES payroll(id),
+            FOREIGN KEY (staff_id) REFERENCES staff(id)
+        );
+        
+        -- Authorization logs
+        CREATE TABLE IF NOT EXISTS authorization_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            payroll_id INTEGER,
+            action TEXT,
+            performed_by TEXT,
+            ip_address TEXT,
+            details TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (payroll_id) REFERENCES payroll(id)
+        );
+    ''')
+    
+    # Insert default data
+    cursor.execute("SELECT COUNT(*) FROM users")
+    if cursor.fetchone()[0] == 0:
+        cursor.execute("INSERT INTO users (username, password, role, status) VALUES ('admin', 'admin123', 'admin', 1)")
+    
+    cursor.execute("SELECT COUNT(*) FROM school_settings")
+    if cursor.fetchone()[0] == 0:
+        cursor.execute("INSERT INTO school_settings (id) VALUES (1)")
+    
+    cursor.execute("SELECT COUNT(*) FROM inventory_categories")
+    if cursor.fetchone()[0] == 0:
+        categories = [
+            ('Furniture', 'Desks, chairs, tables, cabinets, etc.', 5),
+            ('Equipment', 'Computers, projectors, lab equipment, etc.', 3),
+            ('Stationery', 'Pens, papers, notebooks, printing materials', 20),
+            ('Food Items', 'Kitchen supplies, ingredients, meals', 10),
+            ('Lab Equipment', 'Microscopes, beakers, test tubes, etc.', 2),
+            ('Chemicals', 'Lab chemicals, cleaning agents', 5),
+            ('Sports Equipment', 'Balls, nets, uniforms, etc.', 5),
+            ('Electronics', 'TVs, speakers, cameras, etc.', 3),
+            ('Books', 'Textbooks, library books, reference materials', 10),
+            ('Maintenance', 'Tools, spare parts, repair items', 5)
+        ]
+        cursor.executemany("INSERT INTO inventory_categories (name, description, warning_level) VALUES (?, ?, ?)", categories)
+    
+    cursor.execute("SELECT COUNT(*) FROM houses")
+    if cursor.fetchone()[0] == 0:
+        houses = [('House of Excellence', ''), ('House of Integrity', ''), ('House of Wisdom', ''), ('House of Courage', '')]
+        cursor.executemany("INSERT INTO houses (name, description) VALUES (?, ?)", houses)
+    
+    cursor.execute("SELECT COUNT(*) FROM sports_activities")
+    if cursor.fetchone()[0] == 0:
+        sports = ['Football', 'Basketball', 'Netball', 'Athletics', 'Swimming', 'Tennis', 'Table Tennis', 'Volleyball', 'Chess', 'Scouts']
+        cursor.executemany("INSERT INTO sports_activities (name) VALUES (?)", [(s,) for s in sports])
+    
+    # Insert default grading system
+    cursor.execute("SELECT COUNT(*) FROM grading_system")
+    if cursor.fetchone()[0] == 0:
+        grading = [
+            (80, 100, 'A', 'Excellent'),
+            (70, 79, 'B', 'Very Good'),
+            (60, 69, 'C', 'Good'),
+            (50, 59, 'D', 'Pass'),
+            (0, 49, 'E', 'Fail')
+        ]
+        cursor.executemany("INSERT INTO grading_system (min_score, max_score, grade, descriptor) VALUES (?, ?, ?, ?)", grading)
+    
+    cursor.execute("SELECT COUNT(*) FROM identifier_grading")
+    if cursor.fetchone()[0] == 0:
+        identifier = [
+            (2.4, 3.0, 'Excellent'),
+            (1.8, 2.39, 'Very Good'),
+            (1.2, 1.79, 'Good'),
+            (0.6, 1.19, 'Satisfactory'),
+            (0.0, 0.59, 'Needs Improvement')
+        ]
+        cursor.executemany("INSERT INTO identifier_grading (min_value, max_value, descriptor) VALUES (?, ?, ?)", identifier)
+    
+    cursor.execute("SELECT COUNT(*) FROM alevel_grading")
+    if cursor.fetchone()[0] == 0:
+        alevel = [
+            (80, 100, 'A', 5, 0),
+            (70, 79, 'B', 4, 0),
+            (60, 69, 'C', 3, 0),
+            (50, 59, 'D', 2, 0),
+            (0, 49, 'E', 1, 0)
+        ]
+        cursor.executemany("INSERT INTO alevel_grading (min_score, max_score, grade, points, is_subsidiary) VALUES (?, ?, ?, ?, ?)", alevel)
+    
+    db.commit()
+    print("Database initialized successfully!")
+
+# Initialize database on startup
+with app.app_context():
+    if not os.path.exists(DATABASE):
+        init_db()
+    else:
+        # Verify tables exist, create if missing
+        init_db()
 
 # ==================== HELPER FUNCTIONS ====================
+def query_db(query, args=(), one=False):
+    """Execute a query and return results"""
+    cur = get_db().cursor()
+    cur.execute(query, args)
+    rv = cur.fetchall()
+    cur.close()
+    return (rv[0] if rv else None) if one else rv
+
+def execute_db(query, args=()):
+    """Execute a query and commit"""
+    db = get_db()
+    cur = db.cursor()
+    cur.execute(query, args)
+    db.commit()
+    cur.close()
+    return cur.lastrowid
+
+def dict_factory(cursor, row):
+    """Convert row to dictionary"""
+    d = {}
+    for idx, col in enumerate(cursor.description):
+        d[col[0]] = row[idx]
+    return d
+
+def get_db_dict():
+    """Get database connection with dict factory"""
+    db = get_db()
+    db.row_factory = dict_factory
+    return db
+
 def allowed_file(filename, allowed_set):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in allowed_set
 
@@ -56,25 +600,7 @@ def admin_required(f):
         return f(*args, **kwargs)
     return decorated
 
-@app.context_processor
-def inject_notifications():
-    """Make notifications available to all templates"""
-    if 'user_id' in session:
-        role = session.get('role')
-        if role in ['headteacher', 'bursar', 'management', 'admin']:
-            notification_count = get_notification_count(role)
-            notifications = get_notifications(role, limit=5)
-            return {
-                'notification_count': notification_count,
-                'notifications': notifications
-            }
-    return {
-        'notification_count': 0,
-        'notifications': []
-    }
-
 def get_photo_url(photo_path):
-    """Return proper photo URL, handling None and default_avatar.png"""
     if photo_path and photo_path != 'default_avatar.png':
         return url_for('static', filename='uploads/' + photo_path)
     return url_for('static', filename='uploads/default_avatar.png')
@@ -97,8 +623,10 @@ def validate_and_format_phone(phone):
 
 def generate_unique_number(prefix, table, column, year_format=True):
     year = datetime.now().strftime("%Y%m") if year_format else ""
-    cur = mysql.connection.cursor()
-    cur.execute(f"SELECT {column} FROM {table} WHERE {column} LIKE %s ORDER BY {column} DESC LIMIT 1", (f'{prefix}-{year}-%' if year_format else f'{prefix}-%',))
+    db = get_db()
+    cur = db.cursor()
+    cur.execute(f"SELECT {column} FROM {table} WHERE {column} LIKE ? ORDER BY {column} DESC LIMIT 1", 
+                (f'{prefix}-{year}-%' if year_format else f'{prefix}-%',))
     last = cur.fetchone()
     cur.close()
     if last:
@@ -111,20 +639,53 @@ def generate_unique_number(prefix, table, column, year_format=True):
 def generate_approval_code():
     return ''.join(random.choices('0123456789', k=6))
 
+def generate_secure_token(hours=2):
+    token = secrets.token_urlsafe(32)
+    expires_at = datetime.now() + timedelta(hours=hours)
+    return token, expires_at
+
 def send_sms(phone_number, message):
     print(f"[SMS] To: {phone_number} | {message}")
     return True
 
-def add_notification(user_role, message, link=None):
-    cur = mysql.connection.cursor()
-    cur.execute("INSERT INTO notifications (user_role, message, link, is_read, created_at) VALUES (%s, %s, %s, 0, NOW())", (user_role, message, link))
-    mysql.connection.commit()
-    cur.close()
+def send_email(recipient, subject, html_content):
+    print(f"[EMAIL] To: {recipient} | Subject: {subject}")
+    return True
 
-# Grading Helpers
+def calculate_age(birth_date):
+    today = datetime.now().date()
+    return today.year - birth_date.year - ((today.month, today.day) < (birth_date.month, birth_date.day))
+
+# ==================== NOTIFICATION FUNCTIONS ====================
+def add_notification(user_role, message, link=None):
+    execute_db("INSERT INTO notifications (user_role, message, link, is_read, created_at) VALUES (?, ?, ?, 0, ?)",
+               (user_role, message, link, datetime.now()))
+
+def get_notifications(user_role, limit=10):
+    db = get_db_dict()
+    cur = db.cursor()
+    cur.execute("SELECT * FROM notifications WHERE user_role = ? AND is_read = 0 ORDER BY created_at DESC LIMIT ?", (user_role, limit))
+    notifications = cur.fetchall()
+    cur.close()
+    return notifications
+
+def get_notification_count(user_role):
+    cur = get_db().cursor()
+    cur.execute("SELECT COUNT(*) FROM notifications WHERE user_role = ? AND is_read = 0", (user_role,))
+    count = cur.fetchone()[0]
+    cur.close()
+    return count
+
+def mark_notification_read(notification_id):
+    execute_db("UPDATE notifications SET is_read = 1 WHERE id = ?", (notification_id,))
+
+def mark_all_notifications_read(user_role):
+    execute_db("UPDATE notifications SET is_read = 1 WHERE user_role = ?", (user_role,))
+
+# ==================== GRADING HELPERS ====================
 def get_grade_and_descriptor(score):
-    cur = mysql.connection.cursor()
-    cur.execute("SELECT grade, descriptor FROM grading_system WHERE %s BETWEEN min_score AND max_score LIMIT 1", (score,))
+    cur = get_db().cursor()
+    cur.execute("SELECT grade, descriptor FROM grading_system WHERE ? BETWEEN min_score AND max_score LIMIT 1", (score,))
     result = cur.fetchone()
     cur.close()
     if result:
@@ -132,8 +693,8 @@ def get_grade_and_descriptor(score):
     return 'N/A', 'No grade defined'
 
 def get_descriptor_by_identifier(identifier):
-    cur = mysql.connection.cursor()
-    cur.execute("SELECT descriptor FROM identifier_grading WHERE %s BETWEEN min_value AND max_value LIMIT 1", (identifier,))
+    cur = get_db().cursor()
+    cur.execute("SELECT descriptor FROM identifier_grading WHERE ? BETWEEN min_value AND max_value LIMIT 1", (identifier,))
     result = cur.fetchone()
     cur.close()
     if result:
@@ -147,26 +708,29 @@ def get_alevel_grade_and_points(score, is_subsidiary=False):
         points = 1 if score >= 50 else 0
         grade = 'Pass' if points == 1 else 'Fail'
         return grade, points
-    cur = mysql.connection.cursor()
-    cur.execute("SELECT grade, points FROM alevel_grading WHERE %s BETWEEN min_score AND max_score AND is_subsidiary=0 LIMIT 1", (score,))
+    cur = get_db().cursor()
+    cur.execute("SELECT grade, points FROM alevel_grading WHERE ? BETWEEN min_score AND max_score AND is_subsidiary=0 LIMIT 1", (score,))
     result = cur.fetchone()
     cur.close()
     if result:
         return result[0], result[1]
     return 'E', 1
 
-def generate_secure_token(hours=2):
-    """Generate a secure random token with expiration"""
-    token = secrets.token_urlsafe(32)
-    expires_at = datetime.now() + timedelta(hours=hours)
-    return token, expires_at
+def get_predefined_comments(comment_type):
+    db = get_db_dict()
+    cur = db.cursor()
+    cur.execute("SELECT id, comment_text FROM predefined_comments WHERE comment_type=? AND is_active=1 ORDER BY id", (comment_type,))
+    comments = cur.fetchall()
+    cur.close()
+    return comments
 
-# Teacher Assignment Helpers
+# ==================== TEACHER ASSIGNMENT HELPERS ====================
 def get_user_assignments(user_id=None):
     if user_id is None:
         user_id = session.get('user_id')
-    cur = mysql.connection.cursor(DictCursor)
-    cur.execute("SELECT * FROM teacher_class_assignments WHERE user_id = %s ORDER BY assignment_type, class_name, subject", (user_id,))
+    db = get_db_dict()
+    cur = db.cursor()
+    cur.execute("SELECT * FROM teacher_class_assignments WHERE user_id = ? ORDER BY assignment_type, class_name, subject", (user_id,))
     assignments = cur.fetchall()
     cur.close()
     return assignments
@@ -174,89 +738,23 @@ def get_user_assignments(user_id=None):
 def get_user_classes(user_id=None, assignment_type=None):
     if user_id is None:
         user_id = session.get('user_id')
-    cur = mysql.connection.cursor(DictCursor)
+    cur = get_db().cursor()
     if assignment_type:
-        cur.execute("SELECT DISTINCT class_name FROM teacher_class_assignments WHERE user_id = %s AND assignment_type = %s ORDER BY class_name", (user_id, assignment_type))
+        cur.execute("SELECT DISTINCT class_name FROM teacher_class_assignments WHERE user_id = ? AND assignment_type = ? ORDER BY class_name", 
+                    (user_id, assignment_type))
     else:
-        cur.execute("SELECT DISTINCT class_name FROM teacher_class_assignments WHERE user_id = %s ORDER BY class_name", (user_id,))
-    classes = [row['class_name'] for row in cur.fetchall()]
+        cur.execute("SELECT DISTINCT class_name FROM teacher_class_assignments WHERE user_id = ? ORDER BY class_name", (user_id,))
+    classes = [row[0] for row in cur.fetchall()]
     cur.close()
     return classes
 
-# Add this helper function (if not already present)
-def add_notification(user_role, message, link=None):
-    """Add a notification for a specific user role"""
-    cur = mysql.connection.cursor()
-    cur.execute("""
-        INSERT INTO notifications (user_role, message, link, is_read, created_at)
-        VALUES (%s, %s, %s, 0, NOW())
-    """, (user_role, message, link))
-    mysql.connection.commit()
-    cur.close()
-
-def get_notifications(user_role, limit=10):
-    """Get unread notifications for a user role"""
-    cur = mysql.connection.cursor(DictCursor)
-    cur.execute("""
-        SELECT * FROM notifications 
-        WHERE user_role = %s AND is_read = 0
-        ORDER BY created_at DESC LIMIT %s
-    """, (user_role, limit))
-    notifications = cur.fetchall()
-    cur.close()
-    return notifications
-
-def get_notification_count(user_role):
-    """Get count of unread notifications for a user role"""
-    cur = mysql.connection.cursor()
-    cur.execute("""
-        SELECT COUNT(*) FROM notifications 
-        WHERE user_role = %s AND is_read = 0
-    """, (user_role,))
-    count = cur.fetchone()[0]
-    cur.close()
-    return count
-
-def mark_notification_read(notification_id):
-    """Mark a specific notification as read"""
-    cur = mysql.connection.cursor()
-    cur.execute("UPDATE notifications SET is_read = 1 WHERE id = %s", (notification_id,))
-    mysql.connection.commit()
-    cur.close()
-
-def mark_all_notifications_read(user_role):
-    """Mark all notifications for a user role as read"""
-    cur = mysql.connection.cursor()
-    cur.execute("UPDATE notifications SET is_read = 1 WHERE user_role = %s", (user_role,))
-    mysql.connection.commit()
-    cur.close()
-
-# Add route to mark notification as read
-@app.route('/notification/mark_read/<int:notification_id>')
-@login_required
-def mark_notification_read_route(notification_id):
-    role = session.get('role')
-    mark_notification_read(notification_id)
-    return redirect(request.referrer or url_for('dashboard'))
-
-# Add route to mark all notifications as read
-@app.route('/notification/mark_all_read')
-@login_required
-def mark_all_notifications_read_route():
-    role = session.get('role')
-    mark_all_notifications_read(role)
-    flash('All notifications marked as read.', 'success')
-    return redirect(request.referrer or url_for('dashboard'))
-
 def assign_user_to_class(user_id, class_name, subject=None, assignment_type='subject_teacher'):
-    cur = mysql.connection.cursor()
-    cur.execute("""INSERT INTO teacher_class_assignments (user_id, class_name, subject, assignment_type, assigned_by)
-                   VALUES (%s, %s, %s, %s, %s) ON DUPLICATE KEY UPDATE subject = VALUES(subject), assigned_by = VALUES(assigned_by)""",
-                (user_id, class_name, subject, assignment_type, session.get('username', 'admin')))
-    mysql.connection.commit()
-    cur.close()
+    execute_db("""INSERT INTO teacher_class_assignments (user_id, class_name, subject, assignment_type, assigned_by)
+                   VALUES (?, ?, ?, ?, ?) ON CONFLICT(user_id, class_name, subject, assignment_type) 
+                   DO UPDATE SET subject = excluded.subject, assigned_by = excluded.assigned_by""",
+               (user_id, class_name, subject, assignment_type, session.get('username', 'admin')))
 
-# Marks Processing (Unified for both O-Level and A-Level)
+# ==================== MARKS PROCESSING ====================
 def process_marks_upload(file, subject, term, year, assigned_class, teacher_id, level='olevel', is_subsidiary=False):
     try:
         df = pd.read_excel(file)
@@ -270,15 +768,15 @@ def process_marks_upload(file, subject, term, year, assigned_class, teacher_id, 
         flash('Missing student_id column', 'danger')
         return 0
     
-    cur = mysql.connection.cursor()
     count = 0
     
     if level == 'alevel':
-        # A-Level: paper1, paper2
         for _, row in df.iterrows():
             student_id = str(row['student_id']).strip()
-            cur.execute("SELECT class FROM students WHERE student_id=%s", (student_id,))
+            cur = get_db().cursor()
+            cur.execute("SELECT class FROM students WHERE student_id=?", (student_id,))
             res = cur.fetchone()
+            cur.close()
             if not res or res[0] != assigned_class:
                 continue
             
@@ -292,19 +790,21 @@ def process_marks_upload(file, subject, term, year, assigned_class, teacher_id, 
             grade, points = get_alevel_grade_and_points(avg_score, is_subsidiary)
             teacher_init = str(row.get('teacher_initials', '')) if pd.notna(row.get('teacher_initials')) else ''
             
-            cur.execute("""INSERT INTO marks (student_id, subject, term, year, paper1, paper2, total_score, grade, points, teacher_initials, teacher_id)
-                           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                           ON DUPLICATE KEY UPDATE paper1=%s, paper2=%s, total_score=%s, grade=%s, points=%s, teacher_initials=%s""",
-                        (student_id, subject, term, year, paper1, paper2, avg_score, grade, points, teacher_init, teacher_id,
-                         paper1, paper2, avg_score, grade, points, teacher_init))
+            execute_db("""INSERT INTO marks (student_id, subject, term, year, paper1, paper2, total_score, grade, points, teacher_initials, teacher_id)
+                           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                           ON CONFLICT(student_id, subject, term, year) DO UPDATE SET 
+                           paper1=excluded.paper1, paper2=excluded.paper2, total_score=excluded.total_score, 
+                           grade=excluded.grade, points=excluded.points, teacher_initials=excluded.teacher_initials""",
+                        (student_id, subject, term, year, paper1, paper2, avg_score, grade, points, teacher_init, teacher_id))
             count += 1
     else:
-        # O-Level: AI scores + EOT
         ai_columns = [col for col in df.columns if col.startswith('ai') and col[2:].isdigit()]
         for _, row in df.iterrows():
             student_id = str(row['student_id']).strip()
-            cur.execute("SELECT class FROM students WHERE student_id=%s", (student_id,))
+            cur = get_db().cursor()
+            cur.execute("SELECT class FROM students WHERE student_id=?", (student_id,))
             res = cur.fetchone()
+            cur.close()
             if not res or res[0] != assigned_class:
                 continue
             
@@ -332,246 +832,57 @@ def process_marks_upload(file, subject, term, year, assigned_class, teacher_id, 
             for i, col in enumerate(ai_columns[:6]):
                 ai_values[i] = ai_scores[i] if i < len(ai_scores) else 0
             
-            cur.execute("""INSERT INTO marks (student_id, subject, term, year, ai1, ai2, ai3, ai4, ai5, ai6, ai_average, ai_contribution, eot_score, total_score, grade, identifier, descriptor, teacher_initials, teacher_id)
-                           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                           ON DUPLICATE KEY UPDATE ai1=%s, ai2=%s, ai3=%s, ai4=%s, ai5=%s, ai6=%s, ai_average=%s, ai_contribution=%s, eot_score=%s, total_score=%s, grade=%s, identifier=%s, descriptor=%s, teacher_initials=%s""",
+            execute_db("""INSERT INTO marks (student_id, subject, term, year, ai1, ai2, ai3, ai4, ai5, ai6, ai_average, ai_contribution, eot_score, total_score, grade, identifier, descriptor, teacher_initials, teacher_id)
+                           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                           ON CONFLICT(student_id, subject, term, year) DO UPDATE SET 
+                           ai1=excluded.ai1, ai2=excluded.ai2, ai3=excluded.ai3, ai4=excluded.ai4, ai5=excluded.ai5, ai6=excluded.ai6,
+                           ai_average=excluded.ai_average, ai_contribution=excluded.ai_contribution, eot_score=excluded.eot_score,
+                           total_score=excluded.total_score, grade=excluded.grade, identifier=excluded.identifier,
+                           descriptor=excluded.descriptor, teacher_initials=excluded.teacher_initials""",
                         (student_id, subject, term, year, ai_values[0], ai_values[1], ai_values[2], ai_values[3], ai_values[4], ai_values[5],
-                         ai_average, ai_contribution, eot, total_score, grade, identifier, descriptor, teacher_init, teacher_id,
-                         ai_values[0], ai_values[1], ai_values[2], ai_values[3], ai_values[4], ai_values[5],
-                         ai_average, ai_contribution, eot, total_score, grade, identifier, descriptor, teacher_init))
+                         ai_average, ai_contribution, eot, total_score, grade, identifier, descriptor, teacher_init, teacher_id))
             count += 1
     
-    mysql.connection.commit()
-    cur.close()
     return count
 
-def get_predefined_comments(comment_type):
-    """Get predefined comments for dropdown - safe version"""
-    cur = mysql.connection.cursor(DictCursor)
-    cur.execute("SELECT id, comment_text FROM predefined_comments WHERE comment_type=%s AND is_active=1 ORDER BY id", (comment_type,))
-    comments = cur.fetchall()
-    cur.close()
-    return comments
+# ==================== BANK PAYMENT PROCESSING ====================
+def process_bank_payment(payroll):
+    import random
+    results = {'success': False, 'token': None, 'reference': None, 'error': None}
+    if random.random() > 0.1:
+        results['success'] = True
+        results['token'] = f"TOKEN-{payroll['payroll_no']}"
+        results['reference'] = f"REF-{payroll['payroll_no']}-{int(time.time())}"
+    else:
+        results['error'] = "Bank API temporarily unavailable"
+    return results
 
-def calculate_age(birth_date):
-    """Calculate age from date of birth"""
-    today = datetime.now().date()
-    return today.year - birth_date.year - ((today.month, today.day) < (birth_date.month, birth_date.day))
+# ==================== CONTEXT PROCESSORS ====================
+@app.context_processor
+def inject_now():
+    return {'datetime': datetime}
 
-def extract_results_from_pdf(file_path):
-    """Extract results from uploaded PDF (simplified - integrate with actual OCR/parser)"""
-    # This is a placeholder. In production, integrate with:
-    # - PyPDF2 for text extraction
-    # - OCR engines like Tesseract
-    # - Or specific result parsing logic
-    
-    # For demo, return sample data
-    return {
-        'english': 75,
-        'math': 68,
-        'science': 82,
-        'social_studies': 70,
-        'average': 73.75,
-        'qualifies': True
-    }
+@app.context_processor
+def inject_notifications():
+    if 'user_id' in session:
+        role = session.get('role')
+        if role in ['headteacher', 'bursar', 'management', 'admin']:
+            notification_count = get_notification_count(role)
+            notifications = get_notifications(role, limit=5)
+            return {'notification_count': notification_count, 'notifications': notifications}
+    return {'notification_count': 0, 'notifications': []}
 
-def determine_admission_worth(results):
-    """Determine if student qualifies based on results"""
-    # Define qualification criteria (customize as needed)
-    min_average = 60
-    min_english = 50
-    min_math = 50
-    
-    qualifies = (
-        results.get('average', 0) >= min_average and
-        results.get('english', 0) >= min_english and
-        results.get('math', 0) >= min_math
-    )
-    
-    return {
-        'qualifies': qualifies,
-        'average': results.get('average', 0),
-        'message': 'Congratulations! You qualify for admission.' if qualifies else 'Sorry, you do not meet the minimum requirements.'
-    }
+# ==================== TEMPLATE FILTERS ====================
+@app.template_filter('currency')
+def currency_filter(value):
+    return "{:,.2f}".format(float(value)) if value else '0.00'
 
-def process_mobile_money_payment(phone_number, amount, student_id):
-    """Process mobile money payment (placeholder - integrate with actual API)"""
-    # In production, integrate with:
-    # - MTN MoMo API
-    # - Airtel Money API
-    # - Or other payment gateway
-    
-    # Generate unique transaction ID
-    transaction_id = f"PAY-{student_id}-{int(datetime.now().timestamp())}"
-    
-    # For demo, simulate successful payment
-    # In production, make actual API call
-    success = True
-    
-    return {
-        'success': success,
-        'transaction_id': transaction_id,
-        'message': 'Payment successful' if success else 'Payment failed'
-    }
+@app.template_filter('word_format')
+def word_format(value):
+    words = {1: 'One', 2: 'Two', 3: 'Three', 4: 'Four', 5: 'Five', 6: 'Six', 7: 'Seven', 8: 'Eight', 9: 'Nine', 10: 'Ten'}
+    return words.get(int(value), str(value)) if value else 'Zero'
 
-def generate_admission_letter(student):
-    """Generate admission letter HTML content"""
-    return f"""
-    <!DOCTYPE html>
-    <html>
-    <head><title>Admission Letter - {student['full_name']}</title></head>
-    <body style="font-family: Arial, sans-serif; padding: 40px;">
-        <div style="max-width: 800px; margin: 0 auto; border: 1px solid #ddd; padding: 30px;">
-            <div style="text-align: center;">
-                <h2>YOUR SCHOOL NAME</h2>
-                <p>P.O. Box 123, Kampala, Uganda | Tel: +256 712 345678</p>
-                <hr>
-                <h3>ADMISSION LETTER</h3>
-            </div>
-            <p><strong>Date:</strong> {datetime.now().strftime('%d/%m/%Y')}</p>
-            <p><strong>Student Name:</strong> {student['full_name']}</p>
-            <p><strong>Student ID:</strong> {student['student_id']}</p>
-            <p><strong>Class:</strong> {student['class']}</p>
-            <p><strong>LIN:</strong> {student['lin']}</p>
-            <p><strong>Preferred House:</strong> {student['preferred_house']}</p>
-            <p>Dear {student['full_name']},</p>
-            <p>We are pleased to inform you that your application for admission has been approved. You are hereby admitted to {student['class']} at our esteemed institution.</p>
-            <p>Please report to the school on the specified reporting date with this letter and other required documents.</p>
-            <br>
-            <p>Yours sincerely,</p>
-            <p><strong>Admissions Office</strong></p>
-            <div style="margin-top: 20px; text-align: center; font-size: 12px; color: #666;">
-                <p>This is a system-generated letter. No signature is required.</p>
-            </div>
-        </div>
-    </body>
-    </html>
-    """
-
-def send_email(recipient, subject, html_content):
-    """Send email (placeholder - integrate with actual email service)"""
-    # In production, integrate with:
-    # - SMTP (Gmail, Outlook)
-    # - SendGrid
-    # - Mailgun
-    
-    print(f"[EMAIL] To: {recipient} | Subject: {subject}")
-    print(f"[EMAIL] Content: {html_content[:200]}...")
-    return True
-
-@app.route('/admissions', methods=['GET', 'POST'])
-def admissions_portal():
-    """Student self-service admission portal"""
-    if request.method == 'POST':
-        # Step 1: Submit application
-        full_name = request.form['full_name']
-        date_of_birth = request.form['date_of_birth']
-        sex = request.form['sex']
-        preferred_house = request.form['preferred_house']
-        disability = request.form.get('disability', '')
-        sports_activities = request.form.getlist('sports_activities')
-        lin = request.form['lin']
-        phone = request.form['phone']
-        email = request.form['email']
-        
-        # Calculate age
-        birth_date = datetime.strptime(date_of_birth, '%Y-%m-%d').date()
-        age = calculate_age(birth_date)
-        
-        # Handle photo upload
-        photo = request.files.get('photo')
-        photo_filename = None
-        if photo and photo.filename:
-            ext = photo.filename.rsplit('.', 1)[1].lower()
-            student_id_temp = f"TEMP-{int(datetime.now().timestamp())}"
-            photo_filename = f"{student_id_temp}.{ext}"
-            photo.save(os.path.join(app.config['UPLOAD_FOLDER'], photo_filename))
-        
-        # Handle results PDF upload
-        results_file = request.files.get('results_pdf')
-        results_data = None
-        if results_file and results_file.filename:
-            filename = secure_filename(f"results_{int(datetime.now().timestamp())}_{results_file.filename}")
-            filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-            results_file.save(filepath)
-            
-            # Extract results from PDF
-            results_data = extract_results_from_pdf(filepath)
-        
-        # Determine admission worth
-        qualification = determine_admission_worth(results_data) if results_data else {'qualifies': False, 'message': 'Results not uploaded'}
-        
-        # Store in session for next steps
-        session['admission_data'] = {
-            'full_name': full_name,
-            'date_of_birth': date_of_birth,
-            'age': age,
-            'sex': sex,
-            'preferred_house': preferred_house,
-            'disability': disability,
-            'sports_activities': ','.join(sports_activities),
-            'lin': lin,
-            'phone': phone,
-            'email': email,
-            'photo_filename': photo_filename,
-            'qualification': qualification,
-            'results_data': results_data
-        }
-        
-        if qualification['qualifies']:
-            return redirect(url_for('admission_payment'))
-        else:
-            flash(qualification['message'], 'danger')
-            return redirect(url_for('admissions_portal'))
-    
-    # GET request - show admission form
-    cur = mysql.connection.cursor(DictCursor)
-    cur.execute("SELECT name FROM houses ORDER BY name")
-    houses = cur.fetchall()
-    cur.execute("SELECT name FROM sports_activities ORDER BY name")
-    sports = cur.fetchall()
-    cur.close()
-    
-    return render_template('admissions/apply.html', houses=houses, sports=sports)
-
-@app.route('/admissions/payment', methods=['GET', 'POST'])
-def admission_payment():
-    """Payment page for admission fees"""
-    admission_data = session.get('admission_data')
-    if not admission_data:
-        flash('Please complete the application form first.', 'warning')
-        return redirect(url_for('admissions_portal'))
-    
-    if request.method == 'POST':
-        phone_number = request.form['phone_number']
-        amount = 50000  # Admission fee amount
-        
-        # Process mobile money payment
-        payment_result = process_mobile_money_payment(phone_number, amount, 'ADMISSION')
-        
-        if payment_result['success']:
-            session['admission_data']['payment_completed'] = True
-            session['admission_data']['transaction_id'] = payment_result['transaction_id']
-            flash('Payment successful! Your application has been submitted.', 'success')
-            return redirect(url_for('admission_submitted'))
-        else:
-            flash('Payment failed. Please try again.', 'danger')
-            return redirect(url_for('admission_payment'))
-    
-    return render_template('admissions/payment.html', 
-                          amount=50000, 
-                          student_name=admission_data['full_name'])
-
-@app.route('/admissions/submitted')
-def admission_submitted():
-    """Application submitted confirmation page"""
-    admission_data = session.get('admission_data')
-    if not admission_data:
-        return redirect(url_for('admissions_portal'))
-    
-    return render_template('admissions/submitted.html', data=admission_data)
-
-# ==================== AUTHENTICATION ====================
+# ==================== AUTHENTICATION ROUTES ====================
 @app.route('/')
 def index():
     return redirect(url_for('login'))
@@ -581,8 +892,9 @@ def login():
     if request.method == 'POST':
         username = request.form['username'].strip()
         password = request.form['password'].strip()
-        cur = mysql.connection.cursor()
-        cur.execute("SELECT id, username, role, status, phone, must_change_password FROM users WHERE username=%s AND password=%s", (username, password))
+        cur = get_db().cursor()
+        cur.execute("SELECT id, username, role, status, phone, must_change_password FROM users WHERE username=? AND password=?", 
+                    (username, password))
         user = cur.fetchone()
         cur.close()
         if user and user[3] == 1:
@@ -605,10 +917,7 @@ def change_password():
         if new_pass != confirm:
             flash('Passwords do not match.', 'danger')
             return redirect(url_for('change_password'))
-        cur = mysql.connection.cursor()
-        cur.execute("UPDATE users SET password=%s, must_change_password=0 WHERE id=%s", (new_pass, session['user_id']))
-        mysql.connection.commit()
-        cur.close()
+        execute_db("UPDATE users SET password=?, must_change_password=0 WHERE id=?", (new_pass, session['user_id']))
         flash('Password changed successfully!', 'success')
         return redirect(url_for('dashboard'))
     return render_template('change_password.html')
@@ -626,16 +935,15 @@ def forgot_password():
         if new_pass != confirm:
             flash('Passwords do not match.', 'danger')
             return redirect(url_for('forgot_password'))
-        cur = mysql.connection.cursor()
-        cur.execute("SELECT id FROM users WHERE username=%s AND phone=%s", (username, phone))
+        cur = get_db().cursor()
+        cur.execute("SELECT id FROM users WHERE username=? AND phone=?", (username, phone))
         user = cur.fetchone()
+        cur.close()
         if user:
-            cur.execute("UPDATE users SET password=%s, must_change_password=0 WHERE id=%s", (new_pass, user[0]))
-            mysql.connection.commit()
+            execute_db("UPDATE users SET password=?, must_change_password=0 WHERE id=?", (new_pass, user[0]))
             flash('Password reset successfully.', 'success')
         else:
             flash('Username and phone number do not match.', 'danger')
-        cur.close()
         return redirect(url_for('login'))
     return render_template('forgot_password.html')
 
@@ -645,81 +953,64 @@ def logout():
     flash('Logged out.', 'info')
     return redirect(url_for('login'))
 
-@app.context_processor
-def inject_now():
-    return {'datetime': datetime}
-
-# ==================== DASHBOARD ====================
+# ==================== DASHBOARD ROUTES ====================
 @app.route('/dashboard')
 @login_required
 def dashboard():
     role = session.get('role')
     
-    # Get notifications for applicable roles
-    notification_count = 0
-    notifications = []
-    if role in ['headteacher', 'bursar', 'management', 'admin']:
-        notification_count = get_notification_count(role)
-        notifications = get_notifications(role, limit=5)
-    
     if role == 'admin':
         search = request.args.get('search', '').strip()
         page = request.args.get('page', 1, type=int)
         per_page = 10
-        cur = mysql.connection.cursor()
+        cur = get_db().cursor()
         if search:
-            cur.execute("SELECT COUNT(*) FROM users WHERE username LIKE %s", (f'%{search}%',))
+            cur.execute("SELECT COUNT(*) FROM users WHERE username LIKE ?", (f'%{search}%',))
         else:
             cur.execute("SELECT COUNT(*) FROM users")
         total = cur.fetchone()[0]
         total_pages = (total + per_page - 1) // per_page
         offset = (page - 1) * per_page
         if search:
-            cur.execute("SELECT id, username, role, phone, status, profile_pic FROM users WHERE username LIKE %s ORDER BY id LIMIT %s OFFSET %s", (f'%{search}%', per_page, offset))
+            cur.execute("SELECT id, username, role, phone, status, profile_pic FROM users WHERE username LIKE ? ORDER BY id LIMIT ? OFFSET ?", 
+                        (f'%{search}%', per_page, offset))
         else:
-            cur.execute("SELECT id, username, role, phone, status, profile_pic FROM users ORDER BY id LIMIT %s OFFSET %s", (per_page, offset))
+            cur.execute("SELECT id, username, role, phone, status, profile_pic FROM users ORDER BY id LIMIT ? OFFSET ?", 
+                        (per_page, offset))
         users = cur.fetchall()
         cur.close()
-        return render_template('dashboard.html', 
-                              role=role, 
-                              data={'users': users, 'total_pages': total_pages, 'current_page': page}, 
-                              search=search,
-                              notification_count=notification_count,
-                              notifications=notifications)
+        return render_template('dashboard.html', role=role, data={'users': users, 'total_pages': total_pages, 'current_page': page}, search=search)
     elif role == 'bursar':
         return redirect(url_for('bursar_dashboard'))
-    elif role == 'headteacher':
-        return render_template('dashboard.html', 
-                              role=role,
-                              notification_count=notification_count,
-                              notifications=notifications)
-    elif role == 'management':
-        return render_template('dashboard.html', 
-                              role=role,
-                              notification_count=notification_count,
-                              notifications=notifications)
     else:
-        return render_template('dashboard.html', 
-                              role=role,
-                              notification_count=notification_count,
-                              notifications=notifications)
+        return render_template('dashboard.html', role=role)
 
 @app.route('/notifications')
 @login_required
 def view_all_notifications():
     role = session.get('role')
-    cur = mysql.connection.cursor(DictCursor)
-    cur.execute("""
-        SELECT * FROM notifications 
-        WHERE user_role = %s 
-        ORDER BY created_at DESC
-    """, (role,))
+    db = get_db_dict()
+    cur = db.cursor()
+    cur.execute("SELECT * FROM notifications WHERE user_role = ? ORDER BY created_at DESC", (role,))
     notifications = cur.fetchall()
     cur.close()
     return render_template('notifications.html', notifications=notifications)
 
+@app.route('/notification/mark_read/<int:notification_id>')
+@login_required
+def mark_notification_read_route(notification_id):
+    mark_notification_read(notification_id)
+    return redirect(request.referrer or url_for('dashboard'))
 
-# ==================== ADMIN MODULE ====================
+@app.route('/notification/mark_all_read')
+@login_required
+def mark_all_notifications_read_route():
+    role = session.get('role')
+    mark_all_notifications_read(role)
+    flash('All notifications marked as read.', 'success')
+    return redirect(request.referrer or url_for('dashboard'))
+
+# ==================== ADMIN ROUTES ====================
 @app.route('/admin/add_user', methods=['POST'])
 @admin_required
 def add_user():
@@ -733,30 +1024,17 @@ def add_user():
         return redirect(url_for('dashboard'))
     child_id = request.form.get('child_id', '').strip() or None
     
-    if not username or not password or not role:
-        flash('Username, password and role are required.', 'danger')
-        return redirect(url_for('dashboard'))
-    
-    cur = mysql.connection.cursor()
     try:
-        # REMOVED assigned_class from the INSERT statement
-        cur.execute("""
-            INSERT INTO users (username, password, role, phone, status, child_id, profile_pic, must_change_password) 
-            VALUES (%s, %s, %s, %s, 1, %s, 'default_avatar.png', 1)
-        """, (username, password, role, phone, child_id))
-        mysql.connection.commit()
+        execute_db("INSERT INTO users (username, password, role, phone, status, child_id, profile_pic, must_change_password) VALUES (?, ?, ?, ?, 1, ?, 'default_avatar.png', 1)",
+                   (username, password, role, phone, child_id))
         flash(f'User {username} added. Password: {password} – inform the user.', 'success')
     except Exception as e:
-        mysql.connection.rollback()
         flash(f'Error: {str(e)}', 'danger')
-    finally:
-        cur.close()
     return redirect(url_for('dashboard'))
 
 @app.route('/admin/edit_user/<int:user_id>', methods=['GET', 'POST'])
 @admin_required
 def edit_user(user_id):
-    cur = mysql.connection.cursor()
     if request.method == 'POST':
         username = request.form['username'].strip()
         role = request.form['role'].strip()
@@ -764,31 +1042,24 @@ def edit_user(user_id):
         child_id = request.form.get('child_id', '').strip() or None
         file = request.files.get('profile_pic')
         profile_pic = None
-        if file and file.filename:
-            if allowed_file(file.filename, ALLOWED_IMAGE_EXTENSIONS):
-                filename = secure_filename(f"user_{user_id}_{file.filename}")
-                file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
-                profile_pic = filename
-            else:
-                flash('Invalid image format.', 'danger')
-                return redirect(url_for('edit_user', user_id=user_id))
+        if file and file.filename and allowed_file(file.filename, ALLOWED_IMAGE_EXTENSIONS):
+            filename = secure_filename(f"user_{user_id}_{file.filename}")
+            file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+            profile_pic = filename
         try:
             if profile_pic:
-                cur.execute("UPDATE users SET username=%s, role=%s, phone=%s, child_id=%s, profile_pic=%s WHERE id=%s", 
+                execute_db("UPDATE users SET username=?, role=?, phone=?, child_id=?, profile_pic=? WHERE id=?", 
                            (username, role, phone, child_id, profile_pic, user_id))
             else:
-                cur.execute("UPDATE users SET username=%s, role=%s, phone=%s, child_id=%s WHERE id=%s", 
+                execute_db("UPDATE users SET username=?, role=?, phone=?, child_id=? WHERE id=?", 
                            (username, role, phone, child_id, user_id))
-            mysql.connection.commit()
             flash('User updated.', 'success')
         except Exception as e:
-            mysql.connection.rollback()
             flash(f'Error: {str(e)}', 'danger')
-        finally:
-            cur.close()
         return redirect(url_for('dashboard'))
     
-    cur.execute("SELECT id, username, role, phone, child_id, profile_pic FROM users WHERE id=%s", (user_id,))
+    cur = get_db().cursor()
+    cur.execute("SELECT id, username, role, phone, child_id, profile_pic FROM users WHERE id=?", (user_id,))
     user = cur.fetchone()
     cur.close()
     return render_template('edit_user.html', user=user)
@@ -799,10 +1070,10 @@ def toggle_user(user_id):
     if user_id == session.get('user_id'):
         flash('Cannot toggle your own account.', 'warning')
         return redirect(url_for('dashboard'))
-    cur = mysql.connection.cursor()
-    cur.execute("UPDATE users SET status = 1 - status WHERE id=%s", (user_id,))
-    mysql.connection.commit()
+    cur = get_db().cursor()
+    cur.execute("UPDATE users SET status = 1 - status WHERE id=?", (user_id,))
     cur.close()
+    get_db().commit()
     flash('Status toggled.', 'success')
     return redirect(url_for('dashboard'))
 
@@ -812,21 +1083,19 @@ def delete_user(user_id):
     if user_id == session.get('user_id'):
         flash('Cannot delete your own account.', 'warning')
         return redirect(url_for('dashboard'))
-    cur = mysql.connection.cursor()
-    cur.execute("DELETE FROM users WHERE id=%s", (user_id,))
-    mysql.connection.commit()
-    cur.close()
+    execute_db("DELETE FROM users WHERE id=?", (user_id,))
     flash('User deleted.', 'success')
     return redirect(url_for('dashboard'))
 
 @app.route('/admin/teacher_assignments')
 @admin_required
 def admin_teacher_assignments():
-    cur = mysql.connection.cursor(DictCursor)
+    db = get_db_dict()
+    cur = db.cursor()
     cur.execute("SELECT u.id, u.username, u.role, GROUP_CONCAT(tca.class_name) as assigned_classes FROM users u LEFT JOIN teacher_class_assignments tca ON u.id = tca.user_id WHERE u.role IN ('classteacher', 'subject_teacher') GROUP BY u.id ORDER BY u.username")
     teachers = cur.fetchall()
     cur.execute("SELECT DISTINCT class FROM students WHERE class IS NOT NULL ORDER BY class")
-    all_classes = [row['class'] for row in cur.fetchall()]
+    all_classes = [row[0] for row in cur.fetchall()]
     cur.close()
     return render_template('admin/teacher_assignments.html', teachers=teachers, all_classes=all_classes)
 
@@ -842,119 +1111,78 @@ def school_settings():
     if not check_permission(['admin', 'headteacher']):
         abort(403)
     
-    cur = mysql.connection.cursor()
-    
     if request.method == 'POST':
         begins = request.form['next_term_begins']
         ends = request.form['next_term_ends']
         
-        # Handle stamp upload
         stamp_file = request.files.get('stamp')
         stamp_filename = None
-        if stamp_file and stamp_file.filename:
-            if allowed_file(stamp_file.filename, ALLOWED_IMAGE_EXTENSIONS):
-                stamp_filename = f"stamp_{int(datetime.now().timestamp())}.{stamp_file.filename.rsplit('.', 1)[1].lower()}"
-                stamp_file.save(os.path.join(app.config['UPLOAD_FOLDER'], stamp_filename))
-            else:
-                flash('Invalid stamp image format.', 'danger')
-                return redirect(url_for('school_settings'))
+        if stamp_file and stamp_file.filename and allowed_file(stamp_file.filename, ALLOWED_IMAGE_EXTENSIONS):
+            stamp_filename = f"stamp_{int(datetime.now().timestamp())}.{stamp_file.filename.rsplit('.', 1)[1].lower()}"
+            stamp_file.save(os.path.join(app.config['UPLOAD_FOLDER'], stamp_filename))
         
-        # School information
         school_name = request.form.get('school_name', 'YOUR SCHOOL NAME')
         school_address = request.form.get('school_address', 'P.O. Box 123, Kampala, Uganda')
         school_phone = request.form.get('school_phone', 'Tel: +256 712 345678')
         school_email = request.form.get('school_email', 'Email: info@school.com')
         
-        # Logo upload
         logo_file = request.files.get('logo')
         logo_filename = None
-        if logo_file and logo_file.filename:
-            if allowed_file(logo_file.filename, ALLOWED_IMAGE_EXTENSIONS):
-                logo_filename = f"logo_{int(datetime.now().timestamp())}.{logo_file.filename.rsplit('.', 1)[1].lower()}"
-                logo_file.save(os.path.join(app.config['UPLOAD_FOLDER'], logo_filename))
-            else:
-                flash('Invalid logo image format.', 'danger')
-                return redirect(url_for('school_settings'))
+        if logo_file and logo_file.filename and allowed_file(logo_file.filename, ALLOWED_IMAGE_EXTENSIONS):
+            logo_filename = f"logo_{int(datetime.now().timestamp())}.{logo_file.filename.rsplit('.', 1)[1].lower()}"
+            logo_file.save(os.path.join(app.config['UPLOAD_FOLDER'], logo_filename))
         
-        # NSSF and PAYE rates
         nssf_employee_rate = float(request.form.get('nssf_employee_rate', 5.0))
         paye_rate = float(request.form.get('paye_rate', 10.0))
         paye_threshold = float(request.form.get('paye_threshold', 235000))
         
-        # Build update query dynamically
-        update_fields = []
-        params = []
-        
-        update_fields.append("next_term_begins = %s")
-        params.append(begins)
-        
-        update_fields.append("next_term_ends = %s")
-        params.append(ends)
-        
-        update_fields.append("school_name = %s")
-        params.append(school_name)
-        
-        update_fields.append("school_address = %s")
-        params.append(school_address)
-        
-        update_fields.append("school_phone = %s")
-        params.append(school_phone)
-        
-        update_fields.append("school_email = %s")
-        params.append(school_email)
-        
-        update_fields.append("nssf_employee_rate = %s")
-        params.append(nssf_employee_rate)
-        
-        update_fields.append("paye_rate = %s")
-        params.append(paye_rate)
-        
-        update_fields.append("paye_threshold = %s")
-        params.append(paye_threshold)
-        
+        # Update school settings
+        cur = get_db().cursor()
+        cur.execute("UPDATE school_settings SET next_term_begins=?, next_term_ends=?, school_name=?, school_address=?, school_phone=?, school_email=?, nssf_employee_rate=?, paye_rate=?, paye_threshold=? WHERE id=1",
+                    (begins, ends, school_name, school_address, school_phone, school_email, nssf_employee_rate, paye_rate, paye_threshold))
         if stamp_filename:
-            update_fields.append("headteacher_stamp = %s")
-            params.append(stamp_filename)
-        
+            cur.execute("UPDATE school_settings SET headteacher_stamp=? WHERE id=1", (stamp_filename,))
         if logo_filename:
-            update_fields.append("logo_url = %s")
-            params.append(logo_filename)
-        
-        params.append(1)  # WHERE id=1
-        
-        query = f"UPDATE school_settings SET {', '.join(update_fields)} WHERE id = %s"
-        cur.execute(query, params)
-        mysql.connection.commit()
-        
+            cur.execute("UPDATE school_settings SET logo_url=? WHERE id=1", (logo_filename,))
+        get_db().commit()
+        cur.close()
         flash('School settings updated successfully.', 'success')
     
-    # Get all settings
-    cur.execute("""
-        SELECT next_term_begins, next_term_ends, headteacher_stamp, 
-               school_name, school_address, school_phone, school_email, logo_url,
-               nssf_employee_rate, paye_rate, paye_threshold
-        FROM school_settings WHERE id=1
-    """)
+    cur = get_db().cursor()
+    cur.execute("SELECT next_term_begins, next_term_ends, headteacher_stamp, school_name, school_address, school_phone, school_email, logo_url, nssf_employee_rate, paye_rate, paye_threshold FROM school_settings WHERE id=1")
     settings = cur.fetchone()
     cur.close()
     
-    # Extract values with defaults
     nssf_rate = settings[8] if settings and len(settings) > 8 else 5.0
-    paye_rate = settings[9] if settings and len(settings) > 9 else 10.0
-    paye_threshold = settings[10] if settings and len(settings) > 10 else 235000
+    paye_rate_val = settings[9] if settings and len(settings) > 9 else 10.0
+    paye_threshold_val = settings[10] if settings and len(settings) > 10 else 235000
     
-    return render_template('admin/school_settings.html', 
-                          settings=settings,
-                          nssf_rate=nssf_rate,
-                          paye_rate=paye_rate,
-                          paye_threshold=paye_threshold)
+    return render_template('admin/school_settings.html', settings=settings, nssf_rate=nssf_rate, paye_rate=paye_rate_val, paye_threshold=paye_threshold_val)
 
-# ==================== PREDEFINED COMMENTS MANAGEMENT ====================
+@app.route('/admin/nssf_paye_settings', methods=['GET', 'POST'])
+def nssf_paye_settings():
+    if not check_permission(['admin', 'bursar']):
+        abort(403)
+    
+    if request.method == 'POST':
+        nssf_employee = float(request.form['nssf_employee_rate'])
+        paye_rate = float(request.form['paye_rate'])
+        paye_threshold = float(request.form['paye_threshold'])
+        execute_db("UPDATE school_settings SET nssf_employee_rate=?, paye_rate=?, paye_threshold=? WHERE id=1", 
+                   (nssf_employee, paye_rate, paye_threshold))
+        flash('NSSF and PAYE settings updated successfully.', 'success')
+    
+    cur = get_db().cursor()
+    cur.execute("SELECT nssf_employee_rate, paye_rate, paye_threshold FROM school_settings WHERE id=1")
+    settings = cur.fetchone()
+    cur.close()
+    return render_template('admin/nssf_paye_settings.html', settings=settings)
 
 @app.route('/admin/predefined_comments')
 @admin_required
 def admin_predefined_comments():
-    cur = mysql.connection.cursor(DictCursor)
+    db = get_db_dict()
+    cur = db.cursor()
     cur.execute("SELECT * FROM predefined_comments ORDER BY comment_type, id")
     comments = cur.fetchall()
     cur.close()
@@ -965,30 +1193,124 @@ def admin_predefined_comments():
 def admin_predefined_comments_add():
     comment_type = request.form['comment_type']
     comment_text = request.form['comment_text'].strip()
-    
     if not comment_text:
         flash('Comment text is required.', 'danger')
         return redirect(url_for('admin_predefined_comments'))
-    
-    cur = mysql.connection.cursor()
-    cur.execute("INSERT INTO predefined_comments (comment_type, comment_text, is_active) VALUES (%s, %s, 1)", 
-                (comment_type, comment_text))
-    mysql.connection.commit()
-    cur.close()
-    
+    execute_db("INSERT INTO predefined_comments (comment_type, comment_text, is_active) VALUES (?, ?, 1)", (comment_type, comment_text))
     flash('Comment added successfully.', 'success')
     return redirect(url_for('admin_predefined_comments'))
 
 @app.route('/admin/predefined_comments/delete/<int:comment_id>')
 @admin_required
 def admin_predefined_comments_delete(comment_id):
-    cur = mysql.connection.cursor()
-    cur.execute("DELETE FROM predefined_comments WHERE id=%s", (comment_id,))
-    mysql.connection.commit()
-    cur.close()
-    
+    execute_db("DELETE FROM predefined_comments WHERE id=?", (comment_id,))
     flash('Comment deleted successfully.', 'success')
     return redirect(url_for('admin_predefined_comments'))
+
+# ==================== ADMISSION PORTAL ROUTES ====================
+def extract_results_from_pdf(file_path):
+    return {'english': 75, 'math': 68, 'science': 82, 'social_studies': 70, 'average': 73.75, 'qualifies': True}
+
+def determine_admission_worth(results):
+    min_average = 60
+    min_english = 50
+    min_math = 50
+    qualifies = (results.get('average', 0) >= min_average and results.get('english', 0) >= min_english and results.get('math', 0) >= min_math)
+    return {'qualifies': qualifies, 'average': results.get('average', 0), 'message': 'Congratulations! You qualify.' if qualifies else 'Sorry, you do not meet requirements.'}
+
+def process_mobile_money_payment(phone_number, amount, student_id):
+    transaction_id = f"PAY-{student_id}-{int(datetime.now().timestamp())}"
+    return {'success': True, 'transaction_id': transaction_id, 'message': 'Payment successful'}
+
+def generate_admission_letter(student):
+    return f"""<!DOCTYPE html><html><head><title>Admission Letter</title></head><body><h2>Admission Letter</h2><p>Dear {student['full_name']},</p><p>You have been admitted.</p></body></html>"""
+
+@app.route('/admissions', methods=['GET', 'POST'])
+def admissions_portal():
+    if request.method == 'POST':
+        full_name = request.form['full_name']
+        date_of_birth = request.form['date_of_birth']
+        sex = request.form['sex']
+        preferred_house = request.form['preferred_house']
+        disability = request.form.get('disability', '')
+        sports_activities = request.form.getlist('sports_activities')
+        lin = request.form['lin']
+        phone = request.form['phone']
+        email = request.form['email']
+        
+        birth_date = datetime.strptime(date_of_birth, '%Y-%m-%d').date()
+        age = calculate_age(birth_date)
+        
+        photo = request.files.get('photo')
+        photo_filename = None
+        if photo and photo.filename:
+            ext = photo.filename.rsplit('.', 1)[1].lower()
+            student_id_temp = f"TEMP-{int(datetime.now().timestamp())}"
+            photo_filename = f"{student_id_temp}.{ext}"
+            photo.save(os.path.join(app.config['UPLOAD_FOLDER'], photo_filename))
+        
+        results_file = request.files.get('results_pdf')
+        results_data = None
+        if results_file and results_file.filename:
+            filename = secure_filename(f"results_{int(datetime.now().timestamp())}_{results_file.filename}")
+            filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+            results_file.save(filepath)
+            results_data = extract_results_from_pdf(filepath)
+        
+        qualification = determine_admission_worth(results_data) if results_data else {'qualifies': False, 'message': 'Results not uploaded'}
+        
+        session['admission_data'] = {
+            'full_name': full_name, 'date_of_birth': date_of_birth, 'age': age, 'sex': sex,
+            'preferred_house': preferred_house, 'disability': disability,
+            'sports_activities': ','.join(sports_activities), 'lin': lin, 'phone': phone,
+            'email': email, 'photo_filename': photo_filename, 'qualification': qualification,
+            'results_data': results_data
+        }
+        
+        if qualification['qualifies']:
+            return redirect(url_for('admission_payment'))
+        else:
+            flash(qualification['message'], 'danger')
+            return redirect(url_for('admissions_portal'))
+    
+    db = get_db_dict()
+    cur = db.cursor()
+    cur.execute("SELECT name FROM houses ORDER BY name")
+    houses = cur.fetchall()
+    cur.execute("SELECT name FROM sports_activities ORDER BY name")
+    sports = cur.fetchall()
+    cur.close()
+    return render_template('admissions/apply.html', houses=houses, sports=sports)
+
+@app.route('/admissions/payment', methods=['GET', 'POST'])
+def admission_payment():
+    admission_data = session.get('admission_data')
+    if not admission_data:
+        flash('Please complete the application form first.', 'warning')
+        return redirect(url_for('admissions_portal'))
+    
+    if request.method == 'POST':
+        phone_number = request.form['phone_number']
+        amount = 50000
+        payment_result = process_mobile_money_payment(phone_number, amount, 'ADMISSION')
+        
+        if payment_result['success']:
+            session['admission_data']['payment_completed'] = True
+            session['admission_data']['transaction_id'] = payment_result['transaction_id']
+            flash('Payment successful! Your application has been submitted.', 'success')
+            return redirect(url_for('admission_submitted'))
+        else:
+            flash('Payment failed. Please try again.', 'danger')
+            return redirect(url_for('admission_payment'))
+    
+    return render_template('admissions/payment.html', amount=50000, student_name=admission_data['full_name'])
+
+@app.route('/admissions/submitted')
+def admission_submitted():
+    admission_data = session.get('admission_data')
+    if not admission_data:
+        return redirect(url_for('admissions_portal'))
+    return render_template('admissions/submitted.html', data=admission_data)
 
 # ==================== DOS MODULE ====================
 SCHOOL_ABBR = "SMS"
@@ -1001,8 +1323,8 @@ def dos_admit():
     if not check_permission(['dos']):
         abort(403)
     
-    # Get houses and sports for dropdowns
-    cur = mysql.connection.cursor(DictCursor)
+    db = get_db_dict()
+    cur = db.cursor()
     cur.execute("SELECT name FROM houses ORDER BY name")
     houses = cur.fetchall()
     cur.execute("SELECT name FROM sports_activities ORDER BY name")
@@ -1022,7 +1344,6 @@ def dos_admit():
         parent_phone = validate_and_format_phone(parent_phone_raw) if parent_phone_raw else None
         photo = request.files.get('photo')
         
-        # Calculate age
         age = None
         if date_of_birth:
             birth_date = datetime.strptime(date_of_birth, '%Y-%m-%d').date()
@@ -1030,31 +1351,20 @@ def dos_admit():
         
         student_id = generate_student_id()
         photo_filename = "default_avatar.png"
-        if photo and photo.filename:
-            if allowed_file(photo.filename, ALLOWED_IMAGE_EXTENSIONS):
-                ext = photo.filename.rsplit('.', 1)[1].lower()
-                photo_filename = f"{student_id}.{ext}"
-                photo.save(os.path.join(app.config['UPLOAD_FOLDER'], photo_filename))
+        if photo and photo.filename and allowed_file(photo.filename, ALLOWED_IMAGE_EXTENSIONS):
+            ext = photo.filename.rsplit('.', 1)[1].lower()
+            photo_filename = f"{student_id}.{ext}"
+            photo.save(os.path.join(app.config['UPLOAD_FOLDER'], photo_filename))
         
-        cur = mysql.connection.cursor()
         try:
-            cur.execute("""
-                INSERT INTO students (
-                    student_id, full_name, class, photo_path, fees_paid, fees_balance, 
-                    admission_date, parent_phone, date_of_birth, age, sex, 
-                    preferred_house, disability, sports_activities, lin, 
-                    admission_source, admission_status
-                ) VALUES (%s, %s, %s, %s, 0, 0, CURDATE(), %s, %s, %s, %s, %s, %s, %s, %s, 'local', 'approved')
-            """, (student_id, full_name, class_name, photo_filename, parent_phone, 
-                  date_of_birth, age, sex, preferred_house, disability, 
-                  ','.join(sports_activities) if sports_activities else None, lin))
-            mysql.connection.commit()
+            execute_db("""INSERT INTO students (student_id, full_name, class, photo_path, fees_paid, fees_balance, admission_date, parent_phone, 
+                           date_of_birth, age, sex, preferred_house, disability, sports_activities, lin, admission_source, admission_status)
+                           VALUES (?, ?, ?, ?, 0, 0, DATE('now'), ?, ?, ?, ?, ?, ?, ?, ?, 'local', 'approved')""",
+                       (student_id, full_name, class_name, photo_filename, parent_phone, date_of_birth, age, sex, preferred_house, disability,
+                        ','.join(sports_activities) if sports_activities else None, lin))
             flash(f'Student {full_name} admitted with ID {student_id}.', 'success')
         except Exception as e:
-            mysql.connection.rollback()
             flash(f'Error: {str(e)}', 'danger')
-        finally:
-            cur.close()
         return redirect(url_for('dos_admit'))
     
     return render_template('dos/admit_student.html', houses=houses, sports=sports)
@@ -1067,17 +1377,18 @@ def dos_class_lists():
     search = request.args.get('search', '') or ''
     term = request.args.get('term', 'Term 1')
     
-    cur = mysql.connection.cursor(DictCursor)
+    db = get_db_dict()
+    cur = db.cursor()
     cur.execute("SELECT DISTINCT class FROM students WHERE class IS NOT NULL AND class != '' ORDER BY class")
     classes = [row['class'] for row in cur.fetchall()]
     
     query = "SELECT student_id, full_name, class, photo_path, parent_phone, sex, age, preferred_house, lin, admission_source FROM students WHERE 1=1"
     params = []
     if class_filter:
-        query += " AND class = %s"
+        query += " AND class = ?"
         params.append(class_filter)
     if search:
-        query += " AND (student_id LIKE %s OR full_name LIKE %s)"
+        query += " AND (student_id LIKE ? OR full_name LIKE ?)"
         pattern = f"%{search}%"
         params.append(pattern)
         params.append(pattern)
@@ -1086,34 +1397,24 @@ def dos_class_lists():
     students = cur.fetchall()
     
     for s in students:
-        photo_path = s.get('photo_path')
-        if photo_path and photo_path != 'default_avatar.png':
-            s['photo_url'] = url_for('static', filename='uploads/' + photo_path)
-        else:
-            s['photo_url'] = url_for('static', filename='uploads/default_avatar.png')
+        s['photo_url'] = get_photo_url(s.get('photo_path'))
     
     cur.close()
-    return render_template('dos/class_lists.html', 
-        classes=classes, 
-        students=students, 
-        selected_class=class_filter, 
-        search=search,
-        term=term)
+    return render_template('dos/class_lists.html', classes=classes, students=students, selected_class=class_filter, search=search, term=term)
 
 @app.route('/dos/remove_student/<student_id>', methods=['POST'])
 def dos_remove_student(student_id):
     if not check_permission(['dos']):
         abort(403)
-    cur = mysql.connection.cursor()
-    cur.execute("SELECT photo_path FROM students WHERE student_id=%s", (student_id,))
+    cur = get_db().cursor()
+    cur.execute("SELECT photo_path FROM students WHERE student_id=?", (student_id,))
     row = cur.fetchone()
+    cur.close()
     if row and row[0] != 'default_avatar.png':
         path = os.path.join(app.config['UPLOAD_FOLDER'], row[0])
         if os.path.exists(path):
             os.remove(path)
-    cur.execute("DELETE FROM students WHERE student_id=%s", (student_id,))
-    mysql.connection.commit()
-    cur.close()
+    execute_db("DELETE FROM students WHERE student_id=?", (student_id,))
     flash(f'Student {student_id} removed.', 'success')
     return redirect(url_for('dos_class_lists'))
 
@@ -1121,9 +1422,10 @@ def dos_remove_student(student_id):
 def dos_promote():
     if not check_permission(['dos']):
         abort(403)
-    cur = mysql.connection.cursor()
+    cur = get_db().cursor()
     cur.execute("SELECT DISTINCT class FROM students WHERE class IS NOT NULL AND class != '' ORDER BY class")
     classes = [row[0] for row in cur.fetchall()]
+    cur.close()
     if request.method == 'POST':
         from_class = request.form['from_class']
         match = re.search(r'(\d+)', from_class)
@@ -1131,18 +1433,15 @@ def dos_promote():
             to_class = from_class.replace(str(match.group(1)), str(int(match.group(1)) + 1))
         else:
             to_class = from_class + " (Promoted)"
-        cur.execute("UPDATE students SET class=%s WHERE class=%s", (to_class, from_class))
-        mysql.connection.commit()
+        execute_db("UPDATE students SET class=? WHERE class=?", (to_class, from_class))
         flash(f'{cur.rowcount} students promoted from {from_class} to {to_class}.', 'success')
-    cur.close()
     return render_template('dos/promote.html', classes=classes)
 
 @app.route('/dos/attendance')
 def dos_attendance():
     if not check_permission(['dos']):
         abort(403)
-    # Reuses the same unified attendance template
-    cur = mysql.connection.cursor()
+    cur = get_db().cursor()
     cur.execute("SELECT DISTINCT class FROM students WHERE class IS NOT NULL AND class != '' ORDER BY class")
     classes = [row[0] for row in cur.fetchall()]
     cur.close()
@@ -1166,13 +1465,11 @@ def dos_schedules():
                 if any(row):
                     parsed.append(",".join([escape(cell.strip()) for cell in row]))
             final_content = "\n".join(parsed)
-        cur = mysql.connection.cursor()
-        cur.execute("INSERT INTO schedules (type, term_scope, content, updated_at) VALUES (%s, %s, %s, NOW()) ON DUPLICATE KEY UPDATE content=%s, updated_at=NOW()", (schedule_type, term_scope, final_content, final_content))
-        mysql.connection.commit()
-        cur.close()
+        execute_db("INSERT INTO schedules (type, term_scope, content, updated_at) VALUES (?, ?, ?, CURRENT_TIMESTAMP) ON CONFLICT(type, term_scope) DO UPDATE SET content=?, updated_at=CURRENT_TIMESTAMP",
+                   (schedule_type, term_scope, final_content, final_content))
         flash(f'{schedule_type.capitalize()} saved.', 'success')
         return redirect(url_for('dos_schedules'))
-    cur = mysql.connection.cursor()
+    cur = get_db().cursor()
     cur.execute("SELECT type, term_scope, content, updated_at FROM schedules ORDER BY type, term_scope DESC")
     schedules = cur.fetchall()
     cur.close()
@@ -1195,20 +1492,17 @@ def dos_olevel_grading():
             if not all(c in df.columns for c in required):
                 flash('Missing required columns', 'danger')
                 return redirect(url_for('dos_olevel_grading'))
-            cur = mysql.connection.cursor()
-            cur.execute("TRUNCATE TABLE grading_system")
+            execute_db("DELETE FROM grading_system")
             count = 0
             for _, row in df.iterrows():
-                cur.execute("INSERT INTO grading_system (min_score, max_score, grade, descriptor) VALUES (%s, %s, %s, %s)", 
+                execute_db("INSERT INTO grading_system (min_score, max_score, grade, descriptor) VALUES (?, ?, ?, ?)",
                            (float(row['min_score']), float(row['max_score']), str(row['grade']).strip(), str(row['descriptor']).strip()))
                 count += 1
-            mysql.connection.commit()
-            cur.close()
             flash(f'{count} O-Level grading rules uploaded.', 'success')
         except Exception as e:
             flash(f'Error: {str(e)}', 'danger')
         return redirect(url_for('dos_olevel_grading'))
-    cur = mysql.connection.cursor()
+    cur = get_db().cursor()
     cur.execute("SELECT min_score, max_score, grade, descriptor FROM grading_system ORDER BY min_score DESC")
     rules = cur.fetchall()
     cur.close()
@@ -1230,20 +1524,17 @@ def dos_alevel_grading():
             if not all(c in df.columns for c in required):
                 flash('Missing required columns', 'danger')
                 return redirect(url_for('dos_alevel_grading'))
-            cur = mysql.connection.cursor()
-            cur.execute("DELETE FROM alevel_grading WHERE is_subsidiary=0")
+            execute_db("DELETE FROM alevel_grading WHERE is_subsidiary=0")
             count = 0
             for _, row in df.iterrows():
-                cur.execute("INSERT INTO alevel_grading (min_score, max_score, grade, points, is_subsidiary) VALUES (%s, %s, %s, %s, 0)", 
+                execute_db("INSERT INTO alevel_grading (min_score, max_score, grade, points, is_subsidiary) VALUES (?, ?, ?, ?, 0)",
                            (float(row['min_score']), float(row['max_score']), str(row['grade']).strip(), int(row['points'])))
                 count += 1
-            mysql.connection.commit()
-            cur.close()
             flash(f'{count} A-Level grading rules uploaded.', 'success')
         except Exception as e:
             flash(f'Error: {str(e)}', 'danger')
         return redirect(url_for('dos_alevel_grading'))
-    cur = mysql.connection.cursor()
+    cur = get_db().cursor()
     cur.execute("SELECT min_score, max_score, grade, points FROM alevel_grading WHERE is_subsidiary=0 ORDER BY min_score DESC")
     rules = cur.fetchall()
     cur.close()
@@ -1265,20 +1556,17 @@ def dos_identifier_grading():
             if not all(c in df.columns for c in required):
                 flash('Missing required columns', 'danger')
                 return redirect(url_for('dos_identifier_grading'))
-            cur = mysql.connection.cursor()
-            cur.execute("TRUNCATE TABLE identifier_grading")
+            execute_db("DELETE FROM identifier_grading")
             count = 0
             for _, row in df.iterrows():
-                cur.execute("INSERT INTO identifier_grading (min_value, max_value, descriptor) VALUES (%s, %s, %s)", 
+                execute_db("INSERT INTO identifier_grading (min_value, max_value, descriptor) VALUES (?, ?, ?)",
                            (float(row['min_value']), float(row['max_value']), str(row['descriptor']).strip()))
                 count += 1
-            mysql.connection.commit()
-            cur.close()
             flash(f'{count} Identifier grading rules uploaded.', 'success')
         except Exception as e:
             flash(f'Error: {str(e)}', 'danger')
         return redirect(url_for('dos_identifier_grading'))
-    cur = mysql.connection.cursor()
+    cur = get_db().cursor()
     cur.execute("SELECT min_value, max_value, descriptor FROM identifier_grading ORDER BY min_value DESC")
     rules = cur.fetchall()
     cur.close()
@@ -1288,7 +1576,8 @@ def dos_identifier_grading():
 def dos_teacher_assignments():
     if not check_permission(['dos']):
         abort(403)
-    cur = mysql.connection.cursor(DictCursor)
+    db = get_db_dict()
+    cur = db.cursor()
     cur.execute("SELECT u.username, u.role, tca.class_name, tca.subject, tca.assignment_type, tca.assigned_by, tca.assigned_at FROM teacher_class_assignments tca JOIN users u ON tca.user_id = u.id ORDER BY tca.class_name, tca.assignment_type, u.username")
     assignments = cur.fetchall()
     cur.close()
@@ -1310,10 +1599,11 @@ def dos_upload_subject_teachers():
             if not all(c in df.columns for c in required):
                 flash('Missing required columns', 'danger')
                 return redirect(url_for('dos_upload_subject_teachers'))
-            cur = mysql.connection.cursor(DictCursor)
+            db = get_db_dict()
+            cur = db.cursor()
             success = 0
             for _, row in df.iterrows():
-                cur.execute("SELECT id FROM users WHERE username=%s", (str(row['username']).strip(),))
+                cur.execute("SELECT id FROM users WHERE username=?", (str(row['username']).strip(),))
                 user = cur.fetchone()
                 if user:
                     assign_user_to_class(user['id'], str(row['class_name']).strip(), str(row['subject']).strip(), 'subject_teacher')
@@ -1330,29 +1620,21 @@ def dos_report_card(student_id):
     if not check_permission(['dos']):
         abort(403)
     
-    cur = mysql.connection.cursor(DictCursor)
+    db = get_db_dict()
+    cur = db.cursor()
     
-    # Get student details
-    cur.execute("SELECT full_name, class, photo_path FROM students WHERE student_id=%s", (student_id,))
+    cur.execute("SELECT full_name, class, photo_path FROM students WHERE student_id=?", (student_id,))
     student = cur.fetchone()
     if not student:
         flash('Student not found.', 'danger')
         return redirect(url_for('dos_class_lists'))
     
-    full_name = student['full_name']
-    class_name = student['class']
-    photo_path = student['photo_path']
-    
-    # Handle photo URL safely
-    if photo_path and photo_path != 'default_avatar.png':
-        photo_url = url_for('static', filename='uploads/' + photo_path)
-    else:
-        photo_url = url_for('static', filename='uploads/default_avatar.png')
+    full_name, class_name, photo_path = student['full_name'], student['class'], student['photo_path']
+    photo_url = get_photo_url(photo_path)
     
     term = request.args.get('term', 'Term 1')
     year = request.args.get('year', datetime.now().year)
     
-    # School info
     cur.execute("SELECT school_name, school_address, school_phone, school_email, logo_url FROM school_settings WHERE id=1")
     school = cur.fetchone()
     school_name = school['school_name'] if school else 'YOUR SCHOOL NAME'
@@ -1361,39 +1643,24 @@ def dos_report_card(student_id):
     school_email = school['school_email'] if school else 'Email: info@school.com'
     school_logo_url = school['logo_url'] if school else url_for('static', filename='images/logo.png')
     
-    # School settings
     cur.execute("SELECT next_term_begins, next_term_ends, headteacher_stamp FROM school_settings WHERE id=1")
     settings = cur.fetchone()
     next_term_begins = settings['next_term_begins'] if settings else None
     next_term_ends = settings['next_term_ends'] if settings else None
     stamp_url = url_for('static', filename='uploads/' + settings['headteacher_stamp']) if settings and settings['headteacher_stamp'] else None
     
-    # Get comments - INCLUDING LOCKED COLUMNS with safe handling
-    cur.execute("""
-        SELECT comment, headteacher_comment, class_teacher_comment_locked, headteacher_comment_locked 
-        FROM teacher_comments 
-        WHERE student_id=%s AND term=%s AND year=%s
-    """, (student_id, term, year))
+    cur.execute("SELECT comment, headteacher_comment FROM teacher_comments WHERE student_id=? AND term=? AND year=?", 
+                (student_id, term, year))
     comments = cur.fetchone()
+    teacher_comment = comments['comment'] if comments else ''
+    headteacher_comment = comments['headteacher_comment'] if comments else ''
     
-    # Safe extraction with defaults - FIXED KeyError issue
-    if comments:
-        teacher_comment = comments.get('comment') if comments.get('comment') else ''
-        headteacher_comment = comments.get('headteacher_comment') if comments.get('headteacher_comment') else ''
-        teacher_comment_locked = comments.get('class_teacher_comment_locked') if comments.get('class_teacher_comment_locked') is not None else 0
-        headteacher_comment_locked = comments.get('headteacher_comment_locked') if comments.get('headteacher_comment_locked') is not None else 0
-    else:
-        teacher_comment = ''
-        headteacher_comment = ''
-        teacher_comment_locked = 0
-        headteacher_comment_locked = 0
-    
-    # Detect level
     class_upper = class_name.upper()
     is_alevel = class_upper in ['S5', 'S6', 'A-LEVEL', 'A LEVEL'] or (class_upper.startswith('S') and len(class_upper) >= 2 and class_upper[1] in ['5', '6'])
     
     if is_alevel:
-        cur.execute("SELECT subject, paper1, paper2, total_score, grade, points, teacher_initials FROM marks WHERE student_id=%s AND term=%s AND year=%s ORDER BY subject", (student_id, term, year))
+        cur.execute("SELECT subject, paper1, paper2, total_score, grade, points, teacher_initials FROM marks WHERE student_id=? AND term=? AND year=? ORDER BY subject", 
+                    (student_id, term, year))
         marks = cur.fetchall()
         total_points = sum(m['points'] for m in marks if m['points'] is not None) if marks else 0
         cur.close()
@@ -1401,18 +1668,12 @@ def dos_report_card(student_id):
             student_id=student_id, full_name=full_name, class_name=class_name, photo_url=photo_url,
             term=term, year=year, marks=marks, total_points=total_points,
             teacher_comment=teacher_comment, headteacher_comment=headteacher_comment,
-            teacher_comment_locked=teacher_comment_locked,
-            headteacher_comment_locked=headteacher_comment_locked,
-            predefined_class_comments=get_predefined_comments('class_teacher'),
-            predefined_head_comments=get_predefined_comments('headteacher'),
             next_term_begins=next_term_begins, next_term_ends=next_term_ends, stamp_url=stamp_url,
             school_name=school_name, school_address=school_address, school_phone=school_phone,
             school_email=school_email, school_logo_url=school_logo_url, can_edit_comments=False)
     else:
-        cur.execute("""
-            SELECT subject, ai1, ai2, ai3, ai4, ai5, ai6, ai_average, ai_contribution, eot_score, total_score, grade, identifier, descriptor, teacher_initials
-            FROM marks WHERE student_id=%s AND term=%s AND year=%s ORDER BY subject
-        """, (student_id, term, year))
+        cur.execute("""SELECT subject, ai1, ai2, ai3, ai4, ai5, ai6, ai_average, ai_contribution, eot_score, total_score, grade, identifier, descriptor, teacher_initials
+                       FROM marks WHERE student_id=? AND term=? AND year=? ORDER BY subject""", (student_id, term, year))
         marks = cur.fetchall()
         total_final = sum(m['total_score'] for m in marks) if marks else 0
         count = len(marks)
@@ -1425,71 +1686,41 @@ def dos_report_card(student_id):
             term=term, year=year, marks=marks, avg_out_of_3=avg_out_of_3,
             general_grade=general_grade, general_descriptor=general_descriptor,
             teacher_comment=teacher_comment, headteacher_comment=headteacher_comment,
-            teacher_comment_locked=teacher_comment_locked, headteacher_comment_locked=headteacher_comment_locked,
             next_term_begins=next_term_begins, next_term_ends=next_term_ends, stamp_url=stamp_url,
             school_name=school_name, school_address=school_address, school_phone=school_phone,
             school_email=school_email, school_logo_url=school_logo_url, can_edit_comments=False)
-    
+
 @app.route('/dos/admissions/pending')
 def dos_pending_admissions():
     if not check_permission(['dos']):
         abort(403)
-    
-    cur = mysql.connection.cursor(DictCursor)
-    cur.execute("""
-        SELECT * FROM students 
-        WHERE admission_source = 'online' AND admission_status = 'pending'
-        ORDER BY application_date DESC
-    """)
+    db = get_db_dict()
+    cur = db.cursor()
+    cur.execute("SELECT * FROM students WHERE admission_source = 'online' AND admission_status = 'pending' ORDER BY application_date DESC")
     pending = cur.fetchall()
     cur.close()
-    
     return render_template('dos/pending_admissions.html', pending=pending)
 
 @app.route('/dos/admissions/approve/<student_id>')
 def dos_approve_admission(student_id):
     if not check_permission(['dos']):
         abort(403)
-    
-    # Generate student ID
     new_student_id = generate_student_id()
-    
-    cur = mysql.connection.cursor(DictCursor)
-    
-    # Get pending admission data
-    cur.execute("""
-        SELECT * FROM students 
-        WHERE student_id=%s AND admission_source='online' AND admission_status='pending'
-    """, (student_id,))
+    db = get_db_dict()
+    cur = db.cursor()
+    cur.execute("SELECT * FROM students WHERE student_id=? AND admission_source='online' AND admission_status='pending'", (student_id,))
     student = cur.fetchone()
-    
     if not student:
         flash('Admission not found or already processed.', 'danger')
         return redirect(url_for('dos_pending_admissions'))
-    
-    # Update student record with new ID and approved status
-    cur.execute("""
-        UPDATE students SET 
-            student_id = %s,
-            admission_status = 'approved',
-            admission_fee_paid = 1
-        WHERE student_id = %s
-    """, (new_student_id, student_id))
-    
-    # Generate and send admission letter
+    cur.execute("UPDATE students SET student_id=?, admission_status='approved' WHERE student_id=?", (new_student_id, student_id))
     letter_content = generate_admission_letter({
-        'full_name': student['full_name'],
-        'student_id': new_student_id,
-        'class': student['class'],
-        'lin': student['lin'],
-        'preferred_house': student['preferred_house']
+        'full_name': student['full_name'], 'student_id': new_student_id,
+        'class': student['class'], 'lin': student['lin'], 'preferred_house': student['preferred_house']
     })
-    
     send_email(student['email'], 'Admission Letter - Approved', letter_content)
-    
-    mysql.connection.commit()
+    db.commit()
     cur.close()
-    
     flash(f'Admission approved for {student["full_name"]}. Student ID: {new_student_id}', 'success')
     return redirect(url_for('dos_pending_admissions'))
 
@@ -1497,27 +1728,17 @@ def dos_approve_admission(student_id):
 def dos_reject_admission(student_id):
     if not check_permission(['dos']):
         abort(403)
-    
-    cur = mysql.connection.cursor()
-    cur.execute("""
-        UPDATE students SET 
-            admission_status = 'rejected'
-        WHERE student_id=%s AND admission_source='online' AND admission_status='pending'
-    """, (student_id,))
-    mysql.connection.commit()
-    cur.close()
-    
+    execute_db("UPDATE students SET admission_status='rejected' WHERE student_id=? AND admission_source='online' AND admission_status='pending'", (student_id,))
     flash('Admission rejected.', 'warning')
     return redirect(url_for('dos_pending_admissions'))
 
-# ==================== UNIFIED TEACHER MODULE (Class Teacher + Subject Teacher) ====================
+# ==================== UNIFIED TEACHER MODULE ====================
 @app.route('/teacher/students')
 def teacher_students():
     if not check_permission(['classteacher', 'subject_teacher']):
         abort(403)
     
     term = request.args.get('term', 'Term 1')
-    
     user_id = session.get('user_id')
     assignments = get_user_assignments(user_id)
     
@@ -1533,25 +1754,18 @@ def teacher_students():
         selected_class = available_classes[0]
         session['selected_class'] = selected_class
     
-    cur = mysql.connection.cursor(DictCursor)
-    cur.execute("SELECT student_id, full_name, photo_path, parent_phone FROM students WHERE class=%s ORDER BY full_name", (selected_class,))
+    db = get_db_dict()
+    cur = db.cursor()
+    cur.execute("SELECT student_id, full_name, photo_path, parent_phone FROM students WHERE class=? ORDER BY full_name", (selected_class,))
     students = cur.fetchall()
     for s in students:
-        photo_path = s.get('photo_path')
-        if photo_path and photo_path != 'default_avatar.png':
-            s['photo_url'] = url_for('static', filename='uploads/' + photo_path)
-        else:
-            s['photo_url'] = url_for('static', filename='uploads/default_avatar.png')
+        s['photo_url'] = get_photo_url(s.get('photo_path'))
     cur.close()
     
     is_classteacher = any(a['assignment_type'] == 'classteacher' and a['class_name'] == selected_class for a in assignments)
     
-    return render_template('teacher/students.html', 
-        students=students, 
-        selected_class=selected_class,
-        available_classes=available_classes,
-        is_classteacher=is_classteacher,
-        term=term)
+    return render_template('teacher/students.html', students=students, selected_class=selected_class,
+                           available_classes=available_classes, is_classteacher=is_classteacher, term=term)
 
 @app.route('/teacher/attendance', methods=['GET', 'POST'])
 def teacher_attendance():
@@ -1562,19 +1776,19 @@ def teacher_attendance():
         flash('No class selected', 'danger')
         return redirect(url_for('teacher_students'))
     selected_date = request.args.get('date', datetime.now().strftime('%Y-%m-%d'))
-    cur = mysql.connection.cursor()
     if request.method == 'POST':
         selected_date = request.form['date']
         for key, value in request.form.items():
             if key.startswith('status_'):
                 student_id = key.split('_')[1]
-                cur.execute("INSERT INTO attendance (student_id, date, status) VALUES (%s, %s, %s) ON DUPLICATE KEY UPDATE status=%s", (student_id, selected_date, value, value))
-        mysql.connection.commit()
+                execute_db("INSERT INTO attendance (student_id, date, status) VALUES (?, ?, ?) ON CONFLICT(student_id, date) DO UPDATE SET status=?",
+                           (student_id, selected_date, value, value))
         flash('Attendance saved.', 'success')
-    cur.execute("SELECT s.student_id, s.full_name, a.status FROM students s LEFT JOIN attendance a ON s.student_id = a.student_id AND a.date = %s WHERE s.class = %s ORDER BY s.full_name", (selected_date, selected_class))
-    rows = cur.fetchall()
-    cols = [desc[0] for desc in cur.description]
-    records = [dict(zip(cols, row)) for row in rows]
+    db = get_db_dict()
+    cur = db.cursor()
+    cur.execute("SELECT s.student_id, s.full_name, a.status FROM students s LEFT JOIN attendance a ON s.student_id = a.student_id AND a.date = ? WHERE s.class = ? ORDER BY s.full_name", 
+                (selected_date, selected_class))
+    records = cur.fetchall()
     cur.close()
     return render_template('teacher/attendance.html', records=records, selected_date=selected_date, assigned_class=selected_class)
 
@@ -1607,7 +1821,8 @@ def teacher_upload_marks():
         count = process_marks_upload(file, subject, term, year, selected_class, teacher_id, level, is_subsidiary)
         flash(f'{count} marks uploaded for {subject} (Class: {selected_class}, {term} {year}).', 'success')
         return redirect(url_for('teacher_upload_marks', class_name=selected_class))
-    return render_template(f'teacher/upload_marks_{level}.html', assigned_class=selected_class, current_year=current_year, teacher_classes=[{'class_name': c} for c in available_classes], selected_class=selected_class)
+    return render_template(f'teacher/upload_marks_{level}.html', assigned_class=selected_class, current_year=current_year, 
+                          teacher_classes=[{'class_name': c} for c in available_classes], selected_class=selected_class)
 
 @app.route('/teacher/report_card/<student_id>')
 def teacher_report_card(student_id):
@@ -1615,15 +1830,15 @@ def teacher_report_card(student_id):
         abort(403)
     
     role = session.get('role')
-    cur = mysql.connection.cursor(DictCursor)
+    db = get_db_dict()
+    cur = db.cursor()
     
-    # ==================== AUTHORIZATION CHECKS ====================
     if role in ['classteacher', 'subject_teacher']:
         selected_class = session.get('selected_class')
         if not selected_class:
             flash('No class selected', 'danger')
             return redirect(url_for('teacher_students'))
-        cur.execute("SELECT class FROM students WHERE student_id=%s", (student_id,))
+        cur.execute("SELECT class FROM students WHERE student_id=?", (student_id,))
         res = cur.fetchone()
         if not res or res['class'] != selected_class:
             flash('Student not in your class.', 'danger')
@@ -1633,72 +1848,34 @@ def teacher_report_card(student_id):
         if not parent_phone:
             flash('No phone linked.', 'danger')
             return redirect(url_for('dashboard'))
-        cur.execute("SELECT parent_phone FROM students WHERE student_id=%s", (student_id,))
+        cur.execute("SELECT parent_phone FROM students WHERE student_id=?", (student_id,))
         res = cur.fetchone()
         if not res or res['parent_phone'] != parent_phone:
             flash('Not authorized.', 'danger')
             return redirect(url_for('dashboard'))
     elif role == 'dos':
-        cur.execute("SELECT class FROM students WHERE student_id=%s", (student_id,))
+        cur.execute("SELECT class FROM students WHERE student_id=?", (student_id,))
         if not cur.fetchone():
             flash('Student not found.', 'danger')
             return redirect(url_for('dos_class_lists'))
     elif role == 'headteacher':
-        # Headteacher can view any student
-        cur.execute("SELECT class FROM students WHERE student_id=%s", (student_id,))
+        cur.execute("SELECT class FROM students WHERE student_id=?", (student_id,))
         if not cur.fetchone():
             flash('Student not found.', 'danger')
             return redirect(url_for('dashboard'))
     
-    # ==================== GET STUDENT INFO ====================
-    cur.execute("SELECT full_name, class, photo_path FROM students WHERE student_id=%s", (student_id,))
+    cur.execute("SELECT full_name, class, photo_path FROM students WHERE student_id=?", (student_id,))
     student = cur.fetchone()
     if not student:
         flash('Student not found.', 'danger')
         return redirect(url_for('dashboard'))
     
-    full_name = student['full_name']
-    class_name = student['class']
-    photo_path = student['photo_path']
-    photo_url = url_for('static', filename='uploads/' + photo_path) if photo_path and photo_path != 'default_avatar.png' else url_for('static', filename='uploads/default_avatar.png')
+    full_name, class_name, photo_path = student['full_name'], student['class'], student['photo_path']
+    photo_url = get_photo_url(photo_path)
     
     term = request.args.get('term', 'Term 1')
     year = request.args.get('year', datetime.now().year)
     
-    # ==================== GET COMMENTS (SAFE - NO HARDCODING) ====================
-    # First, check what columns exist in teacher_comments table
-    cur.execute("SHOW COLUMNS FROM teacher_comments")
-    existing_columns = [row['Field'] for row in cur.fetchall()]
-    
-    # Build dynamic query based on existing columns
-    select_fields = []
-    if 'comment' in existing_columns:
-        select_fields.append('comment')
-    if 'headteacher_comment' in existing_columns:
-        select_fields.append('headteacher_comment')
-    if 'class_teacher_comment_locked' in existing_columns:
-        select_fields.append('class_teacher_comment_locked')
-    if 'headteacher_comment_locked' in existing_columns:
-        select_fields.append('headteacher_comment_locked')
-    
-    # Default values
-    teacher_comment = ''
-    headteacher_comment = ''
-    teacher_comment_locked = 0
-    headteacher_comment_locked = 0
-    
-    if select_fields:
-        query = f"SELECT {', '.join(select_fields)} FROM teacher_comments WHERE student_id=%s AND term=%s AND year=%s"
-        cur.execute(query, (student_id, term, year))
-        comments = cur.fetchone()
-        
-        if comments:
-            teacher_comment = comments.get('comment') if comments.get('comment') else ''
-            headteacher_comment = comments.get('headteacher_comment') if comments.get('headteacher_comment') else ''
-            teacher_comment_locked = comments.get('class_teacher_comment_locked') if comments.get('class_teacher_comment_locked') else 0
-            headteacher_comment_locked = comments.get('headteacher_comment_locked') if comments.get('headteacher_comment_locked') else 0
-    
-    # ==================== SCHOOL INFO ====================
     cur.execute("SELECT school_name, school_address, school_phone, school_email, logo_url FROM school_settings WHERE id=1")
     school = cur.fetchone()
     school_name = school['school_name'] if school else 'YOUR SCHOOL NAME'
@@ -1713,27 +1890,27 @@ def teacher_report_card(student_id):
     next_term_ends = settings['next_term_ends'] if settings else None
     stamp_url = url_for('static', filename='uploads/' + settings['headteacher_stamp']) if settings and settings['headteacher_stamp'] else None
     
-    # ==================== PERMISSION FLAGS ====================
+    cur.execute("SELECT comment, headteacher_comment, class_teacher_comment_locked, headteacher_comment_locked FROM teacher_comments WHERE student_id=? AND term=? AND year=?", 
+                (student_id, term, year))
+    comments = cur.fetchone()
+    teacher_comment = comments['comment'] if comments else ''
+    headteacher_comment = comments['headteacher_comment'] if comments else ''
+    teacher_comment_locked = comments['class_teacher_comment_locked'] if comments else 0
+    headteacher_comment_locked = comments['headteacher_comment_locked'] if comments else 0
+    
     can_edit_class_comment = (role == 'classteacher' and not teacher_comment_locked)
     can_edit_head_comment = (role == 'headteacher' and not headteacher_comment_locked)
     can_view_only = role in ['subject_teacher', 'parent', 'dos']
     
-    # ==================== GET PREDEFINED COMMENTS ====================
     predefined_class_comments = get_predefined_comments('class_teacher')
     predefined_head_comments = get_predefined_comments('headteacher')
     
-    # ==================== DETECT LEVEL (O-LEVEL vs A-LEVEL) ====================
     class_upper = class_name.upper()
     is_alevel = class_upper in ['S5', 'S6', 'A-LEVEL', 'A LEVEL'] or (class_upper.startswith('S') and len(class_upper) >= 2 and class_upper[1] in ['5', '6'])
     
-    # ==================== GET MARKS ====================
     if is_alevel:
-        cur.execute("""
-            SELECT subject, paper1, paper2, total_score, grade, points, teacher_initials
-            FROM marks 
-            WHERE student_id=%s AND term=%s AND year=%s
-            ORDER BY subject
-        """, (student_id, term, year))
+        cur.execute("SELECT subject, paper1, paper2, total_score, grade, points, teacher_initials FROM marks WHERE student_id=? AND term=? AND year=? ORDER BY subject", 
+                    (student_id, term, year))
         marks = cur.fetchall()
         total_points = sum(m['points'] for m in marks if m['points'] is not None) if marks else 0
         cur.close()
@@ -1749,12 +1926,8 @@ def teacher_report_card(student_id):
             predefined_class_comments=predefined_class_comments,
             predefined_head_comments=predefined_head_comments)
     else:
-        cur.execute("""
-            SELECT subject, ai1, ai2, ai3, ai4, ai5, ai6, ai_average, ai_contribution, eot_score, total_score, grade, identifier, descriptor, teacher_initials
-            FROM marks 
-            WHERE student_id=%s AND term=%s AND year=%s
-            ORDER BY subject
-        """, (student_id, term, year))
+        cur.execute("""SELECT subject, ai1, ai2, ai3, ai4, ai5, ai6, ai_average, ai_contribution, eot_score, total_score, grade, identifier, descriptor, teacher_initials
+                       FROM marks WHERE student_id=? AND term=? AND year=? ORDER BY subject""", (student_id, term, year))
         marks = cur.fetchall()
         total_final = sum(m['total_score'] for m in marks) if marks else 0
         count = len(marks)
@@ -1779,32 +1952,24 @@ def teacher_report_card(student_id):
 def teacher_save_comment():
     if not check_permission(['classteacher']):
         abort(403)
-    
     student_id = request.form['student_id']
     term = request.form['term']
     year = request.form['year']
     comment = request.form.get('comment', '').strip()
     custom_comment = request.form.get('custom_comment', '').strip()
-    
-    # Use custom comment if provided, otherwise use selected predefined comment
     final_comment = custom_comment if custom_comment else comment
     
-    cur = mysql.connection.cursor()
-    # Check if comment already exists and is locked
-    cur.execute("SELECT class_teacher_comment_locked FROM teacher_comments WHERE student_id=%s AND term=%s AND year=%s", (student_id, term, year))
+    cur = get_db().cursor()
+    cur.execute("SELECT class_teacher_comment_locked FROM teacher_comments WHERE student_id=? AND term=? AND year=?", (student_id, term, year))
     existing = cur.fetchone()
+    cur.close()
     
     if existing and existing[0] == 1:
         flash('Comment cannot be edited as it has been locked.', 'danger')
         return redirect(url_for('teacher_report_card', student_id=student_id, term=term, year=year))
     
-    cur.execute("""
-        INSERT INTO teacher_comments (student_id, term, year, comment, class_teacher_comment_locked) 
-        VALUES (%s, %s, %s, %s, 1) 
-        ON DUPLICATE KEY UPDATE comment=%s, class_teacher_comment_locked=1
-    """, (student_id, term, year, final_comment, final_comment))
-    mysql.connection.commit()
-    cur.close()
+    execute_db("INSERT INTO teacher_comments (student_id, term, year, comment, class_teacher_comment_locked) VALUES (?, ?, ?, ?, 1) ON CONFLICT(student_id, term, year) DO UPDATE SET comment=?, class_teacher_comment_locked=1",
+               (student_id, term, year, final_comment, final_comment))
     flash('Comment saved and locked.', 'success')
     return redirect(url_for('teacher_report_card', student_id=student_id, term=term, year=year))
 
@@ -1812,17 +1977,15 @@ def teacher_save_comment():
 def teacher_edit_student(student_id):
     if not check_permission(['classteacher', 'dos']):
         abort(403)
-    cur = mysql.connection.cursor(DictCursor)
     if request.method == 'POST':
         full_name = request.form['full_name'].strip()
         class_name = request.form['class'].strip()
         parent_phone = validate_and_format_phone(request.form.get('parent_phone', ''))
-        cur.execute("UPDATE students SET full_name=%s, class=%s, parent_phone=%s WHERE student_id=%s", (full_name, class_name, parent_phone, student_id))
-        mysql.connection.commit()
+        execute_db("UPDATE students SET full_name=?, class=?, parent_phone=? WHERE student_id=?", (full_name, class_name, parent_phone, student_id))
         flash('Student updated.', 'success')
-        cur.close()
         return redirect(url_for('teacher_students'))
-    cur.execute("SELECT student_id, full_name, class, parent_phone FROM students WHERE student_id=%s", (student_id,))
+    cur = get_db().cursor()
+    cur.execute("SELECT student_id, full_name, class, parent_phone FROM students WHERE student_id=?", (student_id,))
     student = cur.fetchone()
     cur.close()
     return render_template('teacher/edit_student.html', student=student)
@@ -1831,10 +1994,7 @@ def teacher_edit_student(student_id):
 def teacher_remove_student(student_id):
     if not check_permission(['classteacher', 'dos']):
         abort(403)
-    cur = mysql.connection.cursor()
-    cur.execute("DELETE FROM students WHERE student_id=%s", (student_id,))
-    mysql.connection.commit()
-    cur.close()
+    execute_db("DELETE FROM students WHERE student_id=?", (student_id,))
     flash('Student removed.', 'success')
     return redirect(url_for('teacher_students'))
 
@@ -1843,11 +2003,9 @@ def teacher_print_all_report_cards():
     if not check_permission(['classteacher']):
         abort(403)
     
-    # Get selected class from session
     selected_class = session.get('selected_class')
     if not selected_class:
         selected_class = session.get('assigned_class')
-    
     if not selected_class:
         flash('No class assigned to you.', 'danger')
         return redirect(url_for('teacher_students'))
@@ -1855,21 +2013,18 @@ def teacher_print_all_report_cards():
     term = request.args.get('term', 'Term 1')
     year = request.args.get('year', datetime.now().year)
     
-    cur = mysql.connection.cursor(DictCursor)
+    db = get_db_dict()
+    cur = db.cursor()
     
-    # Get all students in the class - FIXED: separate execute and fetchall
-    cur.execute("SELECT student_id, full_name, photo_path FROM students WHERE class=%s ORDER BY full_name", (selected_class,))
+    cur.execute("SELECT student_id, full_name, photo_path FROM students WHERE class=? ORDER BY full_name", (selected_class,))
     students_data = cur.fetchall()
     
-    # Check if class has no students
     if not students_data:
         flash(f'No students found in class {selected_class}.', 'warning')
         return redirect(url_for('teacher_students'))
     
-    # Get school info
     cur.execute("SELECT school_name, school_address, school_phone, school_email, logo_url FROM school_settings WHERE id=1")
     school_data = cur.fetchone()
-    
     if school_data:
         school_name = school_data['school_name'] if school_data['school_name'] else 'YOUR SCHOOL NAME'
         school_address = school_data['school_address'] if school_data['school_address'] else 'P.O. Box 123, Kampala, Uganda'
@@ -1883,129 +2038,55 @@ def teacher_print_all_report_cards():
         school_email = 'Email: info@school.com'
         school_logo_url = url_for('static', filename='images/logo.png')
     
-    # Get school settings (term dates, stamp)
     cur.execute("SELECT next_term_begins, next_term_ends, headteacher_stamp FROM school_settings WHERE id=1")
     settings = cur.fetchone()
-    
     next_term_begins = settings['next_term_begins'] if settings else None
     next_term_ends = settings['next_term_ends'] if settings else None
     stamp_url = url_for('static', filename='uploads/' + settings['headteacher_stamp']) if settings and settings['headteacher_stamp'] else None
     
-    # Detect level for the class
     class_upper = selected_class.upper()
     is_alevel = class_upper in ['S5', 'S6', 'A-LEVEL', 'A LEVEL'] or (class_upper.startswith('S') and len(class_upper) >= 2 and class_upper[1] in ['5', '6'])
     
-    # Get comments for each student
     all_reports = []
-    
     for student in students_data:
         student_id = student['student_id']
         full_name = student['full_name']
         photo_path = student['photo_path']
+        photo_url = get_photo_url(photo_path)
         
-        photo_url = url_for('static', filename='uploads/' + photo_path) if photo_path and photo_path != 'default_avatar.png' else url_for('static', filename='uploads/default_avatar.png')
-        
-        # Get comments
-        cur.execute("SELECT comment, headteacher_comment FROM teacher_comments WHERE student_id=%s AND term=%s AND year=%s", (student_id, term, year))
+        cur.execute("SELECT comment, headteacher_comment FROM teacher_comments WHERE student_id=? AND term=? AND year=?", (student_id, term, year))
         comments_row = cur.fetchone()
         teacher_comment = comments_row['comment'] if comments_row else ''
         headteacher_comment = comments_row['headteacher_comment'] if comments_row else ''
         
         if is_alevel:
-            # A-Level marks
-            cur.execute("""
-                SELECT subject, paper1, paper2, total_score, grade, points, teacher_initials
-                FROM marks 
-                WHERE student_id=%s AND term=%s AND year=%s
-                ORDER BY subject
-            """, (student_id, term, year))
+            cur.execute("SELECT subject, paper1, paper2, total_score, grade, points, teacher_initials FROM marks WHERE student_id=? AND term=? AND year=? ORDER BY subject", 
+                        (student_id, term, year))
             marks = cur.fetchall()
             total_points = sum(m['points'] for m in marks if m['points'] is not None) if marks else 0
-            
-            all_reports.append({
-                'student_id': student_id,
-                'full_name': full_name,
-                'photo_url': photo_url,
-                'marks': marks,
-                'total_points': total_points,
-                'teacher_comment': teacher_comment,
-                'headteacher_comment': headteacher_comment,
-                'is_alevel': True
-            })
+            all_reports.append({'student_id': student_id, 'full_name': full_name, 'photo_url': photo_url, 'marks': marks,
+                                'total_points': total_points, 'teacher_comment': teacher_comment, 'headteacher_comment': headteacher_comment})
         else:
-            # O-Level marks
-            cur.execute("""
-                SELECT subject, ai1, ai2, ai3, ai4, ai5, ai6, ai_average, ai_contribution, eot_score, total_score, grade, identifier, descriptor, teacher_initials
-                FROM marks 
-                WHERE student_id=%s AND term=%s AND year=%s
-                ORDER BY subject
-            """, (student_id, term, year))
+            cur.execute("""SELECT subject, ai1, ai2, ai3, ai4, ai5, ai6, ai_average, ai_contribution, eot_score, total_score, grade, identifier, descriptor, teacher_initials
+                           FROM marks WHERE student_id=? AND term=? AND year=? ORDER BY subject""", (student_id, term, year))
             marks = cur.fetchall()
-            
-            # Compute general average and grade
             total_final = sum(m['total_score'] for m in marks) if marks else 0
             count = len(marks)
             avg_percent = total_final / count if count > 0 else 0
             avg_out_of_3 = round((avg_percent / 100) * 3, 2)
             general_grade, general_descriptor = get_grade_and_descriptor(avg_percent)
-            
-            all_reports.append({
-                'student_id': student_id,
-                'full_name': full_name,
-                'photo_url': photo_url,
-                'marks': marks,
-                'avg_out_of_3': avg_out_of_3,
-                'general_grade': general_grade,
-                'general_descriptor': general_descriptor,
-                'teacher_comment': teacher_comment,
-                'headteacher_comment': headteacher_comment,
-                'is_alevel': False
-            })
+            all_reports.append({'student_id': student_id, 'full_name': full_name, 'photo_url': photo_url, 'marks': marks,
+                                'avg_out_of_3': avg_out_of_3, 'general_grade': general_grade, 'general_descriptor': general_descriptor,
+                                'teacher_comment': teacher_comment, 'headteacher_comment': headteacher_comment})
     
     cur.close()
-    
-    # Choose template based on level
     template = 'teacher/print_all_report_cards_alevel.html' if is_alevel else 'teacher/print_all_report_cards.html'
-    
-    return render_template(template,
-        reports=all_reports,
-        class_name=selected_class,
-        term=term,
-        year=year,
-        next_term_begins=next_term_begins,
-        next_term_ends=next_term_ends,
-        stamp_url=stamp_url,
-        school_name=school_name,
-        school_address=school_address,
-        school_phone=school_phone,
-        school_email=school_email,
-        school_logo_url=school_logo_url
-    )
+    return render_template(template, reports=all_reports, class_name=selected_class, term=term, year=year,
+                          next_term_begins=next_term_begins, next_term_ends=next_term_ends, stamp_url=stamp_url,
+                          school_name=school_name, school_address=school_address, school_phone=school_phone,
+                          school_email=school_email, school_logo_url=school_logo_url)
 
 # ==================== BURSAR MODULE ====================
-def calculate_nssf_and_paye(gross_salary):
-    """Calculate NSSF employee contribution and PAYE tax"""
-    cur = mysql.connection.cursor(DictCursor)
-    cur.execute("SELECT nssf_employee_rate, paye_rate, paye_threshold FROM school_settings WHERE id=1")
-    rates = cur.fetchone()
-    cur.close()
-    
-    nssf_employee_rate = rates['nssf_employee_rate'] if rates else 5.0
-    paye_rate = rates['paye_rate'] if rates else 10.0
-    paye_threshold = rates['paye_threshold'] if rates else 235000
-    
-    # Calculate NSSF (based on gross salary)
-    nssf_employee = (gross_salary * nssf_employee_rate) / 100
-    
-    # Calculate PAYE (only on amount above threshold)
-    taxable_amount = max(0, gross_salary - paye_threshold)
-    paye_tax = (taxable_amount * paye_rate) / 100
-    
-    return {
-        'nssf_employee': round(nssf_employee, 2),
-        'paye_tax': round(paye_tax, 2)
-    }
-
 def generate_receipt_number():
     return generate_unique_number('RCP', 'payments', 'receipt_no', year_format=True)
 
@@ -2015,14 +2096,28 @@ def send_fee_sms(phone_number, student_name, amount, balance):
     message = f"Payment of UGX {amount:,.2f} received for {student_name}. Balance: UGX {balance:,.2f}. Thank you."
     return send_sms(phone_number, message)
 
+def calculate_nssf_and_paye(gross_salary):
+    cur = get_db().cursor()
+    cur.execute("SELECT nssf_employee_rate, paye_rate, paye_threshold FROM school_settings WHERE id=1")
+    rates = cur.fetchone()
+    cur.close()
+    nssf_employee_rate = rates[0] if rates else 5.0
+    paye_rate = rates[1] if rates else 10.0
+    paye_threshold = rates[2] if rates else 235000
+    nssf_employee = (gross_salary * nssf_employee_rate) / 100
+    taxable_amount = max(0, gross_salary - paye_threshold)
+    paye_tax = (taxable_amount * paye_rate) / 100
+    return {'nssf_employee': round(nssf_employee, 2), 'paye_tax': round(paye_tax, 2)}
+
 @app.route('/bursar/dashboard')
 def bursar_dashboard():
     if not check_permission(['bursar']):
         abort(403)
     notification_count = get_notification_count('bursar')
     notifications = get_notifications('bursar')
-       
-    cur = mysql.connection.cursor(DictCursor)
+    
+    db = get_db_dict()
+    cur = db.cursor()
     cur.execute("SELECT SUM(fees_total) as total_fees, SUM(fees_paid) as total_paid, SUM(fees_balance) as total_balance FROM students")
     totals = cur.fetchone()
     cur.execute("SELECT COUNT(*) as defaulter_count FROM students WHERE fees_balance > 0")
@@ -2033,7 +2128,8 @@ def bursar_dashboard():
     recent_payments = cur.fetchall()
     cur.close()
     return render_template('bursar/dashboard.html', totals=totals, notification_count=notification_count,
-        notifications=notifications, defaulter_count=defaulter_count['defaulter_count'] if defaulter_count else 0, total_students=total_students['total_students'] if total_students else 0, recent_payments=recent_payments)
+                          notifications=notifications, defaulter_count=defaulter_count['defaulter_count'] if defaulter_count else 0,
+                          total_students=total_students['total_students'] if total_students else 0, recent_payments=recent_payments)
 
 @app.route('/bursar/students')
 def bursar_students():
@@ -2041,21 +2137,22 @@ def bursar_students():
         abort(403)
     search = request.args.get('search', '').strip()
     class_filter = request.args.get('class', '').strip()
-    cur = mysql.connection.cursor(DictCursor)
+    db = get_db_dict()
+    cur = db.cursor()
     query = "SELECT student_id, full_name, class, parent_phone, fees_total, fees_paid, fees_balance FROM students WHERE 1=1"
     params = []
     if search:
-        query += " AND (student_id LIKE %s OR full_name LIKE %s)"
+        query += " AND (student_id LIKE ? OR full_name LIKE ?)"
         pattern = f"%{search}%"
         params.extend([pattern, pattern])
     if class_filter:
-        query += " AND class = %s"
+        query += " AND class = ?"
         params.append(class_filter)
     query += " ORDER BY full_name"
     cur.execute(query, params)
     students = cur.fetchall()
     cur.execute("SELECT DISTINCT class FROM students WHERE class IS NOT NULL AND class != '' ORDER BY class")
-    classes = [row['class'] for row in cur.fetchall()]
+    classes = [row[0] for row in cur.fetchall()]
     cur.close()
     return render_template('bursar/students.html', students=students, classes=classes, search=search, class_filter=class_filter)
 
@@ -2063,13 +2160,14 @@ def bursar_students():
 def bursar_student_detail(student_id):
     if not check_permission(['bursar']):
         abort(403)
-    cur = mysql.connection.cursor(DictCursor)
-    cur.execute("SELECT student_id, full_name, class, parent_phone, fees_total, fees_paid, fees_balance FROM students WHERE student_id=%s", (student_id,))
+    db = get_db_dict()
+    cur = db.cursor()
+    cur.execute("SELECT student_id, full_name, class, parent_phone, fees_total, fees_paid, fees_balance FROM students WHERE student_id=?", (student_id,))
     student = cur.fetchone()
     if not student:
         flash('Student not found.', 'danger')
         return redirect(url_for('bursar_students'))
-    cur.execute("SELECT * FROM payments WHERE student_id=%s ORDER BY payment_date DESC", (student_id,))
+    cur.execute("SELECT * FROM payments WHERE student_id=? ORDER BY payment_date DESC", (student_id,))
     payments = cur.fetchall()
     cur.close()
     return render_template('bursar/student_detail.html', student=student, payments=payments)
@@ -2083,26 +2181,24 @@ def bursar_record_payment():
     payment_method = request.form.get('payment_method', 'Cash')
     notes = request.form.get('notes', '')
     receipt_no = generate_receipt_number()
-    cur = mysql.connection.cursor(DictCursor)
-    try:
-        cur.execute("SELECT full_name, parent_phone, fees_paid, fees_balance FROM students WHERE student_id=%s", (student_id,))
-        student = cur.fetchone()
-        if not student:
-            flash('Student not found.', 'danger')
-            return redirect(url_for('bursar_students'))
-        cur.execute("INSERT INTO payments (student_id, amount, payment_date, receipt_no, payment_method, notes, recorded_by) VALUES (%s, %s, CURDATE(), %s, %s, %s, %s)", (student_id, amount, receipt_no, payment_method, notes, session.get('username')))
-        new_paid = student['fees_paid'] + amount
-        new_balance = student['fees_balance'] - amount
-        cur.execute("UPDATE students SET fees_paid=%s, fees_balance=%s WHERE student_id=%s", (new_paid, new_balance, student_id))
-        mysql.connection.commit()
-        if student['parent_phone']:
-            send_fee_sms(student['parent_phone'], student['full_name'], amount, new_balance)
-        flash(f'Payment recorded. Receipt: {receipt_no}', 'success')
-    except Exception as e:
-        mysql.connection.rollback()
-        flash(f'Error: {str(e)}', 'danger')
-    finally:
-        cur.close()
+    
+    db = get_db_dict()
+    cur = db.cursor()
+    cur.execute("SELECT full_name, parent_phone, fees_paid, fees_balance FROM students WHERE student_id=?", (student_id,))
+    student = cur.fetchone()
+    if not student:
+        flash('Student not found.', 'danger')
+        return redirect(url_for('bursar_students'))
+    cur.execute("INSERT INTO payments (student_id, amount, payment_date, receipt_no, payment_method, notes, recorded_by) VALUES (?, ?, DATE('now'), ?, ?, ?, ?)",
+                (student_id, amount, receipt_no, payment_method, notes, session.get('username')))
+    new_paid = student['fees_paid'] + amount
+    new_balance = student['fees_balance'] - amount
+    cur.execute("UPDATE students SET fees_paid=?, fees_balance=? WHERE student_id=?", (new_paid, new_balance, student_id))
+    db.commit()
+    cur.close()
+    if student['parent_phone']:
+        send_fee_sms(student['parent_phone'], student['full_name'], amount, new_balance)
+    flash(f'Payment recorded. Receipt: {receipt_no}', 'success')
     return redirect(url_for('bursar_student_detail', student_id=student_id))
 
 @app.route('/bursar/print_receipts')
@@ -2114,8 +2210,9 @@ def bursar_print_receipts():
     if receipt_ids:
         ids = [int(x) for x in receipt_ids.split(',') if x.isdigit()]
         if ids:
-            cur = mysql.connection.cursor(DictCursor)
-            placeholders = ','.join(['%s'] * len(ids))
+            placeholders = ','.join(['?'] * len(ids))
+            db = get_db_dict()
+            cur = db.cursor()
             cur.execute(f"SELECT p.*, s.full_name, s.class FROM payments p JOIN students s ON p.student_id = s.student_id WHERE p.id IN ({placeholders}) ORDER BY p.payment_date DESC", ids)
             receipts = cur.fetchall()
             cur.close()
@@ -2125,15 +2222,16 @@ def bursar_print_receipts():
 def bursar_send_reminder(student_id):
     if not check_permission(['bursar']):
         abort(403)
-    cur = mysql.connection.cursor(DictCursor)
-    cur.execute("SELECT full_name, parent_phone, fees_balance FROM students WHERE student_id=%s", (student_id,))
+    db = get_db_dict()
+    cur = db.cursor()
+    cur.execute("SELECT full_name, parent_phone, fees_balance FROM students WHERE student_id=?", (student_id,))
     student = cur.fetchone()
+    cur.close()
     if student and student['parent_phone']:
         send_sms(student['parent_phone'], f"Fees reminder: UGX {student['fees_balance']:,.2f} outstanding for {student['full_name']}.")
         flash('Reminder sent.', 'success')
     else:
         flash('No parent phone.', 'warning')
-    cur.close()
     return redirect(url_for('bursar_student_detail', student_id=student_id))
 
 @app.route('/bursar/bulk_reminder', methods=['POST'])
@@ -2141,146 +2239,108 @@ def bursar_bulk_reminder():
     if not check_permission(['bursar']):
         abort(403)
     class_filter = request.form.get('class', '')
-    cur = mysql.connection.cursor(DictCursor)
+    db = get_db_dict()
+    cur = db.cursor()
     query = "SELECT full_name, parent_phone, fees_balance FROM students WHERE fees_balance > 0"
     if class_filter:
-        query += f" AND class = %s"
+        query += " AND class = ?"
         cur.execute(query, (class_filter,))
     else:
         cur.execute(query)
     students = cur.fetchall()
+    cur.close()
     sent = 0
     for s in students:
         if s['parent_phone']:
             send_sms(s['parent_phone'], f"Fees reminder: UGX {s['fees_balance']:,.2f} outstanding for {s['full_name']}.")
             sent += 1
-    cur.close()
     flash(f'{sent} reminders sent.', 'success')
     return redirect(url_for('bursar_students'))
-
-@app.route('/bursar/webhook/process')
-def bursar_process_webhooks():
-    if not check_permission(['bursar']):
-        abort(403)
-    
-    cur = mysql.connection.cursor(DictCursor)
-    cur.execute("SELECT * FROM payment_webhooks WHERE processed=0")
-    webhooks = cur.fetchall()
-    processed = 0
-    
-    for w in webhooks:
-        if w.get('student_id'):
-            # Auto-record payment for the student
-            cur.execute("SELECT full_name, parent_phone, fees_paid, fees_balance FROM students WHERE student_id=%s", (w['student_id'],))
-            student = cur.fetchone()
-            if student:
-                receipt_no = generate_receipt_number()
-                cur.execute("""
-                    INSERT INTO payments (student_id, amount, payment_date, receipt_no, payment_method, notes, recorded_by)
-                    VALUES (%s, %s, CURDATE(), %s, %s, %s, %s)
-                """, (w['student_id'], w['amount'], receipt_no, w.get('payment_method', 'Mobile Money'), 
-                      f"Auto from webhook: {w.get('transaction_id', '')}", 'System'))
-                
-                # Update student fees
-                new_paid = student['fees_paid'] + w['amount']
-                new_balance = student['fees_balance'] - w['amount']
-                cur.execute("UPDATE students SET fees_paid=%s, fees_balance=%s WHERE student_id=%s", (new_paid, new_balance, w['student_id']))
-                mysql.connection.commit()
-                
-                # Send SMS confirmation
-                if student.get('parent_phone'):
-                    send_fee_sms(student['parent_phone'], student['full_name'], w['amount'], new_balance)
-        
-        # Mark webhook as processed
-        cur.execute("UPDATE payment_webhooks SET processed=1 WHERE id=%s", (w['id'],))
-        processed += 1
-    
-    mysql.connection.commit()
-    cur.close()
-    
-    flash(f'Processed {processed} pending webhooks.', 'success')
-    return redirect(url_for('bursar_dashboard'))
-
-@app.route('/bursar/webhook/payment', methods=['POST'])
-def bursar_payment_webhook():
-    """Endpoint for payment gateway to send payment notifications"""
-    data = request.get_json()
-    if not data:
-        return jsonify({'error': 'Invalid data'}), 400
-    
-    # Store raw webhook data
-    cur = mysql.connection.cursor(DictCursor)
-    cur.execute("""
-        INSERT INTO payment_webhooks (transaction_id, amount, phone_number, student_id, reference, payment_method, raw_data, status, processed)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 0)
-    """, (data.get('transaction_id'), data.get('amount'), data.get('phone_number'), data.get('student_id'), 
-          data.get('reference'), data.get('payment_method'), json.dumps(data), 'received'))
-    mysql.connection.commit()
-    cur.close()
-    
-    return jsonify({'status': 'received'}), 200
 
 @app.route('/bursar/bulk_clearance')
 def bursar_bulk_clearance():
     if not check_permission(['bursar']):
         abort(403)
-    
     class_filter = request.args.get('class', '')
-    cur = mysql.connection.cursor(DictCursor)
-    
+    db = get_db_dict()
+    cur = db.cursor()
     query = "SELECT student_id, full_name, class, parent_phone, fees_balance, photo_path FROM students WHERE fees_balance <= 0"
     if class_filter:
-        query += " AND class = %s"
+        query += " AND class = ?"
         cur.execute(query, (class_filter,))
     else:
         cur.execute(query)
-    
     students = cur.fetchall()
-    
-    # Add photo URLs
     for s in students:
-        photo_path = s.get('photo_path')
-        if photo_path and photo_path != 'default_avatar.png':
-            s['photo_url'] = url_for('static', filename='uploads/' + photo_path)
-        else:
-            s['photo_url'] = url_for('static', filename='uploads/default_avatar.png')
-    
+        s['photo_url'] = get_photo_url(s.get('photo_path'))
     cur.close()
-    
     return render_template('bursar/bulk_clearance.html', students=students)
 
 @app.route('/bursar/clearance/<student_id>')
 def bursar_clearance(student_id):
     if not check_permission(['bursar']):
         abort(403)
-    
-    cur = mysql.connection.cursor(DictCursor)
-    cur.execute("SELECT student_id, full_name, class, parent_phone, fees_balance, photo_path FROM students WHERE student_id=%s", (student_id,))
+    db = get_db_dict()
+    cur = db.cursor()
+    cur.execute("SELECT student_id, full_name, class, parent_phone, fees_balance, photo_path FROM students WHERE student_id=?", (student_id,))
     student = cur.fetchone()
-    
     if not student:
         flash('Student not found', 'danger')
         return redirect(url_for('bursar_students'))
-    
-    # Get photo URL
-    photo_path = student.get('photo_path')
-    if photo_path and photo_path != 'default_avatar.png':
-        student['photo_url'] = url_for('static', filename='uploads/' + photo_path)
-    else:
-        student['photo_url'] = url_for('static', filename='uploads/default_avatar.png')
-    
+    student['photo_url'] = get_photo_url(student.get('photo_path'))
     cur.close()
     return render_template('bursar/clearance.html', student=student)
+
+@app.route('/bursar/webhook/process')
+def bursar_process_webhooks():
+    if not check_permission(['bursar']):
+        abort(403)
+    db = get_db_dict()
+    cur = db.cursor()
+    cur.execute("SELECT * FROM payment_webhooks WHERE processed=0")
+    webhooks = cur.fetchall()
+    processed = 0
+    for w in webhooks:
+        if w.get('student_id'):
+            cur.execute("SELECT full_name, parent_phone, fees_paid, fees_balance FROM students WHERE student_id=?", (w['student_id'],))
+            student = cur.fetchone()
+            if student:
+                receipt_no = generate_receipt_number()
+                cur.execute("INSERT INTO payments (student_id, amount, payment_date, receipt_no, payment_method, notes, recorded_by) VALUES (?, ?, DATE('now'), ?, ?, ?, ?)",
+                           (w['student_id'], w['amount'], receipt_no, w.get('payment_method', 'Mobile Money'), 
+                            f"Auto from webhook: {w.get('transaction_id', '')}", 'System'))
+                new_paid = student['fees_paid'] + w['amount']
+                new_balance = student['fees_balance'] - w['amount']
+                cur.execute("UPDATE students SET fees_paid=?, fees_balance=? WHERE student_id=?", (new_paid, new_balance, w['student_id']))
+                db.commit()
+                if student.get('parent_phone'):
+                    send_fee_sms(student['parent_phone'], student['full_name'], w['amount'], new_balance)
+        cur.execute("UPDATE payment_webhooks SET processed=1 WHERE id=?", (w['id'],))
+        processed += 1
+    db.commit()
+    cur.close()
+    flash(f'Processed {processed} pending webhooks.', 'success')
+    return redirect(url_for('bursar_dashboard'))
+
+@app.route('/bursar/webhook/payment', methods=['POST'])
+def bursar_payment_webhook():
+    data = request.get_json()
+    if not data:
+        return jsonify({'error': 'Invalid data'}), 400
+    execute_db("""INSERT INTO payment_webhooks (transaction_id, amount, phone_number, student_id, reference, payment_method, raw_data, status, processed)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, 'received', 0)""",
+               (data.get('transaction_id'), data.get('amount'), data.get('phone_number'), data.get('student_id'),
+                data.get('reference'), data.get('payment_method'), json.dumps(data)))
+    return jsonify({'status': 'received'}), 200
 
 # ==================== STAFF PAYROLL ====================
 def generate_staff_no():
     return generate_unique_number('STF', 'staff', 'staff_no', year_format=True)
 
 def generate_payroll_no():
-    """Generate unique payroll number: PR-202401-0001 format"""
     year_month = datetime.now().strftime("%Y%m")
-    cur = mysql.connection.cursor()
-    cur.execute("SELECT payroll_no FROM payroll WHERE payroll_no LIKE %s ORDER BY payroll_no DESC LIMIT 1", (f'PR-{year_month}-%',))
+    cur = get_db().cursor()
+    cur.execute("SELECT payroll_no FROM payroll WHERE payroll_no LIKE ? ORDER BY payroll_no DESC LIMIT 1", (f'PR-{year_month}-%',))
     last = cur.fetchone()
     cur.close()
     if last:
@@ -2294,40 +2354,28 @@ def generate_payroll_no():
 def bursar_staff():
     if not check_permission(['bursar']):
         abort(403)
-    
-    cur = mysql.connection.cursor(DictCursor)
+    db = get_db_dict()
+    cur = db.cursor()
     cur.execute("SELECT * FROM staff ORDER BY full_name")
     staff = cur.fetchall()
-    
-    # Get NSSF and PAYE rates
     cur.execute("SELECT nssf_employee_rate, paye_rate, paye_threshold FROM school_settings WHERE id=1")
     rates = cur.fetchone()
+    cur.close()
+    nssf_rate = rates[0] if rates else 5.0
+    paye_rate = rates[1] if rates else 10.0
+    paye_threshold = rates[2] if rates else 235000
     
-    nssf_rate = rates['nssf_employee_rate'] if rates else 5.0
-    paye_rate = rates['paye_rate'] if rates else 10.0
-    paye_threshold = rates['paye_threshold'] if rates else 235000
-    
-    # Calculate totals and add NSSF/PAYE to each staff
-    total_basic = 0
-    total_allowances = 0
-    total_gross = 0
-    total_nssf = 0
-    total_paye = 0
-    total_deductions = 0
-    total_net = 0
-    
+    total_basic = total_allowances = total_gross = total_nssf = total_paye = total_deductions = total_net = 0
     for s in staff:
         gross = s['salary_basic'] + (s['salary_allowances'] or 0)
         nssf = (gross * nssf_rate) / 100
         taxable = max(0, gross - paye_threshold)
         paye = (taxable * paye_rate) / 100
         net = gross - nssf - paye - (s['salary_deductions'] or 0)
-        
         s['gross'] = gross
         s['nssf'] = round(nssf, 2)
         s['paye'] = round(paye, 2)
         s['net'] = net
-        
         total_basic += s['salary_basic']
         total_allowances += (s['salary_allowances'] or 0)
         total_gross += gross
@@ -2336,20 +2384,10 @@ def bursar_staff():
         total_deductions += (s['salary_deductions'] or 0)
         total_net += net
     
-    cur.close()
-    
-    return render_template('bursar/staff.html', 
-                          staff=staff,
-                          total_basic=total_basic,
-                          total_allowances=total_allowances,
-                          total_gross=total_gross,
-                          total_nssf=total_nssf,
-                          total_paye=total_paye,
-                          total_deductions=total_deductions,
-                          total_net=total_net,
-                          nssf_rate=nssf_rate,
-                          paye_rate=paye_rate,
-                          paye_threshold=paye_threshold)
+    return render_template('bursar/staff.html', staff=staff, total_basic=total_basic, total_allowances=total_allowances,
+                          total_gross=total_gross, total_nssf=total_nssf, total_paye=total_paye,
+                          total_deductions=total_deductions, total_net=total_net,
+                          nssf_rate=nssf_rate, paye_rate=paye_rate, paye_threshold=paye_threshold)
 
 @app.route('/bursar/staff/add', methods=['GET', 'POST'])
 def bursar_staff_add():
@@ -2370,22 +2408,11 @@ def bursar_staff_add():
         salary_deductions = float(request.form.get('salary_deductions', 0))
         staff_no = generate_staff_no()
         
-        cur = mysql.connection.cursor()
-        try:
-            cur.execute("""
-                INSERT INTO staff (staff_no, full_name, position, department, phone, email, 
-                                   nssf_number, tin_number, bank_account, bank_name, 
-                                   salary_basic, salary_allowances, salary_deductions) 
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-            """, (staff_no, full_name, position, department, phone, email, nssf_number, tin_number,
-                  bank_account, bank_name, salary_basic, salary_allowances, salary_deductions))
-            mysql.connection.commit()
-            flash(f'Staff {full_name} added. Staff No: {staff_no}', 'success')
-        except Exception as e:
-            mysql.connection.rollback()
-            flash(f'Error: {str(e)}', 'danger')
-        finally:
-            cur.close()
+        execute_db("""INSERT INTO staff (staff_no, full_name, position, department, phone, email, nssf_number, tin_number, bank_account, bank_name, salary_basic, salary_allowances, salary_deductions)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                   (staff_no, full_name, position, department, phone, email, nssf_number, tin_number,
+                    bank_account, bank_name, salary_basic, salary_allowances, salary_deductions))
+        flash(f'Staff {full_name} added. Staff No: {staff_no}', 'success')
         return redirect(url_for('bursar_staff'))
     return render_template('bursar/staff_add.html')
 
@@ -2393,29 +2420,23 @@ def bursar_staff_add():
 def bursar_generate_payroll():
     if not check_permission(['bursar']):
         abort(403)
-    
     if request.method == 'POST':
         month_year = request.form['month_year']
         selected_staff = request.form.getlist('staff_ids')
-        
         if not selected_staff:
             flash('No staff selected.', 'danger')
             return redirect(url_for('bursar_generate_payroll'))
         
-        cur = mysql.connection.cursor(DictCursor)
-        
-        # Get NSSF and PAYE rates
+        db = get_db_dict()
+        cur = db.cursor()
         cur.execute("SELECT nssf_employee_rate, paye_rate, paye_threshold FROM school_settings WHERE id=1")
         rates = cur.fetchone()
+        nssf_rate = rates[0] if rates else 5.0
+        paye_rate = rates[1] if rates else 10.0
+        paye_threshold = rates[2] if rates else 235000
         
-        nssf_rate = rates['nssf_employee_rate'] if rates else 5.0
-        paye_rate = rates['paye_rate'] if rates else 10.0
-        paye_threshold = rates['paye_threshold'] if rates else 235000
-        
-        # FIXED: Create proper placeholders for IN clause
-        placeholders = ','.join(['%s'] * len(selected_staff))
-        query = f"SELECT * FROM staff WHERE id IN ({placeholders})"
-        cur.execute(query, selected_staff)  # Pass the list directly
+        placeholders = ','.join(['?'] * len(selected_staff))
+        cur.execute(f"SELECT * FROM staff WHERE id IN ({placeholders})", selected_staff)
         staff_list = cur.fetchall()
         
         total_amount = 0
@@ -2431,49 +2452,37 @@ def bursar_generate_payroll():
         approval_code = generate_approval_code()
         token, expires_at = generate_secure_token(2)
         
-        cur.execute("""
-            INSERT INTO payroll (payroll_no, month_year, total_amount, approval_code, headteacher_access_token, token_expires_at, recorded_by)
-            VALUES (%s, %s, %s, %s, %s, %s, %s)
-        """, (payroll_no, month_year, total_amount, approval_code, token, expires_at, session.get('username')))
+        cur.execute("""INSERT INTO payroll (payroll_no, month_year, total_amount, approval_code, headteacher_access_token, token_expires_at, recorded_by)
+                       VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                   (payroll_no, month_year, total_amount, approval_code, token, expires_at, session.get('username')))
         payroll_id = cur.lastrowid
         
-        # Create individual salary payment records
         for staff in staff_list:
             gross = staff['salary_basic'] + (staff['salary_allowances'] or 0)
             nssf = (gross * nssf_rate) / 100
             taxable = max(0, gross - paye_threshold)
             paye = (taxable * paye_rate) / 100
             net_salary = gross - nssf - paye - (staff['salary_deductions'] or 0)
-            
-            cur.execute("""
-                INSERT INTO salary_payments 
-                (staff_id, payroll_id, month_year, basic, allowances, deductions, 
-                 gross_salary, nssf_employee, paye_tax, net_salary, approval_code, recorded_by)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-            """, (staff['id'], payroll_id, month_year, staff['salary_basic'], staff['salary_allowances'] or 0, 
-                  staff['salary_deductions'] or 0, gross, nssf, paye, net_salary, approval_code, session.get('username')))
+            cur.execute("""INSERT INTO salary_payments (staff_id, payroll_id, month_year, basic, allowances, deductions, gross_salary, nssf_employee, paye_tax, net_salary, approval_code, recorded_by)
+                           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                       (staff['id'], payroll_id, month_year, staff['salary_basic'], staff['salary_allowances'] or 0,
+                        staff['salary_deductions'] or 0, gross, nssf, paye, net_salary, approval_code, session.get('username')))
         
-        mysql.connection.commit()
+        db.commit()
+        cur.close()
         
-        # Send approval link to headteacher
         approval_link = url_for('headteacher_approval_access', token=token, _external=True)
+        cur = get_db().cursor()
         cur.execute("SELECT phone FROM users WHERE role='headteacher' AND status=1 LIMIT 1")
         headteacher = cur.fetchone()
-        
-        if headteacher and headteacher.get('phone'):
-            send_sms(headteacher['phone'], 
-                f"PAYROLL APPROVAL NEEDED: {payroll_no} - UGX {total_amount:,.2f}. Approval code: {approval_code}. Link: {approval_link}")
-        
-        add_notification('headteacher', 
-            f"Payroll {payroll_no} needs approval. Code: {approval_code}", 
-            f"/headteacher/approval/{token}")
-        
         cur.close()
+        if headteacher and headteacher[0]:
+            send_sms(headteacher[0], f"PAYROLL APPROVAL NEEDED: {payroll_no} - UGX {total_amount:,.2f}. Code: {approval_code}. Link: {approval_link}")
+        add_notification('headteacher', f"Payroll {payroll_no} needs approval. Code: {approval_code}", f"/headteacher/approval/{token}")
         flash(f'Payroll {payroll_no} created. Approval link sent to Headteacher.', 'success')
         return redirect(url_for('bursar_payroll_list'))
     
-    # GET request - show staff selection form
-    cur = mysql.connection.cursor(DictCursor)
+    cur = get_db().cursor()
     cur.execute("SELECT * FROM staff WHERE status='active' ORDER BY full_name")
     staff_list = cur.fetchall()
     cur.close()
@@ -2483,70 +2492,91 @@ def bursar_generate_payroll():
 def bursar_payroll_list():
     if not check_permission(['bursar']):
         abort(403)
-    cur = mysql.connection.cursor(DictCursor)
+    db = get_db_dict()
+    cur = db.cursor()
     cur.execute("SELECT p.*, COUNT(sp.id) as staff_count FROM payroll p LEFT JOIN salary_payments sp ON p.id = sp.payroll_id GROUP BY p.id ORDER BY p.created_at DESC")
     payrolls = cur.fetchall()
     cur.close()
     return render_template('bursar/payroll_list.html', payrolls=payrolls)
 
-# ==================== BURSAR PRINT FUNCTIONS ====================
+@app.route('/bursar/delete_payroll/<int:payroll_id>')
+def bursar_delete_payroll(payroll_id):
+    if not check_permission(['bursar']):
+        abort(403)
+    cur = get_db().cursor()
+    cur.execute("SELECT approval_status FROM payroll WHERE id=?", (payroll_id,))
+    payroll = cur.fetchone()
+    cur.close()
+    if not payroll:
+        flash('Payroll not found.', 'danger')
+        return redirect(url_for('bursar_payroll_list'))
+    if payroll[0] != 'pending':
+        flash('Only pending payrolls can be deleted.', 'warning')
+        return redirect(url_for('bursar_payroll_list'))
+    try:
+        execute_db("DELETE FROM salary_payments WHERE payroll_id=?", (payroll_id,))
+        execute_db("DELETE FROM payroll WHERE id=?", (payroll_id,))
+        flash('Payroll deleted successfully.', 'success')
+    except Exception as e:
+        flash(f'Error deleting payroll: {str(e)}', 'danger')
+    return redirect(url_for('bursar_payroll_list'))
+
+@app.route('/bursar/view_payroll/<int:payroll_id>')
+def bursar_view_payroll(payroll_id):
+    if not check_permission(['bursar']):
+        abort(403)
+    db = get_db_dict()
+    cur = db.cursor()
+    cur.execute("SELECT * FROM payroll WHERE id=?", (payroll_id,))
+    payroll = cur.fetchone()
+    if not payroll:
+        flash('Payroll not found.', 'danger')
+        return redirect(url_for('bursar_payroll_list'))
+    cur.execute("""SELECT sp.*, s.full_name, s.position, s.bank_account, s.bank_name, s.phone, s.staff_no
+                   FROM salary_payments sp JOIN staff s ON sp.staff_id = s.id WHERE sp.payroll_id = ?""", (payroll_id,))
+    staff_list = cur.fetchall()
+    cur.close()
+    total_basic = sum(s['basic'] for s in staff_list) if staff_list else 0
+    total_allowances = sum(s['allowances'] for s in staff_list) if staff_list else 0
+    total_deductions = sum(s['deductions'] for s in staff_list) if staff_list else 0
+    return render_template('bursar/view_payroll.html', payroll=payroll, staff_list=staff_list,
+                          total_basic=total_basic, total_allowances=total_allowances, total_deductions=total_deductions)
 
 @app.route('/bursar/print_payroll')
 def bursar_print_payroll():
     if not check_permission(['bursar']):
         abort(403)
-    
     staff_ids = request.args.get('staff_ids', '')
-    
-    cur = mysql.connection.cursor(DictCursor)
-    
+    db = get_db_dict()
+    cur = db.cursor()
     if staff_ids:
         ids = [int(x) for x in staff_ids.split(',') if x.isdigit()]
         if ids:
-            placeholders = ','.join(['%s'] * len(ids))
-            cur.execute(f"""
-                SELECT staff_no, full_name, position, salary_basic, salary_allowances, salary_deductions, salary_net
-                FROM staff 
-                WHERE id IN ({placeholders})
-                ORDER BY full_name
-            """, ids)
+            placeholders = ','.join(['?'] * len(ids))
+            cur.execute(f"SELECT staff_no, full_name, position, salary_basic, salary_allowances, salary_deductions, salary_net FROM staff WHERE id IN ({placeholders}) ORDER BY full_name", ids)
         else:
             staff_list = []
     else:
-        cur.execute("""
-            SELECT staff_no, full_name, position, salary_basic, salary_allowances, salary_deductions, salary_net
-            FROM staff 
-            ORDER BY full_name
-        """)
-    
+        cur.execute("SELECT staff_no, full_name, position, salary_basic, salary_allowances, salary_deductions, salary_net FROM staff ORDER BY full_name")
     staff_list = cur.fetchall()
-    
-    # Get NSSF and PAYE rates
     cur.execute("SELECT nssf_employee_rate, paye_rate, paye_threshold FROM school_settings WHERE id=1")
     rates = cur.fetchone()
     cur.close()
+    nssf_rate = rates[0] if rates else 5.0
+    paye_rate = rates[1] if rates else 10.0
+    paye_threshold = rates[2] if rates else 235000
     
-    # Calculate NSSF and PAYE for each staff
-    total_basic = 0
-    total_allowances = 0
-    total_gross = 0
-    total_nssf = 0
-    total_paye = 0
-    total_deductions = 0
-    total_net = 0
-    
+    total_basic = total_allowances = total_gross = total_nssf = total_paye = total_deductions = total_net = 0
     for s in staff_list:
         gross = s['salary_basic'] + s['salary_allowances']
-        nssf = (gross * (rates['nssf_employee_rate'] if rates else 5)) / 100
-        taxable = max(0, gross - (rates['paye_threshold'] if rates else 235000))
-        paye = (taxable * (rates['paye_rate'] if rates else 10)) / 100
+        nssf = (gross * nssf_rate) / 100
+        taxable = max(0, gross - paye_threshold)
+        paye = (taxable * paye_rate) / 100
         net = gross - nssf - paye - s['salary_deductions']
-        
         s['gross'] = gross
         s['nssf_employee'] = round(nssf, 2)
         s['paye_tax'] = round(paye, 2)
         s['net'] = net
-        
         total_basic += s['salary_basic']
         total_allowances += s['salary_allowances']
         total_gross += gross
@@ -2555,193 +2585,53 @@ def bursar_print_payroll():
         total_deductions += s['salary_deductions']
         total_net += net
     
-    return render_template('bursar/print_payroll.html', 
-                          staff_list=staff_list,
-                          total_basic=total_basic,
-                          total_allowances=total_allowances,
-                          total_gross=total_gross,
-                          total_nssf=total_nssf,
-                          total_paye=total_paye,
-                          total_deductions=total_deductions,
-                          total_net=total_net,
-                          nssf_rate=rates['nssf_employee_rate'] if rates else 5,
-                          paye_rate=rates['paye_rate'] if rates else 10,
-                          paye_threshold=rates['paye_threshold'] if rates else 235000)
-
-@app.route('/admin/nssf_paye_settings', methods=['GET', 'POST'])
-def nssf_paye_settings():
-    if not check_permission(['admin', 'bursar']):
-        abort(403)
-    
-    cur = mysql.connection.cursor()
-    if request.method == 'POST':
-        nssf_employee = float(request.form['nssf_employee_rate'])
-        paye_rate = float(request.form['paye_rate'])
-        paye_threshold = float(request.form['paye_threshold'])
-        
-        cur.execute("""
-            UPDATE school_settings SET 
-                nssf_employee_rate = %s, 
-                paye_rate = %s, 
-                paye_threshold = %s 
-            WHERE id = 1
-        """, (nssf_employee, paye_rate, paye_threshold))
-        mysql.connection.commit()
-        flash('NSSF and PAYE settings updated successfully.', 'success')
-    
-    cur.execute("SELECT nssf_employee_rate, paye_rate, paye_threshold FROM school_settings WHERE id=1")
-    settings = cur.fetchone()
-    cur.close()
-    
-    return render_template('admin/nssf_paye_settings.html', settings=settings)
-
+    return render_template('bursar/print_payroll.html', staff_list=staff_list, total_basic=total_basic,
+                          total_allowances=total_allowances, total_gross=total_gross, total_nssf=total_nssf,
+                          total_paye=total_paye, total_deductions=total_deductions, total_net=total_net,
+                          nssf_rate=nssf_rate, paye_rate=paye_rate, paye_threshold=paye_threshold)
 
 @app.route('/bursar/print_fees_list')
 def bursar_print_fees_list():
     if not check_permission(['bursar']):
         abort(403)
-    
     class_filter = request.args.get('class', '')
-    status_filter = request.args.get('status', '')  # 'all' or 'defaulters'
-    
-    cur = mysql.connection.cursor(DictCursor)
-    
+    status_filter = request.args.get('status', '')
+    db = get_db_dict()
+    cur = db.cursor()
     if status_filter == 'defaulters':
-        query = """
-            SELECT student_id, full_name, class, fees_paid, fees_balance
-            FROM students 
-            WHERE fees_balance > 0
-        """
+        query = "SELECT student_id, full_name, class, fees_paid, fees_balance FROM students WHERE fees_balance > 0"
         params = []
         if class_filter:
-            query += " AND class = %s"
+            query += " AND class = ?"
             params.append(class_filter)
         query += " ORDER BY class, full_name"
         cur.execute(query, params)
     else:
-        query = """
-            SELECT student_id, full_name, class, fees_paid, fees_balance
-            FROM students 
-            WHERE 1=1
-        """
+        query = "SELECT student_id, full_name, class, fees_paid, fees_balance FROM students WHERE 1=1"
         params = []
         if class_filter:
-            query += " AND class = %s"
+            query += " AND class = ?"
             params.append(class_filter)
         query += " ORDER BY class, full_name"
         cur.execute(query, params)
-    
     students = cur.fetchall()
     cur.close()
-    
-    # Calculate totals
     total_paid = sum(s['fees_paid'] for s in students) if students else 0
     total_balance = sum(s['fees_balance'] for s in students) if students else 0
-    
-    return render_template('bursar/print_fees_list.html', 
-                          students=students,
-                          class_filter=class_filter,
-                          status_filter=status_filter,
-                          total_paid=total_paid,
-                          total_balance=total_balance)
-
-@app.route('/bursar/delete_payroll/<int:payroll_id>')
-def bursar_delete_payroll(payroll_id):
-    if not check_permission(['bursar']):
-        abort(403)
-    
-    cur = mysql.connection.cursor()
-    
-    # Check if payroll exists and is pending
-    cur.execute("SELECT approval_status FROM payroll WHERE id=%s", (payroll_id,))
-    payroll = cur.fetchone()
-    
-    if not payroll:
-        flash('Payroll not found.', 'danger')
-        return redirect(url_for('bursar_payroll_list'))
-    
-    if payroll[0] != 'pending':
-        flash('Only pending payrolls can be deleted.', 'warning')
-        return redirect(url_for('bursar_payroll_list'))
-    
-    try:
-        # Delete salary payments first (foreign key constraint)
-        cur.execute("DELETE FROM salary_payments WHERE payroll_id=%s", (payroll_id,))
-        cur.execute("DELETE FROM payroll WHERE id=%s", (payroll_id,))
-        mysql.connection.commit()
-        flash('Payroll deleted successfully.', 'success')
-    except Exception as e:
-        mysql.connection.rollback()
-        flash(f'Error deleting payroll: {str(e)}', 'danger')
-    finally:
-        cur.close()
-    
-    return redirect(url_for('bursar_payroll_list'))
-
-
-#@app.route('/bursar/payroll/process/<int:payroll_id>')
-#def bursar_process_payroll(payroll_id):
-    if not check_permission(['bursar']):
-        abort(403)
-    cur = mysql.connection.cursor(DictCursor)
-    cur.execute("SELECT * FROM payroll WHERE id=%s AND approval_status='approved'", (payroll_id,))
-    payroll = cur.fetchone()
-    if not payroll:
-        flash('Payroll not approved.', 'warning')
-        return redirect(url_for('bursar_payroll_list'))
-    cur.execute("UPDATE salary_payments SET approval_status='paid', payment_date=CURDATE() WHERE payroll_id=%s", (payroll_id,))
-    cur.execute("UPDATE payroll SET approval_status='paid' WHERE id=%s", (payroll_id,))
-    mysql.connection.commit()
-    cur.close()
-    flash('Payroll processed.', 'success')
-    return redirect(url_for('bursar_payroll_list'))
-
-@app.route('/bursar/view_payroll/<int:payroll_id>')
-def bursar_view_payroll(payroll_id):
-    if not check_permission(['bursar']):
-        abort(403)
-    
-    cur = mysql.connection.cursor(DictCursor)
-    cur.execute("SELECT * FROM payroll WHERE id=%s", (payroll_id,))
-    payroll = cur.fetchone()
-    
-    if not payroll:
-        flash('Payroll not found.', 'danger')
-        return redirect(url_for('bursar_payroll_list'))
-    
-    cur.execute("""
-        SELECT sp.*, s.full_name, s.position, s.bank_account, s.bank_name, s.phone, s.staff_no
-        FROM salary_payments sp
-        JOIN staff s ON sp.staff_id = s.id
-        WHERE sp.payroll_id = %s
-    """, (payroll_id,))
-    staff_list = cur.fetchall()
-    
-    # Calculate totals
-    total_basic = sum(s['basic'] for s in staff_list) if staff_list else 0
-    total_allowances = sum(s['allowances'] for s in staff_list) if staff_list else 0
-    total_deductions = sum(s['deductions'] for s in staff_list) if staff_list else 0
-    
-    cur.close()
-    
-    return render_template('bursar/view_payroll.html', 
-                          payroll=payroll, 
-                          staff_list=staff_list,
-                          total_basic=total_basic,
-                          total_allowances=total_allowances,
-                          total_deductions=total_deductions)
-
-
+    return render_template('bursar/print_fees_list.html', students=students, class_filter=class_filter,
+                          status_filter=status_filter, total_paid=total_paid, total_balance=total_balance)
 
 @app.route('/bursar/budget')
 def bursar_budget():
     if not check_permission(['bursar']):
         abort(403)
     year = request.args.get('year', datetime.now().year)
-    cur = mysql.connection.cursor(DictCursor)
-    cur.execute("SELECT * FROM budget_categories WHERE year=%s ORDER BY code", (year,))
+    db = get_db_dict()
+    cur = db.cursor()
+    cur.execute("SELECT * FROM budget_categories WHERE year=? ORDER BY code", (year,))
     categories = cur.fetchall()
-    cur.execute("SELECT c.code, c.name, c.allocated_amount, SUM(e.amount) as spent FROM budget_categories c LEFT JOIN expenditures e ON c.id = e.category_id AND e.status='paid' WHERE c.year=%s GROUP BY c.id", (year,))
+    cur.execute("""SELECT c.code, c.name, c.allocated_amount, SUM(e.amount) as spent FROM budget_categories c 
+                   LEFT JOIN expenditures e ON c.id = e.category_id AND e.status='paid' WHERE c.year=? GROUP BY c.id""", (year,))
     summary = cur.fetchall()
     cur.close()
     return render_template('bursar/budget.html', categories=categories, summary=summary, year=year)
@@ -2750,10 +2640,8 @@ def bursar_budget():
 def bursar_budget_add():
     if not check_permission(['bursar']):
         abort(403)
-    cur = mysql.connection.cursor()
-    cur.execute("INSERT INTO budget_categories (code, name, description, allocated_amount, year) VALUES (%s, %s, %s, %s, %s)", (request.form['code'], request.form['name'], request.form.get('description', ''), float(request.form['allocated_amount']), request.form['year']))
-    mysql.connection.commit()
-    cur.close()
+    execute_db("INSERT INTO budget_categories (code, name, description, allocated_amount, year) VALUES (?, ?, ?, ?, ?)",
+               (request.form['code'], request.form['name'], request.form.get('description', ''), float(request.form['allocated_amount']), request.form['year']))
     flash('Budget category added.', 'success')
     return redirect(url_for('bursar_budget', year=request.form['year']))
 
@@ -2761,7 +2649,8 @@ def bursar_budget_add():
 def bursar_expenditure():
     if not check_permission(['bursar']):
         abort(403)
-    cur = mysql.connection.cursor(DictCursor)
+    db = get_db_dict()
+    cur = db.cursor()
     cur.execute("SELECT e.*, c.code, c.name as category_name FROM expenditures e JOIN budget_categories c ON e.category_id = c.id ORDER BY e.expenditure_date DESC")
     expenditures = cur.fetchall()
     cur.execute("SELECT id, code, name FROM budget_categories ORDER BY code")
@@ -2774,10 +2663,11 @@ def bursar_expenditure_add():
     if not check_permission(['bursar']):
         abort(403)
     voucher_no = generate_unique_number('VCH', 'expenditures', 'voucher_no', year_format=True)
-    cur = mysql.connection.cursor()
-    cur.execute("INSERT INTO expenditures (voucher_no, category_id, description, amount, expenditure_date, payment_method, payee_name, payee_phone, status, recorded_by) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)", (voucher_no, request.form['category_id'], request.form['description'], float(request.form['amount']), request.form['expenditure_date'], request.form.get('payment_method', 'Cash'), request.form.get('payee_name', ''), validate_and_format_phone(request.form.get('payee_phone', '')), request.form.get('status', 'paid'), session.get('username')))
-    mysql.connection.commit()
-    cur.close()
+    execute_db("""INSERT INTO expenditures (voucher_no, category_id, description, amount, expenditure_date, payment_method, payee_name, payee_phone, status, recorded_by)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+               (voucher_no, request.form['category_id'], request.form['description'], float(request.form['amount']), request.form['expenditure_date'],
+                request.form.get('payment_method', 'Cash'), request.form.get('payee_name', ''),
+                validate_and_format_phone(request.form.get('payee_phone', '')), request.form.get('status', 'paid'), session.get('username')))
     flash(f'Expenditure recorded. Voucher: {voucher_no}', 'success')
     return redirect(url_for('bursar_expenditure'))
 
@@ -2787,12 +2677,13 @@ def bursar_income_report():
         abort(403)
     start = request.args.get('start_date', datetime.now().replace(day=1).strftime('%Y-%m-%d'))
     end = request.args.get('end_date', datetime.now().strftime('%Y-%m-%d'))
-    cur = mysql.connection.cursor(DictCursor)
-    cur.execute("SELECT DATE(payment_date) as date, SUM(amount) as total FROM payments WHERE payment_date BETWEEN %s AND %s GROUP BY DATE(payment_date) ORDER BY date DESC", (start, end))
+    db = get_db_dict()
+    cur = db.cursor()
+    cur.execute("SELECT DATE(payment_date) as date, SUM(amount) as total FROM payments WHERE payment_date BETWEEN ? AND ? GROUP BY DATE(payment_date) ORDER BY date DESC", (start, end))
     daily = cur.fetchall()
-    cur.execute("SELECT payment_method, SUM(amount) as total FROM payments WHERE payment_date BETWEEN %s AND %s GROUP BY payment_method", (start, end))
+    cur.execute("SELECT payment_method, SUM(amount) as total FROM payments WHERE payment_date BETWEEN ? AND ? GROUP BY payment_method", (start, end))
     by_method = cur.fetchall()
-    cur.execute("SELECT SUM(amount) as total_income FROM payments WHERE payment_date BETWEEN %s AND %s", (start, end))
+    cur.execute("SELECT SUM(amount) as total_income FROM payments WHERE payment_date BETWEEN ? AND ?", (start, end))
     total = cur.fetchone()
     cur.close()
     return render_template('bursar/income_report.html', daily=daily, by_method=by_method, total=total, start_date=start, end_date=end)
@@ -2803,10 +2694,14 @@ def bursar_expenditure_report():
         abort(403)
     start = request.args.get('start_date', datetime.now().replace(day=1).strftime('%Y-%m-%d'))
     end = request.args.get('end_date', datetime.now().strftime('%Y-%m-%d'))
-    cur = mysql.connection.cursor(DictCursor)
-    cur.execute("SELECT c.code, c.name, SUM(e.amount) as total_spent FROM expenditures e JOIN budget_categories c ON e.category_id = c.id WHERE e.expenditure_date BETWEEN %s AND %s AND e.status='paid' GROUP BY c.id ORDER BY total_spent DESC", (start, end))
+    db = get_db_dict()
+    cur = db.cursor()
+    cur.execute("""SELECT c.code, c.name, SUM(e.amount) as total_spent FROM expenditures e 
+                   JOIN budget_categories c ON e.category_id = c.id 
+                   WHERE e.expenditure_date BETWEEN ? AND ? AND e.status='paid' 
+                   GROUP BY c.id ORDER BY total_spent DESC""", (start, end))
     by_category = cur.fetchall()
-    cur.execute("SELECT SUM(amount) as total_expenditure FROM expenditures WHERE expenditure_date BETWEEN %s AND %s AND status='paid'", (start, end))
+    cur.execute("SELECT SUM(amount) as total_expenditure FROM expenditures WHERE expenditure_date BETWEEN ? AND ? AND status='paid'", (start, end))
     total = cur.fetchone()
     cur.close()
     return render_template('bursar/expenditure_report.html', by_category=by_category, total=total, start_date=start, end_date=end)
@@ -2815,57 +2710,43 @@ def bursar_expenditure_report():
 def bursar_school_pay_config():
     if not check_permission(['bursar']):
         abort(403)
-    cur = mysql.connection.cursor(DictCursor)
     if request.method == 'POST':
-        cur.execute("UPDATE payment_gateway_config SET api_key=%s, api_secret=%s, webhook_secret=%s, callback_url=%s, status=%s WHERE id=1", (request.form['api_key'], request.form['api_secret'], request.form['webhook_secret'], request.form['callback_url'], request.form.get('status', 'inactive')))
-        mysql.connection.commit()
+        execute_db("UPDATE payment_gateway_config SET api_key=?, api_secret=?, webhook_secret=?, callback_url=?, status=? WHERE id=1",
+                   (request.form['api_key'], request.form['api_secret'], request.form['webhook_secret'], request.form['callback_url'], request.form.get('status', 'inactive')))
         flash('Configuration saved.', 'success')
+    cur = get_db().cursor()
     cur.execute("SELECT * FROM payment_gateway_config WHERE id=1")
     config = cur.fetchone()
     cur.close()
     return render_template('bursar/school_pay_config.html', config=config)
-
 
 # ==================== HEADTEACHER & MANAGEMENT APPROVAL ====================
 @app.route('/headteacher/approvals')
 def headteacher_approvals():
     if not check_permission(['headteacher']):
         abort(403)
-    
-    cur = mysql.connection.cursor(DictCursor)
-    cur.execute("""
-        SELECT p.*, COUNT(sp.id) as staff_count
-        FROM payroll p
-        LEFT JOIN salary_payments sp ON p.id = sp.payroll_id
-        WHERE p.approval_status = 'pending'
-        GROUP BY p.id
-        ORDER BY p.created_at DESC
-    """)
+    db = get_db_dict()
+    cur = db.cursor()
+    cur.execute("""SELECT p.*, COUNT(sp.id) as staff_count FROM payroll p LEFT JOIN salary_payments sp ON p.id = sp.payroll_id 
+                   WHERE p.approval_status = 'pending' GROUP BY p.id ORDER BY p.created_at DESC""")
     pending = cur.fetchall()
     cur.close()
-    
     return render_template('headteacher/approvals.html', pending=pending)
+
 @app.route('/headteacher/approval/<token>', methods=['GET', 'POST'])
 def headteacher_approval_access(token):
     if not check_permission(['headteacher']):
         abort(403)
-    
-    cur = mysql.connection.cursor(DictCursor)
-    
-    # Get payroll by token
-    cur.execute("SELECT * FROM payroll WHERE headteacher_access_token = %s", (token,))
+    db = get_db_dict()
+    cur = db.cursor()
+    cur.execute("SELECT * FROM payroll WHERE headteacher_access_token=? AND approval_status='pending'", (token,))
     payroll = cur.fetchone()
-    
     if not payroll:
         flash('Invalid approval link.', 'danger')
         return redirect(url_for('headteacher_approvals'))
-    
-    # Check if already approved/rejected
     if payroll['approval_status'] != 'pending':
         flash(f'This payroll has already been {payroll["approval_status"]}.', 'warning')
         return redirect(url_for('headteacher_approvals'))
-    
-    # Check expiration
     if payroll.get('token_expires_at') and payroll['token_expires_at'] <= datetime.now():
         flash('This approval link has expired. Please request a new link.', 'danger')
         return redirect(url_for('headteacher_approvals'))
@@ -2873,525 +2754,298 @@ def headteacher_approval_access(token):
     if request.method == 'POST':
         approval_code = request.form.get('approval_code')
         action = request.form.get('action')
-        
-        # Verify approval code
         if payroll['approval_code'] != approval_code:
             flash('Invalid approval code.', 'danger')
             return redirect(url_for('headteacher_approval_access', token=token))
-        
         if action == 'approve':
-            # Generate management approval code and token
             mgmt_code = generate_approval_code()
             mgmt_token, mgmt_expires = generate_secure_token(2)
-            
-            # Update payroll
-            cur.execute("""
-                UPDATE payroll SET 
-                    approval_status = 'approved', 
-                    approved_by = %s, 
-                    approved_at = NOW(),
-                    management_approval_code = %s,
-                    management_access_token = %s,
-                    management_token_expires_at = %s,
-                    management_approval_status = 'pending'
-                WHERE id = %s
-            """, ('Headteacher', mgmt_code, mgmt_token, mgmt_expires, payroll['id']))
-            
-            # Update salary payments
-            cur.execute("UPDATE salary_payments SET approval_status = 'approved' WHERE payroll_id = %s", (payroll['id'],))
-            mysql.connection.commit()
-            
-            # Send SMS to management
+            cur.execute("""UPDATE payroll SET approval_status='approved', approved_by=?, approved_at=CURRENT_TIMESTAMP, 
+                           management_approval_code=?, management_access_token=?, management_token_expires_at=?, 
+                           management_approval_status='pending' WHERE id=?""",
+                       ('Headteacher', mgmt_code, mgmt_token, mgmt_expires, payroll['id']))
+            cur.execute("UPDATE salary_payments SET approval_status='approved' WHERE payroll_id=?", (payroll['id'],))
+            db.commit()
             management_link = url_for('management_authorization_access', token=mgmt_token, _external=True)
             expires_str = mgmt_expires.strftime('%Y-%m-%d %H:%M:%S')
-            
             cur.execute("SELECT phone FROM users WHERE role='management' AND status=1")
             management_users = cur.fetchall()
-            
             for mgmt in management_users:
-                if mgmt.get('phone'):
-                    send_sms(mgmt['phone'], 
-                        f"BANK AUTHORIZATION NEEDED: Payroll {payroll['payroll_no']} - UGX {payroll['total_amount']:,.2f}. "
-                        f"Code: {mgmt_code}. Expires: {expires_str}. Link: {management_link}")
-            
-            # Add notification
-            add_notification('management', 
-                f"Payroll {payroll['payroll_no']} needs bank authorization. Code: {mgmt_code}", 
-                f"/management/authorization/{mgmt_token}")
-            
+                if mgmt['phone']:
+                    send_sms(mgmt['phone'], f"BANK AUTHORIZATION NEEDED: Payroll {payroll['payroll_no']} - UGX {payroll['total_amount']:,.2f}. Code: {mgmt_code}. Expires: {expires_str}. Link: {management_link}")
+            add_notification('management', f"Payroll {payroll['payroll_no']} needs bank authorization. Code: {mgmt_code}", f"/management/authorization/{mgmt_token}")
             flash('Payroll approved. Management notified for bank authorization.', 'success')
-            
         elif action == 'reject':
-            # Reject payroll
-            cur.execute("UPDATE payroll SET approval_status='rejected', approved_by=%s, approved_at=NOW() WHERE id=%s", ('Headteacher', payroll['id']))
-            cur.execute("UPDATE salary_payments SET approval_status='rejected' WHERE payroll_id=%s", (payroll['id'],))
-            mysql.connection.commit()
-            
-            # Notify bursar
+            cur.execute("UPDATE payroll SET approval_status='rejected', approved_by=?, approved_at=CURRENT_TIMESTAMP WHERE id=?", ('Headteacher', payroll['id']))
+            cur.execute("UPDATE salary_payments SET approval_status='rejected' WHERE payroll_id=?", (payroll['id'],))
+            db.commit()
             add_notification('bursar', f"Payroll {payroll['payroll_no']} was REJECTED by Headteacher.", '/bursar/payroll/list')
-            
             flash('Payroll rejected.', 'warning')
-        
         cur.close()
         return redirect(url_for('headteacher_approvals'))
     
-    # Calculate remaining time
     remaining_minutes = None
     if payroll.get('token_expires_at'):
         remaining = payroll['token_expires_at'] - datetime.now()
         remaining_minutes = int(remaining.total_seconds() / 60)
-    
     cur.close()
-    
-    return render_template('headteacher/approve_payroll_secure.html', 
-                          payroll=payroll, 
-                          remaining_minutes=remaining_minutes)
-    
+    return render_template('headteacher/approve_payroll_secure.html', payroll=payroll, remaining_minutes=remaining_minutes)
+
 @app.route('/headteacher/reject_payroll/<int:payroll_id>')
 def headteacher_reject_payroll(payroll_id):
     if not check_permission(['headteacher']):
         abort(403)
-    
-    cur = mysql.connection.cursor(DictCursor)
-    
-    # Check if payroll exists and is pending
-    cur.execute("SELECT * FROM payroll WHERE id=%s AND approval_status='pending'", (payroll_id,))
+    cur = get_db().cursor()
+    cur.execute("SELECT * FROM payroll WHERE id=? AND approval_status='pending'", (payroll_id,))
     payroll = cur.fetchone()
-    
+    cur.close()
     if not payroll:
         flash('Payroll not found or already processed.', 'danger')
         return redirect(url_for('headteacher_approvals'))
-    
     try:
-        # Update payroll status to rejected
-        cur.execute("UPDATE payroll SET approval_status='rejected', approved_by=%s, approved_at=NOW() WHERE id=%s", ('Headteacher', payroll_id))
-        cur.execute("UPDATE salary_payments SET approval_status='rejected' WHERE payroll_id=%s", (payroll_id,))
-        mysql.connection.commit()
-        
-        # Notify bursar
-        add_notification('bursar', f"Payroll {payroll['payroll_no']} has been REJECTED by Headteacher.", '/bursar/payroll/list')
-        
-        flash(f'Payroll {payroll["payroll_no"]} has been rejected.', 'warning')
+        execute_db("UPDATE payroll SET approval_status='rejected', approved_by=?, approved_at=CURRENT_TIMESTAMP WHERE id=?", ('Headteacher', payroll_id))
+        execute_db("UPDATE salary_payments SET approval_status='rejected' WHERE payroll_id=?", (payroll_id,))
+        add_notification('bursar', f"Payroll {payroll[1]} has been REJECTED by Headteacher.", '/bursar/payroll/list')
+        flash(f'Payroll {payroll[1]} has been rejected.', 'warning')
     except Exception as e:
-        mysql.connection.rollback()
         flash(f'Error rejecting payroll: {str(e)}', 'danger')
-    finally:
-        cur.close()
-    
     return redirect(url_for('headteacher_approvals'))
 
 @app.route('/headteacher/resend_token/<int:payroll_id>')
 def headteacher_resend_token(payroll_id):
     if not check_permission(['headteacher']):
         abort(403)
-    
-    cur = mysql.connection.cursor(DictCursor)
-    cur.execute("SELECT * FROM payroll WHERE id=%s AND approval_status='pending'", (payroll_id,))
+    cur = get_db().cursor()
+    cur.execute("SELECT * FROM payroll WHERE id=? AND approval_status='pending'", (payroll_id,))
     payroll = cur.fetchone()
-    
+    cur.close()
     if not payroll:
         flash('Payroll not found or already processed.', 'danger')
         return redirect(url_for('headteacher_approvals'))
-    
-    # Check resend limit (max 3 resends)
     if payroll.get('token_resend_count', 0) >= 3:
         flash('Maximum token resend limit reached (3). Please create a new payroll.', 'danger')
         return redirect(url_for('headteacher_approvals'))
-    
-    # Generate new token
     new_token, new_expires = generate_secure_token(2)
-    
-    # Update payroll with new token
-    cur.execute("""
-        UPDATE payroll SET 
-            headteacher_access_token = %s,
-            token_expires_at = %s,
-            token_resend_count = token_resend_count + 1,
-            last_resend_at = NOW()
-        WHERE id = %s
-    """, (new_token, new_expires, payroll_id))
-    mysql.connection.commit()
-    
-    # Send new SMS
+    execute_db("UPDATE payroll SET headteacher_access_token=?, token_expires_at=?, token_resend_count=token_resend_count+1, last_resend_at=CURRENT_TIMESTAMP WHERE id=?",
+               (new_token, new_expires, payroll_id))
     approval_link = url_for('headteacher_approval_access', token=new_token, _external=True)
     expires_str = new_expires.strftime('%Y-%m-%d %H:%M:%S')
-    
-    # Get headteacher phone
+    cur = get_db().cursor()
     cur.execute("SELECT phone FROM users WHERE role='headteacher' AND status=1 LIMIT 1")
     headteacher = cur.fetchone()
-    
-    if headteacher and headteacher.get('phone'):
-        send_sms(headteacher['phone'], 
-            f"NEW LINK: Payroll {payroll['payroll_no']} - UGX {payroll['total_amount']:,.2f}. Code: {payroll['approval_code']}. Expires: {expires_str}. Link: {approval_link}")
-    
     cur.close()
-    
+    if headteacher and headteacher[0]:
+        send_sms(headteacher[0], f"NEW LINK: Payroll {payroll[1]} - UGX {payroll[4]:,.2f}. Code: {payroll[5]}. Expires: {expires_str}. Link: {approval_link}")
     flash(f'New approval link sent! Expires at {expires_str}.', 'success')
     return redirect(url_for('headteacher_approvals'))
-
-@app.route('/management/authorization/<token>', methods=['GET', 'POST'])
-def management_authorization_access(token):
-    if not check_permission(['management']):
-        abort(403)
-    
-    cur = mysql.connection.cursor(DictCursor)
-    
-    # Get payroll by management token
-    cur.execute("SELECT * FROM payroll WHERE management_access_token = %s", (token,))
-    payroll = cur.fetchone()
-    
-    if not payroll:
-        flash('Invalid authorization link.', 'danger')
-        return redirect(url_for('management_pending_authorizations'))
-    
-    # Check status
-    if payroll['management_approval_status'] != 'pending':
-        flash(f'This authorization has already been {payroll["management_approval_status"]}.', 'warning')
-        return redirect(url_for('management_pending_authorizations'))
-    
-    if payroll['approval_status'] != 'approved':
-        flash('Payroll has not been approved by Headteacher yet.', 'warning')
-        return redirect(url_for('management_pending_authorizations'))
-    
-    # Check expiration
-    if payroll.get('management_token_expires_at') and payroll['management_token_expires_at'] <= datetime.now():
-        flash('This authorization link has expired. Please request a new link.', 'danger')
-        return redirect(url_for('management_pending_authorizations'))
-    
-    if request.method == 'POST':
-        auth_code = request.form.get('auth_code')
-        action = request.form.get('action')
-        
-        if payroll['management_approval_code'] != auth_code:
-            flash('Invalid authorization code.', 'danger')
-            return redirect(url_for('management_authorization_access', token=token))
-        
-        if action == 'authorize':
-            # Process bank payment
-            result = process_bank_payment(payroll)
-            
-            if result['success']:
-                cur.execute("""
-                    UPDATE payroll SET 
-                        management_approval_status = 'approved',
-                        management_approved_by = 'Management',
-                        management_approved_at = NOW(),
-                        bank_authorization_token = %s,
-                        bank_transaction_ref = %s,
-                        bank_payment_status = 'completed'
-                    WHERE id = %s
-                """, (result['token'], result['reference'], payroll['id']))
-                
-                cur.execute("""
-                    UPDATE salary_payments SET 
-                        approval_status = 'paid', 
-                        payment_date = CURDATE(), 
-                        transaction_ref = %s 
-                    WHERE payroll_id = %s
-                """, (result['reference'], payroll['id']))
-                
-                mysql.connection.commit()
-                
-                # Notify bursar
-                add_notification('bursar', f"Payroll {payroll['payroll_no']} has been paid. Reference: {result['reference']}", '/bursar/payroll/list')
-                
-                flash(f'Payment authorized and processed! Reference: {result["reference"]}', 'success')
-            else:
-                cur.execute("UPDATE payroll SET bank_payment_status='failed', bank_payment_response=%s WHERE id=%s", (result['error'], payroll['id']))
-                mysql.connection.commit()
-                flash(f'Payment failed: {result["error"]}', 'danger')
-        
-        elif action == 'reject':
-            cur.execute("UPDATE payroll SET management_approval_status='rejected', management_approved_by=%s, management_approved_at=NOW() WHERE id=%s", ('Management', payroll['id']))
-            cur.execute("UPDATE salary_payments SET approval_status='rejected' WHERE payroll_id=%s", (payroll['id'],))
-            mysql.connection.commit()
-            
-            add_notification('headteacher', f"Payroll {payroll['payroll_no']} authorization was REJECTED by Management.", '/headteacher/approvals')
-            add_notification('bursar', f"Payroll {payroll['payroll_no']} was REJECTED by Management.", '/bursar/payroll/list')
-            
-            flash('Payment authorization rejected.', 'warning')
-        
-        cur.close()
-        return redirect(url_for('management_pending_authorizations'))
-    
-    # Calculate remaining time
-    remaining_minutes = None
-    if payroll.get('management_token_expires_at'):
-        remaining = payroll['management_token_expires_at'] - datetime.now()
-        remaining_minutes = int(remaining.total_seconds() / 60)
-    
-    cur.close()
-    
-    return render_template('management/authorize_payment_secure.html', 
-                          payroll=payroll, 
-                          remaining_minutes=remaining_minutes)
 
 @app.route('/headteacher/view_payroll/<int:payroll_id>')
 def headteacher_view_payroll(payroll_id):
     if not check_permission(['headteacher']):
         abort(403)
-    
-    cur = mysql.connection.cursor(DictCursor)
-    cur.execute("SELECT * FROM payroll WHERE id=%s", (payroll_id,))
+    db = get_db_dict()
+    cur = db.cursor()
+    cur.execute("SELECT * FROM payroll WHERE id=?", (payroll_id,))
     payroll = cur.fetchone()
-    
     if not payroll:
         flash('Payroll not found.', 'danger')
         return redirect(url_for('headteacher_approvals'))
-    
-    cur.execute("""
-        SELECT sp.*, s.full_name, s.position
-        FROM salary_payments sp
-        JOIN staff s ON sp.staff_id = s.id
-        WHERE sp.payroll_id = %s
-    """, (payroll_id,))
+    cur.execute("SELECT sp.*, s.full_name, s.position FROM salary_payments sp JOIN staff s ON sp.staff_id = s.id WHERE sp.payroll_id=?", (payroll_id,))
     staff_list = cur.fetchall()
     cur.close()
-    
     return render_template('headteacher/view_payroll.html', payroll=payroll, staff_list=staff_list)
-
-@app.route('/management/pending')
-def management_pending_authorizations():
-    if not check_permission(['management']):
-        abort(403)
-    
-    cur = mysql.connection.cursor(DictCursor)
-    cur.execute("""
-        SELECT p.*, COUNT(sp.id) as staff_count
-        FROM payroll p
-        LEFT JOIN salary_payments sp ON p.id = sp.payroll_id
-        WHERE p.management_approval_status = 'pending' AND p.approval_status = 'approved'
-        GROUP BY p.id
-        ORDER BY p.created_at DESC
-    """)
-    pending = cur.fetchall()
-    cur.close()
-    
-    return render_template('management/pending.html', pending=pending)
-
-@app.route('/headteacher/update_comment', methods=['POST'])
-def headteacher_update_comment():
-    if not check_permission(['headteacher']):
-        abort(403)
-    
-    student_id = request.form['student_id']
-    term = request.form['term']
-    year = request.form['year']
-    comment = request.form.get('comment', '').strip()
-    custom_comment = request.form.get('custom_comment', '').strip()
-    
-    # Use custom comment if provided, otherwise use selected predefined comment
-    final_comment = custom_comment if custom_comment else comment
-    
-    cur = mysql.connection.cursor()
-    
-    # Check if comment already exists and is locked
-    cur.execute("SELECT headteacher_comment_locked FROM teacher_comments WHERE student_id=%s AND term=%s AND year=%s", (student_id, term, year))
-    existing = cur.fetchone()
-    
-    if existing and existing[0] == 1:
-        flash('Comment cannot be edited as it has been locked.', 'danger')
-        return redirect(url_for('teacher_report_card', student_id=student_id, term=term, year=year))
-    
-    # Insert or update comment with lock
-    cur.execute("""
-        INSERT INTO teacher_comments (student_id, term, year, headteacher_comment, headteacher_comment_locked) 
-        VALUES (%s, %s, %s, %s, 1) 
-        ON DUPLICATE KEY UPDATE headteacher_comment=%s, headteacher_comment_locked=1
-    """, (student_id, term, year, final_comment, final_comment))
-    mysql.connection.commit()
-    cur.close()
-    
-    flash('Headteacher comment saved and locked.', 'success')
-    return redirect(url_for('teacher_report_card', student_id=student_id, term=term, year=year))
-
-@app.route('/management/resend_token/<int:payroll_id>')
-def management_resend_token(payroll_id):
-    if not check_permission(['management']):
-        abort(403)
-    
-    cur = mysql.connection.cursor(DictCursor)
-    cur.execute("""
-        SELECT * FROM payroll 
-        WHERE id=%s AND management_approval_status='pending' AND approval_status='approved'
-    """, (payroll_id,))
-    payroll = cur.fetchone()
-    
-    if not payroll:
-        flash('Payroll not found or already authorized.', 'danger')
-        return redirect(url_for('management_pending_authorizations'))
-    
-    # Check resend limit (max 3 resends)
-    if payroll.get('token_resend_count', 0) >= 3:
-        flash('Maximum token resend limit reached (3). Please contact headteacher.', 'danger')
-        return redirect(url_for('management_pending_authorizations'))
-    
-    # Generate new token
-    new_token, new_expires = generate_secure_token(2)
-    
-    # Update payroll with new token
-    cur.execute("""
-        UPDATE payroll SET 
-            management_access_token = %s,
-            management_token_expires_at = %s,
-            token_resend_count = token_resend_count + 1,
-            last_resend_at = NOW()
-        WHERE id = %s
-    """, (new_token, new_expires, payroll_id))
-    mysql.connection.commit()
-    
-    # Send new SMS
-    auth_link = url_for('management_authorization_access', token=new_token, _external=True)
-    expires_str = new_expires.strftime('%Y-%m-%d %H:%M:%S')
-    
-    # Get management phone
-    cur.execute("SELECT phone FROM users WHERE role='management' AND status=1 LIMIT 1")
-    management_user = cur.fetchone()
-    
-    if management_user and management_user.get('phone'):
-        send_sms(management_user['phone'], 
-            f"NEW LINK: Authorize Payroll {payroll['payroll_no']} - UGX {payroll['total_amount']:,.2f}. Code: {payroll['management_approval_code']}. Expires: {expires_str}. Link: {auth_link}")
-    
-    cur.close()
-    
-    flash(f'New authorization link sent! Expires at {expires_str}.', 'success')
-    return redirect(url_for('management_pending_authorizations'))
 
 @app.route('/headteacher/students')
 def headteacher_students():
     if not check_permission(['headteacher']):
         abort(403)
-    
     search = request.args.get('search', '')
     class_filter = request.args.get('class', '')
-    
-    cur = mysql.connection.cursor(DictCursor)
+    db = get_db_dict()
+    cur = db.cursor()
     query = "SELECT student_id, full_name, class, photo_path FROM students WHERE 1=1"
     params = []
-    
     if search:
-        query += " AND (student_id LIKE %s OR full_name LIKE %s)"
+        query += " AND (student_id LIKE ? OR full_name LIKE ?)"
         pattern = f"%{search}%"
         params.extend([pattern, pattern])
     if class_filter:
-        query += " AND class = %s"
+        query += " AND class = ?"
         params.append(class_filter)
     query += " ORDER BY class, full_name"
-    
     cur.execute(query, params)
     students = cur.fetchall()
-    
     for s in students:
-        if s['photo_path'] and s['photo_path'] != 'default_avatar.png':
-            s['photo_url'] = url_for('static', filename='uploads/' + s['photo_path'])
-        else:
-            s['photo_url'] = url_for('static', filename='uploads/default_avatar.png')
-    
+        s['photo_url'] = get_photo_url(s.get('photo_path'))
     cur.execute("SELECT DISTINCT class FROM students WHERE class IS NOT NULL ORDER BY class")
-    classes = [row['class'] for row in cur.fetchall()]
+    classes = [row[0] for row in cur.fetchall()]
     cur.close()
-    
     return render_template('headteacher/students.html', students=students, classes=classes, search=search, class_filter=class_filter)
 
-@app.route('/management/reject_authorization/<int:payroll_id>')
-def management_reject_authorization(payroll_id):
+@app.route('/headteacher/update_comment', methods=['POST'])
+def headteacher_update_comment():
+    if not check_permission(['headteacher']):
+        abort(403)
+    student_id = request.form['student_id']
+    term = request.form['term']
+    year = request.form['year']
+    comment = request.form.get('comment', '').strip()
+    custom_comment = request.form.get('custom_comment', '').strip()
+    final_comment = custom_comment if custom_comment else comment
+    cur = get_db().cursor()
+    cur.execute("SELECT headteacher_comment_locked FROM teacher_comments WHERE student_id=? AND term=? AND year=?", (student_id, term, year))
+    existing = cur.fetchone()
+    cur.close()
+    if existing and existing[0] == 1:
+        flash('Comment cannot be edited as it has been locked.', 'danger')
+        return redirect(url_for('teacher_report_card', student_id=student_id, term=term, year=year))
+    execute_db("INSERT INTO teacher_comments (student_id, term, year, headteacher_comment, headteacher_comment_locked) VALUES (?, ?, ?, ?, 1) ON CONFLICT(student_id, term, year) DO UPDATE SET headteacher_comment=?, headteacher_comment_locked=1",
+               (student_id, term, year, final_comment, final_comment))
+    flash('Headteacher comment saved and locked.', 'success')
+    return redirect(url_for('teacher_report_card', student_id=student_id, term=term, year=year))
+
+@app.route('/management/pending')
+def management_pending_authorizations():
     if not check_permission(['management']):
         abort(403)
-    
-    cur = mysql.connection.cursor(DictCursor)
-    
-    # Check if payroll exists and is pending authorization
-    cur.execute("SELECT * FROM payroll WHERE id=%s AND management_approval_status='pending' AND approval_status='approved'", (payroll_id,))
+    db = get_db_dict()
+    cur = db.cursor()
+    cur.execute("""SELECT p.*, COUNT(sp.id) as staff_count FROM payroll p LEFT JOIN salary_payments sp ON p.id = sp.payroll_id 
+                   WHERE p.management_approval_status = 'pending' AND p.approval_status = 'approved' GROUP BY p.id ORDER BY p.created_at DESC""")
+    pending = cur.fetchall()
+    cur.close()
+    return render_template('management/pending.html', pending=pending)
+
+@app.route('/management/authorization/<token>', methods=['GET', 'POST'])
+def management_authorization_access(token):
+    if not check_permission(['management']):
+        abort(403)
+    db = get_db_dict()
+    cur = db.cursor()
+    cur.execute("SELECT * FROM payroll WHERE management_access_token=? AND management_approval_status='pending' AND approval_status='approved'", (token,))
     payroll = cur.fetchone()
-    
     if not payroll:
-        flash('Payroll not found or already processed.', 'danger')
+        flash('Invalid authorization link.', 'danger')
+        return redirect(url_for('management_pending_authorizations'))
+    if payroll['management_approval_status'] != 'pending':
+        flash(f'This authorization has already been {payroll["management_approval_status"]}.', 'warning')
+        return redirect(url_for('management_pending_authorizations'))
+    if payroll['approval_status'] != 'approved':
+        flash('Payroll has not been approved by Headteacher yet.', 'warning')
+        return redirect(url_for('management_pending_authorizations'))
+    if payroll.get('management_token_expires_at') and payroll['management_token_expires_at'] <= datetime.now():
+        flash('This authorization link has expired. Please request a new link.', 'danger')
+        return redirect(url_for('management_pending_authorizations'))
+    if request.method == 'POST':
+        auth_code = request.form.get('auth_code')
+        action = request.form.get('action')
+        if payroll['management_approval_code'] != auth_code:
+            flash('Invalid authorization code.', 'danger')
+            return redirect(url_for('management_authorization_access', token=token))
+        if action == 'authorize':
+            result = process_bank_payment(payroll)
+            if result['success']:
+                cur.execute("""UPDATE payroll SET management_approval_status='approved', management_approved_by='Management', 
+                               management_approved_at=CURRENT_TIMESTAMP, bank_authorization_token=?, bank_transaction_ref=?, 
+                               bank_payment_status='completed' WHERE id=?""", (result['token'], result['reference'], payroll['id']))
+                cur.execute("UPDATE salary_payments SET approval_status='paid', payment_date=DATE('now'), transaction_ref=? WHERE payroll_id=?", 
+                           (result['reference'], payroll['id']))
+                db.commit()
+                add_notification('bursar', f"Payroll {payroll['payroll_no']} has been paid. Reference: {result['reference']}", '/bursar/payroll/list')
+                flash(f'Payment authorized and processed! Reference: {result["reference"]}', 'success')
+            else:
+                cur.execute("UPDATE payroll SET bank_payment_status='failed', bank_payment_response=? WHERE id=?", (result['error'], payroll['id']))
+                db.commit()
+                flash(f'Payment failed: {result["error"]}', 'danger')
+        elif action == 'reject':
+            cur.execute("UPDATE payroll SET management_approval_status='rejected', management_approved_by='Management', management_approved_at=CURRENT_TIMESTAMP WHERE id=?", (payroll['id'],))
+            cur.execute("UPDATE salary_payments SET approval_status='rejected' WHERE payroll_id=?", (payroll['id'],))
+            db.commit()
+            add_notification('headteacher', f"Payroll {payroll['payroll_no']} authorization was REJECTED by Management.", '/headteacher/approvals')
+            add_notification('bursar', f"Payroll {payroll['payroll_no']} was REJECTED by Management.", '/bursar/payroll/list')
+            flash('Payment authorization rejected.', 'warning')
+        cur.close()
         return redirect(url_for('management_pending_authorizations'))
     
-    try:
-        # Update payroll status to rejected
-        cur.execute("UPDATE payroll SET management_approval_status='rejected', management_approved_by=%s, management_approved_at=NOW() WHERE id=%s", ('Management', payroll_id))
-        cur.execute("UPDATE salary_payments SET approval_status='rejected' WHERE payroll_id=%s", (payroll_id,))
-        mysql.connection.commit()
-        
-        # Notify headteacher and bursar
-        add_notification('headteacher', f"Payroll {payroll['payroll_no']} authorization has been REJECTED by Management.", '/headteacher/approvals')
-        add_notification('bursar', f"Payroll {payroll['payroll_no']} authorization has been REJECTED by Management.", '/bursar/payroll/list')
-        
-        flash(f'Payroll {payroll["payroll_no"]} authorization has been rejected.', 'warning')
-    except Exception as e:
-        mysql.connection.rollback()
-        flash(f'Error rejecting authorization: {str(e)}', 'danger')
-    finally:
-        cur.close()
-    
-    return redirect(url_for('management_pending_authorizations'))
-
-def process_bank_payment(payroll):
-    """Demo payment processor - replace with real API"""
-    import random
-    results = {'success': False, 'token': None, 'reference': None, 'error': None}
-    if random.random() > 0.1:
-        results['success'] = True
-        results['token'] = f"TOKEN-{payroll['payroll_no']}"
-        results['reference'] = f"REF-{payroll['payroll_no']}-{int(time.time())}"
-    else:
-        results['error'] = "Bank API temporarily unavailable"
-    return results
-
+    remaining_minutes = None
+    if payroll.get('management_token_expires_at'):
+        remaining = payroll['management_token_expires_at'] - datetime.now()
+        remaining_minutes = int(remaining.total_seconds() / 60)
+    cur.close()
+    return render_template('management/authorize_payment_secure.html', payroll=payroll, remaining_minutes=remaining_minutes)
 
 @app.route('/management/view_payroll/<int:payroll_id>')
 def management_view_payroll(payroll_id):
     if not check_permission(['management']):
         abort(403)
-    
-    cur = mysql.connection.cursor(DictCursor)
-    
-    # Get payroll details
-    cur.execute("SELECT * FROM payroll WHERE id=%s", (payroll_id,))
+    db = get_db_dict()
+    cur = db.cursor()
+    cur.execute("SELECT * FROM payroll WHERE id=?", (payroll_id,))
     payroll = cur.fetchone()
-    
     if not payroll:
         flash('Payroll not found.', 'danger')
         return redirect(url_for('management_pending_authorizations'))
-    
-    # Get staff list for this payroll
-    cur.execute("""
-        SELECT sp.*, s.full_name, s.position, s.bank_account, s.bank_name, s.phone, 
-               s.nssf_number, s.tin_number
-        FROM salary_payments sp
-        JOIN staff s ON sp.staff_id = s.id
-        WHERE sp.payroll_id = %s
-    """, (payroll_id,))
+    cur.execute("""SELECT sp.*, s.full_name, s.position, s.bank_account, s.bank_name, s.phone, s.nssf_number, s.tin_number
+                   FROM salary_payments sp JOIN staff s ON sp.staff_id = s.id WHERE sp.payroll_id = ?""", (payroll_id,))
     staff_list = cur.fetchall()
     cur.close()
-    
-    return render_template('management/view_payroll.html', 
-                          payroll=payroll, 
-                          staff_list=staff_list)
+    return render_template('management/view_payroll.html', payroll=payroll, staff_list=staff_list)
 
-# ==================== UPLOADS & MISC ====================
-@app.route('/uploads/<filename>')
-def uploaded_file(filename):
-    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+@app.route('/management/reject_authorization/<int:payroll_id>')
+def management_reject_authorization(payroll_id):
+    if not check_permission(['management']):
+        abort(403)
+    cur = get_db().cursor()
+    cur.execute("SELECT * FROM payroll WHERE id=? AND management_approval_status='pending' AND approval_status='approved'", (payroll_id,))
+    payroll = cur.fetchone()
+    cur.close()
+    if not payroll:
+        flash('Payroll not found or already processed.', 'danger')
+        return redirect(url_for('management_pending_authorizations'))
+    try:
+        execute_db("UPDATE payroll SET management_approval_status='rejected', management_approved_by='Management', management_approved_at=CURRENT_TIMESTAMP WHERE id=?", (payroll_id,))
+        execute_db("UPDATE salary_payments SET approval_status='rejected' WHERE payroll_id=?", (payroll_id,))
+        add_notification('headteacher', f"Payroll {payroll[1]} authorization has been REJECTED by Management.", '/headteacher/approvals')
+        add_notification('bursar', f"Payroll {payroll[1]} authorization has been REJECTED by Management.", '/bursar/payroll/list')
+        flash(f'Payroll {payroll[1]} authorization has been rejected.', 'warning')
+    except Exception as e:
+        flash(f'Error rejecting authorization: {str(e)}', 'danger')
+    return redirect(url_for('management_pending_authorizations'))
 
-@app.template_filter('currency')
-def currency_filter(value):
-    return "{:,.2f}".format(float(value)) if value else '0.00'
-
-@app.template_filter('word_format')
-def word_format(value):
-    words = {1: 'One', 2: 'Two', 3: 'Three', 4: 'Four', 5: 'Five', 6: 'Six', 7: 'Seven', 8: 'Eight', 9: 'Nine', 10: 'Ten'}
-    return words.get(int(value), str(value)) if value else 'Zero'
+@app.route('/management/resend_token/<int:payroll_id>')
+def management_resend_token(payroll_id):
+    if not check_permission(['management']):
+        abort(403)
+    cur = get_db().cursor()
+    cur.execute("SELECT * FROM payroll WHERE id=? AND management_approval_status='pending' AND approval_status='approved'", (payroll_id,))
+    payroll = cur.fetchone()
+    cur.close()
+    if not payroll:
+        flash('Payroll not found or already authorized.', 'danger')
+        return redirect(url_for('management_pending_authorizations'))
+    if payroll.get('token_resend_count', 0) >= 3:
+        flash('Maximum token resend limit reached (3). Please contact headteacher.', 'danger')
+        return redirect(url_for('management_pending_authorizations'))
+    new_token, new_expires = generate_secure_token(2)
+    execute_db("UPDATE payroll SET management_access_token=?, management_token_expires_at=?, token_resend_count=token_resend_count+1, last_resend_at=CURRENT_TIMESTAMP WHERE id=?",
+               (new_token, new_expires, payroll_id))
+    auth_link = url_for('management_authorization_access', token=new_token, _external=True)
+    expires_str = new_expires.strftime('%Y-%m-%d %H:%M:%S')
+    cur = get_db().cursor()
+    cur.execute("SELECT phone FROM users WHERE role='management' AND status=1 LIMIT 1")
+    management_user = cur.fetchone()
+    cur.close()
+    if management_user and management_user[0]:
+        send_sms(management_user[0], f"NEW LINK: Authorize Payroll {payroll[1]} - UGX {payroll[4]:,.2f}. Code: {payroll[8]}. Expires: {expires_str}. Link: {auth_link}")
+    flash(f'New authorization link sent! Expires at {expires_str}.', 'success')
+    return redirect(url_for('management_pending_authorizations'))
 
 # ==================== INVENTORY MODULE ====================
-
-# Generate unique item code
 def generate_item_code(category_name):
     prefix = category_name[:3].upper()
     year = datetime.now().strftime("%Y")
-    cur = mysql.connection.cursor()
-    cur.execute("SELECT item_code FROM inventory_items WHERE item_code LIKE %s ORDER BY item_code DESC LIMIT 1", (f'{prefix}-{year}-%',))
+    cur = get_db().cursor()
+    cur.execute("SELECT item_code FROM inventory_items WHERE item_code LIKE ? ORDER BY item_code DESC LIMIT 1", (f'{prefix}-{year}-%',))
     last = cur.fetchone()
     cur.close()
     if last:
@@ -3402,136 +3056,86 @@ def generate_item_code(category_name):
     return f"{prefix}-{year}-{new_num:04d}"
 
 def check_low_stock_alerts():
-    cur = mysql.connection.cursor(DictCursor)
-    cur.execute("""
-        SELECT i.*, c.name as category_name, c.warning_level
-        FROM inventory_items i
-        JOIN inventory_categories c ON i.category_id = c.id
-        WHERE i.quantity <= i.reorder_level AND i.status = 'working'
-    """)
+    db = get_db_dict()
+    cur = db.cursor()
+    cur.execute("""SELECT i.*, c.name as category_name, c.warning_level FROM inventory_items i 
+                   JOIN inventory_categories c ON i.category_id = c.id WHERE i.quantity <= i.reorder_level AND i.status = 'working'""")
     low_stock_items = cur.fetchall()
-    
     for item in low_stock_items:
-        cur.execute("SELECT id FROM inventory_alerts WHERE item_id=%s AND alert_type='low_stock' AND is_read=0", (item['id'],))
+        cur.execute("SELECT id FROM inventory_alerts WHERE item_id=? AND alert_type='low_stock' AND is_read=0", (item['id'],))
         existing = cur.fetchone()
         if not existing:
-            cur.execute("""
-                INSERT INTO inventory_alerts (item_id, alert_type, message)
-                VALUES (%s, 'low_stock', %s)
-            """, (item['id'], f"Stock for {item['name']} is low! Current: {item['quantity']}, Reorder level: {item['reorder_level']}"))
-            mysql.connection.commit()
-            
-            # Notify stores keeper, admin, and bursar
+            execute_db("INSERT INTO inventory_alerts (item_id, alert_type, message) VALUES (?, 'low_stock', ?)",
+                       (item['id'], f"Stock for {item['name']} is low! Current: {item['quantity']}, Reorder level: {item['reorder_level']}"))
             add_notification('stores_keeper', f"LOW STOCK ALERT: {item['name']} has only {item['quantity']} {item['unit']} left!", '/inventory/items')
             add_notification('admin', f"LOW STOCK ALERT: {item['name']} needs reordering!", '/inventory/items')
             add_notification('bursar', f"LOW STOCK ALERT: {item['name']} needs reordering!", '/inventory/items')
     cur.close()
 
-# Inventory Dashboard
 @app.route('/inventory/dashboard')
 def inventory_dashboard():
     if not check_permission(['admin', 'bursar', 'dos', 'stores_keeper']):
         abort(403)
-    
-    cur = mysql.connection.cursor(DictCursor)
-    
-    # Summary statistics
+    db = get_db_dict()
+    cur = db.cursor()
     cur.execute("SELECT COUNT(*) as total_items FROM inventory_items")
     total_items = cur.fetchone()
-    
     cur.execute("SELECT COUNT(*) as low_stock FROM inventory_items WHERE quantity <= reorder_level AND status='working'")
     low_stock = cur.fetchone()
-    
     cur.execute("SELECT COUNT(*) as spoilt FROM inventory_items WHERE status='spoilt'")
     spoilt = cur.fetchone()
-    
     cur.execute("SELECT COUNT(*) as under_repair FROM inventory_items WHERE status='under_repair'")
     under_repair = cur.fetchone()
-    
     cur.execute("SELECT SUM(quantity) as total_quantity FROM inventory_items WHERE status='working'")
     total_quantity = cur.fetchone()
-    
     cur.execute("SELECT SUM(current_value) as total_value FROM inventory_items")
     total_value = cur.fetchone()
-    
-    # Recent transactions
-    cur.execute("""
-        SELECT t.*, i.name as item_name, i.item_code
-        FROM inventory_transactions t
-        JOIN inventory_items i ON t.item_id = i.id
-        ORDER BY t.created_at DESC LIMIT 10
-    """)
+    cur.execute("""SELECT t.*, i.name as item_name, i.item_code FROM inventory_transactions t 
+                   JOIN inventory_items i ON t.item_id = i.id ORDER BY t.created_at DESC LIMIT 10""")
     recent_transactions = cur.fetchall()
-    
-    # Low stock alerts
-    cur.execute("""
-        SELECT a.*, i.name as item_name, i.quantity, i.reorder_level
-        FROM inventory_alerts a
-        JOIN inventory_items i ON a.item_id = i.id
-        WHERE a.is_read = 0
-        ORDER BY a.created_at DESC
-    """)
+    cur.execute("""SELECT a.*, i.name as item_name, i.quantity, i.reorder_level FROM inventory_alerts a 
+                   JOIN inventory_items i ON a.item_id = i.id WHERE a.is_read = 0 ORDER BY a.created_at DESC""")
     alerts = cur.fetchall()
-    
     cur.close()
-    return render_template('inventory/dashboard.html', 
-                          total_items=total_items,
-                          low_stock=low_stock,
-                          spoilt=spoilt,
-                          under_repair=under_repair,
-                          total_quantity=total_quantity,
-                          total_value=total_value,
-                          recent_transactions=recent_transactions,
-                          alerts=alerts)
+    return render_template('inventory/dashboard.html', total_items=total_items, low_stock=low_stock, spoilt=spoilt,
+                          under_repair=under_repair, total_quantity=total_quantity, total_value=total_value,
+                          recent_transactions=recent_transactions, alerts=alerts)
 
-# View all inventory items
 @app.route('/inventory/items')
 def inventory_items():
     if not check_permission(['admin', 'bursar', 'dos', 'stores_keeper']):
         abort(403)
-    
     category = request.args.get('category', '')
     status = request.args.get('status', '')
     search = request.args.get('search', '')
-    
-    cur = mysql.connection.cursor(DictCursor)
-    query = """
-        SELECT i.*, c.name as category_name 
-        FROM inventory_items i
-        JOIN inventory_categories c ON i.category_id = c.id
-        WHERE 1=1
-    """
+    db = get_db_dict()
+    cur = db.cursor()
+    query = """SELECT i.*, c.name as category_name FROM inventory_items i JOIN inventory_categories c ON i.category_id = c.id WHERE 1=1"""
     params = []
-    
     if category:
-        query += " AND c.name = %s"
+        query += " AND c.name = ?"
         params.append(category)
     if status:
-        query += " AND i.status = %s"
+        query += " AND i.status = ?"
         params.append(status)
     if search:
-        query += " AND (i.name LIKE %s OR i.item_code LIKE %s)"
+        query += " AND (i.name LIKE ? OR i.item_code LIKE ?)"
         pattern = f"%{search}%"
         params.extend([pattern, pattern])
-    
     query += " ORDER BY i.category_id, i.name"
     cur.execute(query, params)
     items = cur.fetchall()
-    
     cur.execute("SELECT * FROM inventory_categories ORDER BY name")
     categories = cur.fetchall()
     cur.close()
-    
     return render_template('inventory/items.html', items=items, categories=categories, category=category, status=status, search=search)
 
-# Add new inventory item
 @app.route('/inventory/item/add', methods=['GET', 'POST'])
 def inventory_item_add():
     if not check_permission(['admin', 'bursar', 'stores_keeper']):
         abort(403)
-    
-    cur = mysql.connection.cursor(DictCursor)
-    
+    db = get_db_dict()
+    cur = db.cursor()
     if request.method == 'POST':
         category_id = request.form['category_id']
         name = request.form['name']
@@ -3546,57 +3150,35 @@ def inventory_item_add():
         status = request.form.get('status', 'working')
         responsible_person = request.form.get('responsible_person', '')
         responsible_role = request.form.get('responsible_role', '')
-        
-        # Get category name for item code
-        cur.execute("SELECT name FROM inventory_categories WHERE id=%s", (category_id,))
+        cur.execute("SELECT name FROM inventory_categories WHERE id=?", (category_id,))
         category = cur.fetchone()
         item_code = generate_item_code(category['name'])
-        
-        # Handle image upload
         image_file = request.files.get('image')
         image_path = None
-        if image_file and image_file.filename:
-            if allowed_file(image_file.filename, ALLOWED_IMAGE_EXTENSIONS):
-                filename = secure_filename(f"item_{item_code}_{image_file.filename}")
-                image_file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
-                image_path = filename
-        
-        cur.execute("""
-            INSERT INTO inventory_items 
-            (item_code, name, category_id, unit, quantity, minimum_quantity, reorder_level, 
-             location, supplier, purchase_price, current_value, status, responsible_person, 
-             responsible_role, image_path)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-        """, (item_code, name, category_id, unit, quantity, minimum_quantity, reorder_level,
-              location, supplier, purchase_price, current_value, status, responsible_person,
-              responsible_role, image_path))
-        mysql.connection.commit()
-        
-        # Record initial stock transaction
+        if image_file and image_file.filename and allowed_file(image_file.filename, ALLOWED_IMAGE_EXTENSIONS):
+            filename = secure_filename(f"item_{item_code}_{image_file.filename}")
+            image_file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+            image_path = filename
+        cur.execute("""INSERT INTO inventory_items (item_code, name, category_id, unit, quantity, minimum_quantity, reorder_level, location, supplier, purchase_price, current_value, status, responsible_person, responsible_role, image_path)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                   (item_code, name, category_id, unit, quantity, minimum_quantity, reorder_level, location, supplier,
+                    purchase_price, current_value, status, responsible_person, responsible_role, image_path))
         transaction_id = cur.lastrowid
-        cur.execute("""
-            INSERT INTO inventory_transactions 
-            (item_id, transaction_type, quantity, unit_price, total_amount, transaction_date, recorded_by, notes)
-            VALUES (%s, 'purchase', %s, %s, %s, CURDATE(), %s, 'Initial stock')
-        """, (transaction_id, quantity, purchase_price, current_value, session.get('username')))
-        mysql.connection.commit()
-        
+        cur.execute("INSERT INTO inventory_transactions (item_id, transaction_type, quantity, unit_price, total_amount, transaction_date, recorded_by, notes) VALUES (?, 'purchase', ?, ?, ?, DATE('now'), ?, 'Initial stock')",
+                   (transaction_id, quantity, purchase_price, current_value, session.get('username')))
+        db.commit()
+        cur.close()
         flash(f'Item {name} added successfully. Code: {item_code}', 'success')
         return redirect(url_for('inventory_items'))
-    
     cur.execute("SELECT * FROM inventory_categories ORDER BY name")
     categories = cur.fetchall()
     cur.close()
     return render_template('inventory/item_add.html', categories=categories)
 
-# Edit inventory item
 @app.route('/inventory/item/edit/<int:item_id>', methods=['GET', 'POST'])
 def inventory_item_edit(item_id):
     if not check_permission(['admin', 'bursar', 'stores_keeper']):
         abort(403)
-    
-    cur = mysql.connection.cursor(DictCursor)
-    
     if request.method == 'POST':
         name = request.form['name']
         unit = request.form['unit']
@@ -3607,355 +3189,225 @@ def inventory_item_edit(item_id):
         status = request.form.get('status', 'working')
         responsible_person = request.form.get('responsible_person', '')
         responsible_role = request.form.get('responsible_role', '')
-        
-        cur.execute("""
-            UPDATE inventory_items SET 
-                name=%s, unit=%s, minimum_quantity=%s, reorder_level=%s,
-                location=%s, supplier=%s, status=%s, responsible_person=%s, responsible_role=%s,
-                updated_at=NOW()
-            WHERE id=%s
-        """, (name, unit, minimum_quantity, reorder_level, location, supplier, status,
-              responsible_person, responsible_role, item_id))
-        mysql.connection.commit()
+        execute_db("""UPDATE inventory_items SET name=?, unit=?, minimum_quantity=?, reorder_level=?, location=?, supplier=?, status=?,
+                       responsible_person=?, responsible_role=?, updated_at=CURRENT_TIMESTAMP WHERE id=?""",
+                   (name, unit, minimum_quantity, reorder_level, location, supplier, status, responsible_person, responsible_role, item_id))
         flash('Item updated successfully.', 'success')
         return redirect(url_for('inventory_items'))
-    
-    cur.execute("SELECT i.*, c.name as category_name FROM inventory_items i JOIN inventory_categories c ON i.category_id = c.id WHERE i.id=%s", (item_id,))
+    db = get_db_dict()
+    cur = db.cursor()
+    cur.execute("SELECT i.*, c.name as category_name FROM inventory_items i JOIN inventory_categories c ON i.category_id = c.id WHERE i.id=?", (item_id,))
     item = cur.fetchone()
     cur.execute("SELECT * FROM inventory_categories ORDER BY name")
     categories = cur.fetchall()
     cur.close()
     return render_template('inventory/item_edit.html', item=item, categories=categories)
 
-# Issue item (outgoing)
 @app.route('/inventory/issue/<int:item_id>', methods=['POST'])
 def inventory_issue_item(item_id):
     if not check_permission(['admin', 'bursar', 'dos', 'stores_keeper']):
         abort(403)
-    
     quantity = int(request.form['quantity'])
     issued_to = request.form['issued_to']
     issued_to_role = request.form['issued_to_role']
     purpose = request.form['purpose']
     notes = request.form.get('notes', '')
-    
-    cur = mysql.connection.cursor(DictCursor)
-    
-    # Check if enough quantity available
-    cur.execute("SELECT name, quantity, current_value, unit FROM inventory_items WHERE id=%s", (item_id,))
+    db = get_db_dict()
+    cur = db.cursor()
+    cur.execute("SELECT name, quantity, current_value, unit FROM inventory_items WHERE id=?", (item_id,))
     item = cur.fetchone()
-    
     if not item:
         flash('Item not found.', 'danger')
         return redirect(url_for('inventory_items'))
-    
     if item['quantity'] < quantity:
         flash(f'Insufficient stock! Available: {item["quantity"]} {item["unit"]}', 'danger')
         return redirect(url_for('inventory_items'))
-    
-    # Update quantity
     new_quantity = item['quantity'] - quantity
-    cur.execute("UPDATE inventory_items SET quantity=%s, updated_at=NOW() WHERE id=%s", (new_quantity, item_id))
-    
-    # Record transaction
-    cur.execute("""
-        INSERT INTO inventory_transactions 
-        (item_id, transaction_type, quantity, transaction_date, issued_to, issued_to_role, purpose, notes, recorded_by)
-        VALUES (%s, 'issued', %s, CURDATE(), %s, %s, %s, %s, %s)
-    """, (item_id, quantity, issued_to, issued_to_role, purpose, notes, session.get('username')))
-    
-    mysql.connection.commit()
-    
-    # Check low stock after issue
+    cur.execute("UPDATE inventory_items SET quantity=?, updated_at=CURRENT_TIMESTAMP WHERE id=?", (new_quantity, item_id))
+    cur.execute("""INSERT INTO inventory_transactions (item_id, transaction_type, quantity, transaction_date, issued_to, issued_to_role, purpose, notes, recorded_by)
+                   VALUES (?, 'issued', ?, DATE('now'), ?, ?, ?, ?, ?)""",
+               (item_id, quantity, issued_to, issued_to_role, purpose, notes, session.get('username')))
+    db.commit()
+    cur.close()
     check_low_stock_alerts()
-    
     flash(f'{quantity} {item["unit"]} of {item["name"]} issued to {issued_to}.', 'success')
     return redirect(url_for('inventory_items'))
 
-# Receive/restock item (incoming)
 @app.route('/inventory/receive/<int:item_id>', methods=['POST'])
 def inventory_receive_item(item_id):
     if not check_permission(['admin', 'bursar', 'stores_keeper']):
         abort(403)
-    
     quantity = int(request.form['quantity'])
     unit_price = float(request.form.get('unit_price', 0))
     supplier = request.form.get('supplier', '')
     notes = request.form.get('notes', '')
-    
-    cur = mysql.connection.cursor(DictCursor)
-    
-    cur.execute("SELECT name, quantity, current_value, unit FROM inventory_items WHERE id=%s", (item_id,))
+    db = get_db_dict()
+    cur = db.cursor()
+    cur.execute("SELECT name, quantity, current_value, unit FROM inventory_items WHERE id=?", (item_id,))
     item = cur.fetchone()
-    
     if not item:
         flash('Item not found.', 'danger')
         return redirect(url_for('inventory_items'))
-    
-    # Update quantity and value
     new_quantity = item['quantity'] + quantity
     total_amount = quantity * unit_price
     new_value = item['current_value'] + total_amount
-    
-    cur.execute("UPDATE inventory_items SET quantity=%s, current_value=%s, updated_at=NOW() WHERE id=%s", 
-                (new_quantity, new_value, item_id))
-    
-    # Record transaction
-    cur.execute("""
-        INSERT INTO inventory_transactions 
-        (item_id, transaction_type, quantity, unit_price, total_amount, transaction_date, supplier, notes, recorded_by)
-        VALUES (%s, 'received', %s, %s, %s, CURDATE(), %s, %s, %s)
-    """, (item_id, quantity, unit_price, total_amount, supplier, notes, session.get('username')))
-    
-    mysql.connection.commit()
-    
-    # Clear low stock alert if any
-    cur.execute("UPDATE inventory_alerts SET is_read=1 WHERE item_id=%s AND alert_type='low_stock'", (item_id,))
-    mysql.connection.commit()
-    
+    cur.execute("UPDATE inventory_items SET quantity=?, current_value=?, updated_at=CURRENT_TIMESTAMP WHERE id=?", (new_quantity, new_value, item_id))
+    cur.execute("""INSERT INTO inventory_transactions (item_id, transaction_type, quantity, unit_price, total_amount, transaction_date, supplier, notes, recorded_by)
+                   VALUES (?, 'received', ?, ?, ?, DATE('now'), ?, ?, ?)""",
+               (item_id, quantity, unit_price, total_amount, supplier, notes, session.get('username')))
+    db.commit()
+    cur.execute("UPDATE inventory_alerts SET is_read=1 WHERE item_id=? AND alert_type='low_stock'", (item_id,))
+    db.commit()
+    cur.close()
     flash(f'{quantity} {item["unit"]} of {item["name"]} received.', 'success')
     return redirect(url_for('inventory_items'))
 
-# Update item status (working, spoilt, used_up, under_repair)
 @app.route('/inventory/update_status/<int:item_id>', methods=['POST'])
 def inventory_update_status(item_id):
     if not check_permission(['admin', 'bursar', 'stores_keeper']):
         abort(403)
-    
     status = request.form['status']
     condition_notes = request.form.get('condition_notes', '')
     quantity_affected = int(request.form.get('quantity_affected', 0))
-    
-    cur = mysql.connection.cursor(DictCursor)
-    
-    cur.execute("SELECT name, quantity FROM inventory_items WHERE id=%s", (item_id,))
+    db = get_db_dict()
+    cur = db.cursor()
+    cur.execute("SELECT name, quantity FROM inventory_items WHERE id=?", (item_id,))
     item = cur.fetchone()
-    
     if not item:
         flash('Item not found.', 'danger')
         return redirect(url_for('inventory_items'))
-    
     if status in ['spoilt', 'used_up'] and quantity_affected > 0:
-        # Reduce quantity
         new_quantity = item['quantity'] - quantity_affected
-        cur.execute("UPDATE inventory_items SET quantity=%s, status=%s, condition_notes=%s, updated_at=NOW() WHERE id=%s", 
-                    (new_quantity, status, condition_notes, item_id))
-        
-        # Record transaction
-        cur.execute("""
-            INSERT INTO inventory_transactions 
-            (item_id, transaction_type, quantity, notes, recorded_by)
-            VALUES (%s, %s, %s, %s, %s)
-        """, (item_id, status, quantity_affected, condition_notes, session.get('username')))
+        cur.execute("UPDATE inventory_items SET quantity=?, status=?, condition_notes=?, updated_at=CURRENT_TIMESTAMP WHERE id=?", 
+                   (new_quantity, status, condition_notes, item_id))
+        cur.execute("INSERT INTO inventory_transactions (item_id, transaction_type, quantity, notes, recorded_by) VALUES (?, ?, ?, ?, ?)",
+                   (item_id, status, quantity_affected, condition_notes, session.get('username')))
     else:
-        cur.execute("UPDATE inventory_items SET status=%s, condition_notes=%s, updated_at=NOW() WHERE id=%s", 
-                    (status, condition_notes, item_id))
-    
-    mysql.connection.commit()
+        cur.execute("UPDATE inventory_items SET status=?, condition_notes=?, updated_at=CURRENT_TIMESTAMP WHERE id=?", 
+                   (status, condition_notes, item_id))
+    db.commit()
+    cur.close()
     flash(f'Item status updated to {status}.', 'success')
     return redirect(url_for('inventory_items'))
 
-# View inventory transactions
 @app.route('/inventory/transactions')
 def inventory_transactions():
     if not check_permission(['admin', 'bursar', 'dos', 'stores_keeper']):
         abort(403)
-    
     item_id = request.args.get('item_id', '')
-    
-    cur = mysql.connection.cursor(DictCursor)
+    db = get_db_dict()
+    cur = db.cursor()
     if item_id:
-        cur.execute("""
-            SELECT t.*, i.name as item_name, i.item_code
-            FROM inventory_transactions t
-            JOIN inventory_items i ON t.item_id = i.id
-            WHERE t.item_id = %s
-            ORDER BY t.created_at DESC
-        """, (item_id,))
+        cur.execute("""SELECT t.*, i.name as item_name, i.item_code FROM inventory_transactions t JOIN inventory_items i ON t.item_id = i.id 
+                       WHERE t.item_id = ? ORDER BY t.created_at DESC""", (item_id,))
     else:
-        cur.execute("""
-            SELECT t.*, i.name as item_name, i.item_code
-            FROM inventory_transactions t
-            JOIN inventory_items i ON t.item_id = i.id
-            ORDER BY t.created_at DESC LIMIT 100
-        """)
+        cur.execute("""SELECT t.*, i.name as item_name, i.item_code FROM inventory_transactions t JOIN inventory_items i ON t.item_id = i.id 
+                       ORDER BY t.created_at DESC LIMIT 100""")
     transactions = cur.fetchall()
-    
     cur.execute("SELECT id, name FROM inventory_items ORDER BY name")
     items = cur.fetchall()
     cur.close()
-    
     return render_template('inventory/transactions.html', transactions=transactions, items=items, selected_item=item_id)
 
-# View and acknowledge alerts
 @app.route('/inventory/alerts')
 def inventory_alerts():
     if not check_permission(['admin', 'bursar', 'dos', 'stores_keeper']):
         abort(403)
-    
-    cur = mysql.connection.cursor(DictCursor)
-    cur.execute("""
-        SELECT a.*, i.name as item_name, i.quantity, i.reorder_level, i.unit
-        FROM inventory_alerts a
-        JOIN inventory_items i ON a.item_id = i.id
-        WHERE a.is_read = 0
-        ORDER BY a.created_at DESC
-    """)
+    db = get_db_dict()
+    cur = db.cursor()
+    cur.execute("""SELECT a.*, i.name as item_name, i.quantity, i.reorder_level, i.unit FROM inventory_alerts a 
+                   JOIN inventory_items i ON a.item_id = i.id WHERE a.is_read = 0 ORDER BY a.created_at DESC""")
     alerts = cur.fetchall()
     cur.close()
-    
     return render_template('inventory/alerts.html', alerts=alerts)
 
-# Acknowledge/read alert
 @app.route('/inventory/alert/read/<int:alert_id>')
 def inventory_alert_read(alert_id):
     if not check_permission(['admin', 'bursar', 'dos', 'stores_keeper']):
         abort(403)
-    
-    cur = mysql.connection.cursor()
-    cur.execute("UPDATE inventory_alerts SET is_read=1 WHERE id=%s", (alert_id,))
-    mysql.connection.commit()
-    cur.close()
-    
+    execute_db("UPDATE inventory_alerts SET is_read=1 WHERE id=?", (alert_id,))
     flash('Alert acknowledged.', 'success')
     return redirect(url_for('inventory_alerts'))
 
-# Inventory Reports
 @app.route('/inventory/reports')
 def inventory_reports():
     if not check_permission(['admin', 'bursar', 'stores_keeper']):
         abort(403)
-    
-    cur = mysql.connection.cursor(DictCursor)
-    
-    # Stock by category
-    cur.execute("""
-        SELECT c.name as category, COUNT(i.id) as item_count, SUM(i.quantity) as total_quantity, SUM(i.current_value) as total_value
-        FROM inventory_categories c
-        LEFT JOIN inventory_items i ON c.id = i.category_id
-        GROUP BY c.id
-        ORDER BY total_value DESC
-    """)
+    db = get_db_dict()
+    cur = db.cursor()
+    cur.execute("""SELECT c.name as category, COUNT(i.id) as item_count, SUM(i.quantity) as total_quantity, SUM(i.current_value) as total_value
+                   FROM inventory_categories c LEFT JOIN inventory_items i ON c.id = i.category_id GROUP BY c.id ORDER BY total_value DESC""")
     by_category = cur.fetchall()
-    
-    # Stock by status
-    cur.execute("""
-        SELECT status, COUNT(*) as count, SUM(quantity) as quantity
-        FROM inventory_items
-        GROUP BY status
-    """)
+    cur.execute("SELECT status, COUNT(*) as count, SUM(quantity) as quantity FROM inventory_items GROUP BY status")
     by_status = cur.fetchall()
-    
-    # Low stock items
-    cur.execute("""
-        SELECT i.*, c.name as category_name
-        FROM inventory_items i
-        JOIN inventory_categories c ON i.category_id = c.id
-        WHERE i.quantity <= i.reorder_level AND i.status = 'working'
-        ORDER BY i.quantity ASC
-    """)
+    cur.execute("""SELECT i.*, c.name as category_name FROM inventory_items i JOIN inventory_categories c ON i.category_id = c.id 
+                   WHERE i.quantity <= i.reorder_level AND i.status = 'working' ORDER BY i.quantity ASC""")
     low_stock_items = cur.fetchall()
-    
-    # Recent issues
-    cur.execute("""
-        SELECT t.*, i.name as item_name
-        FROM inventory_transactions t
-        JOIN inventory_items i ON t.item_id = i.id
-        WHERE t.transaction_type = 'issued'
-        ORDER BY t.created_at DESC LIMIT 20
-    """)
+    cur.execute("""SELECT t.*, i.name as item_name FROM inventory_transactions t JOIN inventory_items i ON t.item_id = i.id 
+                   WHERE t.transaction_type = 'issued' ORDER BY t.created_at DESC LIMIT 20""")
     recent_issues = cur.fetchall()
-    
     cur.close()
-    return render_template('inventory/reports.html', 
-                          by_category=by_category, 
-                          by_status=by_status,
-                          low_stock_items=low_stock_items,
-                          recent_issues=recent_issues)
+    return render_template('inventory/reports.html', by_category=by_category, by_status=by_status,
+                          low_stock_items=low_stock_items, recent_issues=recent_issues)
 
-# Print inventory report
 @app.route('/inventory/print_report')
 def inventory_print_report():
     if not check_permission(['admin', 'bursar', 'stores_keeper']):
         abort(403)
-    
     category = request.args.get('category', '')
-    
-    cur = mysql.connection.cursor(DictCursor)
+    db = get_db_dict()
+    cur = db.cursor()
     if category:
-        cur.execute("""
-            SELECT i.*, c.name as category_name
-            FROM inventory_items i
-            JOIN inventory_categories c ON i.category_id = c.id
-            WHERE c.name = %s
-            ORDER BY i.name
-        """, (category,))
+        cur.execute("SELECT i.*, c.name as category_name FROM inventory_items i JOIN inventory_categories c ON i.category_id = c.id WHERE c.name = ? ORDER BY i.name", (category,))
     else:
-        cur.execute("""
-            SELECT i.*, c.name as category_name
-            FROM inventory_items i
-            JOIN inventory_categories c ON i.category_id = c.id
-            ORDER BY c.name, i.name
-        """)
+        cur.execute("SELECT i.*, c.name as category_name FROM inventory_items i JOIN inventory_categories c ON i.category_id = c.id ORDER BY c.name, i.name")
     items = cur.fetchall()
     cur.close()
-    
     return render_template('inventory/print_report.html', items=items, category=category)
 
 @app.route('/inventory/alert/count')
 def inventory_alert_count():
     if not check_permission(['admin', 'bursar', 'dos', 'stores_keeper']):
         return jsonify({'count': 0})
-    
-    cur = mysql.connection.cursor()
+    cur = get_db().cursor()
     cur.execute("SELECT COUNT(*) FROM inventory_alerts WHERE is_read = 0")
     count = cur.fetchone()[0]
     cur.close()
-    
     return jsonify({'count': count})
 
-if __name__ == '__main__':
-    app.run(debug=True)
+# ==================== UPLOADS & MISC ====================
+@app.route('/uploads/<filename>')
+def uploaded_file(filename):
+    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
-# Mobile API endpoints
+# ==================== MOBILE API ENDPOINTS ====================
 @app.route('/mobile/login', methods=['POST'])
 def mobile_login():
     data = request.get_json()
     username = data.get('username')
     password = data.get('password')
-    
-    cur = mysql.connection.cursor(DictCursor)
-    cur.execute("SELECT id, username, role, status FROM users WHERE username=%s AND password=%s", (username, password))
+    cur = get_db().cursor()
+    cur.execute("SELECT id, username, role, status FROM users WHERE username=? AND password=?", (username, password))
     user = cur.fetchone()
     cur.close()
-    
-    if user and user['status'] == 1:
-        token = generate_secure_token()
-        return jsonify({
-            'success': True,
-            'token': token,
-            'role': user['role'],
-            'username': user['username']
-        })
+    if user and user[3] == 1:
+        token, _ = generate_secure_token()
+        return jsonify({'success': True, 'token': token, 'role': user[2], 'username': user[1]})
     return jsonify({'success': False, 'message': 'Invalid credentials'})
 
 @app.route('/mobile/dashboard', methods=['GET'])
 def mobile_dashboard():
-    # Get token from header
     token = request.headers.get('Authorization', '').replace('Bearer ', '')
-    # Validate token (implement token validation)
-    
     role = session.get('role')
     if role == 'admin':
-        cur = mysql.connection.cursor(DictCursor)
+        cur = get_db().cursor()
         cur.execute("SELECT COUNT(*) as total_users FROM users")
         users = cur.fetchone()
         cur.execute("SELECT COUNT(*) as total_students FROM students")
         students = cur.fetchone()
         cur.close()
-        return jsonify({
-            'total_users': users['total_users'],
-            'total_students': students['total_students']
-        })
-    # Add other roles...
+        return jsonify({'total_users': users[0] if users else 0, 'total_students': students[0] if students else 0})
     return jsonify({})
+
+if __name__ == '__main__':
+    app.run(debug=True)

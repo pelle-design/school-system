@@ -68,28 +68,6 @@
             <strong>Bursar Dashboard</strong><br>
             Manage student fees, record payments, and send payment reminders to parents.
         </div>
-    {% elif session.role == 'classteacher' %}
-        <!-- Class Teacher Dashboard -->
-        <div class="alert alert-info">
-            <i class="fas fa-chalkboard-teacher"></i> 
-            <strong>Class Teacher Dashboard</strong><br>
-            You are assigned to class <strong>{{ assigned_class }}</strong> with <strong>{{ student_count }}</strong> students.
-            Use the sidebar to manage attendance, upload marks, and view report cards.
-        </div>
-    {% elif session.role == 'subject_teacher' %}
-        <!-- Subject Teacher Dashboard -->
-        <div class="alert alert-info">
-            <i class="fas fa-chalkboard-teacher"></i> 
-            <strong>Subject Teacher Dashboard</strong><br>
-            Use the sidebar to upload marks and view student report cards.
-        </div>
-    {% elif session.role == 'parent' %}
-        <!-- Parent Dashboard -->
-        <div class="alert alert-info">
-            <i class="fas fa-child"></i> 
-            <strong>Parent Dashboard</strong><br>
-            View your children's progress and report cards.
-        </div>
     {% elif session.role == 'headteacher' %}
         <!-- Headteacher Dashboard -->
         <div class="alert alert-info">
@@ -104,12 +82,26 @@
             <strong>Management Dashboard</strong><br>
             Authorize bank payments and oversee financial operations.
         </div>
-    {% elif session.role == 'stores_keeper' %}
-        <!-- Stores Keeper Dashboard -->
+    {% elif session.role == 'classteacher' %}
+        <!-- Class Teacher Dashboard -->
         <div class="alert alert-info">
-            <i class="fas fa-boxes"></i> 
-            <strong>Stores Keeper Dashboard</strong><br>
-            Manage inventory, track stock levels, and process item requests.
+            <i class="fas fa-chalkboard-teacher"></i> 
+            <strong>Class Teacher Dashboard</strong><br>
+            Manage your class, upload marks, and record attendance.
+        </div>
+    {% elif session.role == 'subject_teacher' %}
+        <!-- Subject Teacher Dashboard -->
+        <div class="alert alert-info">
+            <i class="fas fa-chalkboard-teacher"></i> 
+            <strong>Subject Teacher Dashboard</strong><br>
+            Upload marks and view student report cards.
+        </div>
+    {% elif session.role == 'parent' %}
+        <!-- Parent Dashboard -->
+        <div class="alert alert-info">
+            <i class="fas fa-child"></i> 
+            <strong>Parent Dashboard</strong><br>
+            View your children's progress and report cards.
         </div>
     {% elif session.role == 'dos' %}
         <!-- DOS Dashboard -->
@@ -117,6 +109,13 @@
             <i class="fas fa-graduation-cap"></i> 
             <strong>Director of Studies Dashboard</strong><br>
             Manage student admissions, class lists, promotions, and grading systems.
+        </div>
+    {% elif session.role == 'stores_keeper' %}
+        <!-- Stores Keeper Dashboard -->
+        <div class="alert alert-info">
+            <i class="fas fa-boxes"></i> 
+            <strong>Stores Keeper Dashboard</strong><br>
+            Manage inventory, track stock levels, and process item requests.
         </div>
     {% else %}
         <!-- Default Dashboard -->
