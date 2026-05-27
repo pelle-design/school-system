@@ -1519,34 +1519,6 @@ def nssf_paye_settings():
     cur.close()
     return render_template('admin/nssf_paye_settings.html', settings=settings)
 
-@app.route('/admin/predefined_comments')
-@admin_required
-def admin_predefined_comments():
-    db = get_db_dict()
-    cur = db.cursor()
-    cur.execute("SELECT * FROM predefined_comments ORDER BY comment_type, id")
-    comments = cur.fetchall()
-    cur.close()
-    return render_template('admin/predefined_comments.html', comments=comments)
-
-@app.route('/admin/predefined_comments/add', methods=['POST'])
-@admin_required
-def admin_predefined_comments_add():
-    comment_type = request.form['comment_type']
-    comment_text = request.form['comment_text'].strip()
-    if not comment_text:
-        flash('Comment text is required.', 'danger')
-        return redirect(url_for('admin_predefined_comments'))
-    execute_db("INSERT INTO predefined_comments (comment_type, comment_text, is_active) VALUES (?, ?, 1)", (comment_type, comment_text))
-    flash('Comment added successfully.', 'success')
-    return redirect(url_for('admin_predefined_comments'))
-
-@app.route('/admin/predefined_comments/delete/<int:comment_id>')
-@admin_required
-def admin_predefined_comments_delete(comment_id):
-    execute_db("DELETE FROM predefined_comments WHERE id=?", (comment_id,))
-    flash('Comment deleted successfully.', 'success')
-    return redirect(url_for('admin_predefined_comments'))
 
 # ==================== ADMISSION PORTAL ROUTES ====================
 def extract_results_from_pdf(file_path):
@@ -2069,7 +2041,37 @@ def dos_alevel_grading():
     rules = cur.fetchall()
     cur.close()
     return render_template('dos/alevel_grading.html', rules=rules)
+@app.route('/dos/predefined_comments')
+def dos_predefined_comments():
+    if not check_permission(['dos']):
+        abort(403)
+    db = get_db_dict()
+    cur = db.cursor()
+    cur.execute("SELECT * FROM predefined_comments ORDER BY comment_type, id")
+    comments = cur.fetchall()
+    cur.close()
+    return render_template('dos/predefined_comments.html', comments=comments)
 
+@app.route('/dos/predefined_comments/add', methods=['POST'])
+def dos_predefined_comments_add():
+    if not check_permission(['dos']):
+        abort(403)
+    comment_type = request.form['comment_type']
+    comment_text = request.form['comment_text'].strip()
+    if not comment_text:
+        flash('Comment text is required.', 'danger')
+        return redirect(url_for('dos_predefined_comments'))
+    execute_db("INSERT INTO predefined_comments (comment_type, comment_text, is_active) VALUES (?, ?, 1)", (comment_type, comment_text))
+    flash('Comment added successfully.', 'success')
+    return redirect(url_for('dos_predefined_comments'))
+
+@app.route('/dos/predefined_comments/delete/<int:comment_id>')
+def dos_predefined_comments_delete(comment_id):
+    if not check_permission(['dos']):
+        abort(403)
+    execute_db("DELETE FROM predefined_comments WHERE id=?", (comment_id,))
+    flash('Comment deleted successfully.', 'success')
+    return redirect(url_for('dos_predefined_comments'))
 
 @app.route('/dos/identifier_grading', methods=['GET', 'POST'])
 def dos_identifier_grading():
