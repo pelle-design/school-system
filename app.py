@@ -4053,32 +4053,35 @@ def force_admin():
     
     conn.commit()
     conn.close()
+    
+    return "Admin created! Username: admin, Password: admin123. <a href='/login'>Login here</a>"
+
 
 @app.route('/show_routes')
 def show_routes():
-    import urllib
     routes = []
     for rule in app.url_map.iter_rules():
         routes.append(f"{rule.endpoint} -> {rule}")
     return "<br>".join(routes)
 
-  @app.route('/test_error')
+
+@app.route('/test_error')
 def test_error():
     try:
         from flask import url_for
-        # This will show which endpoint is missing
         url_for('admin_teacher_assignments')
         return "admin_teacher_assignments exists"
     except Exception as e:
         return f"Error: {str(e)}"
 
-    # Force register all admin endpoints
+
+# Force register all admin endpoints
 app.add_url_rule('/admin/teacher_assignments', endpoint='admin_teacher_assignments', view_func=admin_teacher_assignments)
 app.add_url_rule('/admin/assign_class', endpoint='admin_assign_class', view_func=admin_assign_class, methods=['POST'])
 app.add_url_rule('/admin/predefined_comments', endpoint='admin_predefined_comments', view_func=admin_predefined_comments)
 app.add_url_rule('/admin/predefined_comments/add', endpoint='admin_predefined_comments_add', view_func=admin_predefined_comments_add, methods=['POST'])
 app.add_url_rule('/admin/predefined_comments/delete/<int:comment_id>', endpoint='admin_predefined_comments_delete', view_func=admin_predefined_comments_delete)
-    
-    return "Admin created! Username: admin, Password: admin123. <a href='/login'>Login here</a>"
+
+
 if __name__ == '__main__':
     app.run(debug=True)
