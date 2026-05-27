@@ -48,12 +48,16 @@
     </div>
     <div class="col-md-3">
         <div class="stat-card">
-            <div class="stat-number">UGX {{ total_value|default(0)|round(2) }}</div>
+            <div class="stat-number">UGX {{ "{:,.0f}".format(total_value|default(0)) }}</div>
             <div class="stat-label">Total Value</div>
         </div>
     </div>
 </div>
-
+{% if by_category and by_category|length > 0 %}
+    <!-- table here -->
+{% else %}
+    <div class="alert alert-info">No category data available.</div>
+{% endif %}
 <!-- Stock by Category -->
 <div class="card shadow mb-4">
     <div class="card-header bg-primary text-white">
