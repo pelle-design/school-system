@@ -61,6 +61,7 @@ def init_db():
             password TEXT NOT NULL,
             role TEXT NOT NULL,
             phone TEXT,
+            full_name TEXT DEFAULT
             status INTEGER DEFAULT 1,
             child_id TEXT,
             profile_pic TEXT DEFAULT 'default_avatar.png',
@@ -1302,6 +1303,7 @@ def mark_all_notifications_read_route():
 @app.route('/admin/add_user', methods=['POST'])
 @admin_required
 def add_user():
+    full_name = sanitize_input(request.form['full_name'].strip())
     username = sanitize_input(request.form['username'].strip())
     password = request.form['password'].strip()
     role = request.form['role'].strip()
@@ -1326,10 +1328,10 @@ def add_user():
     hashed_password = generate_password_hash(password)
     
     try:
-        execute_db("""INSERT INTO users (username, password, role, phone, status, child_id, profile_pic, must_change_password) 
-                      VALUES (?, ?, ?, ?, 1, ?, 'default_avatar.png', 1)""",
-                   (username, hashed_password, role, phone, child_id))
-        flash(f'User {username} added. Password: {password} – inform the user.', 'success')
+        execute_db("""INSERT INTO users (username, password, full_name, role, phone, status, child_id, profile_pic, must_change_password) 
+                      VALUES (?, ?, ?, ?, ?, 1, ?, 'default_avatar.png', 1)""",
+                   (username, hashed_password, full_name, role, phone, child_id))
+        flash(f'User {full_name} ({username}) added. Password: {password}', 'success')
     except Exception as e:
         flash(f'Error: {str(e)}', 'danger')
     return redirect(url_for('dashboard'))
@@ -1338,6 +1340,7 @@ def add_user():
 @admin_required
 def edit_user(user_id):
     if request.method == 'POST':
+        full_name = sanitize_input(request.form['full_name'].strip())
         username = request.form['username'].strip()
         role = request.form['role'].strip()
         phone = request.form.get('phone', '').strip()
@@ -1388,83 +1391,6 @@ def delete_user(user_id):
     execute_db("DELETE FROM users WHERE id=?", (user_id,))
     flash('User deleted.', 'success')
     return redirect(url_for('dashboard'))
-
-@app.route('/admin/teacher_assignments')
-@admin_required
-def admin_teacher_assignments():
-    db = get_db_dict()
-    cur = db.cursor()
-    cur.execute("""
-        SELECT u.id, u.username, u.role, GROUP_CONCAT(tca.class_name) as assigned_classes 
-        FROM users u 
-        LEFT JOIN teacher_class_assignments tca ON u.id = tca.user_id 
-        WHERE u.role IN ('classteacher', 'subject_teacher') 
-        GROUP BY u.id 
-        ORDER BY u.username
-    """)
-    teachers = cur.fetchall()
-    
-    cur.execute("SELECT DISTINCT class FROM students WHERE class IS NOT NULL ORDER BY class")
-    all_classes = [row['class'] for row in cur.fetchall()]
-    cur.close()
-    
-    return render_template('admin/teacher_assignments.html', teachers=teachers, all_classes=all_classes)
-
-@app.route('/admin/assign_class', methods=['POST'])
-@admin_required
-def admin_assign_class():
-    teacher_id = request.form['teacher_id']
-    class_name = request.form['class_name']
-    subject = request.form.get('subject', '').strip() or None
-    assignment_type = request.form.get('assignment_type', 'subject_teacher')
-    
-    assign_user_to_class(teacher_id, class_name, subject, assignment_type)
-    flash('Teacher assigned successfully', 'success')
-    return redirect(url_for('admin_teacher_assignments'))
-    
-#@app.route('/admin/assign_class', methods=['POST'])
-#@admin_required
-#def admin_assign_class():
-    #teacher_id = request.form['teacher_id']
-    #class_name = request.form['class_name']
-    #subject = request.form.get('subject', '').strip() or None
-    #assignment_type = request.form.get('assignment_type', 'subject_teacher')
-    
-    #cur = get_db().cursor()
-    
-    # If assigning as class teacher, check if class already has a class teacher
-    #if assignment_type == 'classteacher':
-        #cur.execute("""
-            #SELECT id FROM teacher_class_assignments 
-            #WHERE class_name = ? AND assignment_type = 'classteacher'
-        #""", (class_name,))
-        #existing = cur.fetchone()
-        #if existing:
-            #flash(f'Class {class_name} already has a class teacher!', 'danger')
-            #cur.close()
-            #return redirect(url_for('admin_teacher_assignments'))
-    
-    # Check if teacher already has a class teacher assignment for a different class
-    #if assignment_type == 'classteacher':
-        #cur.execute("""
-            #SELECT id FROM teacher_class_assignments 
-            #WHERE user_id = ? AND assignment_type = 'classteacher'
-        #""", (teacher_id,))
-        #existing = cur.fetchone()
-        #if existing:
-            #flash('This teacher is already a class teacher for another class!', 'danger')
-            #cur.close()
-            #return redirect(url_for('admin_teacher_assignments'))
-    
-    # Assign the teacher
-    #execute_db("""INSERT INTO teacher_class_assignments (user_id, class_name, subject, assignment_type, assigned_by)
-    #               VALUES (?, ?, ?, ?, ?) ON CONFLICT(user_id, class_name, assignment_type) 
-       #            DO UPDATE SET subject = excluded.subject, assigned_by = excluded.assigned_by""",
-      #         (teacher_id, class_name, subject, assignment_type, session.get('username')))
-    
-    #flash(f'Teacher assigned to class {class_name} as {assignment_type}', 'success')
-    #cur.close()
-    #return redirect(url_for('admin_teacher_assignments'))
 
 @app.route('/admin/role_counts')
 def admin_role_counts():
@@ -1935,6 +1861,8 @@ def dos_attendance():
     cur.close()
     return render_template('dos/attendance.html', classes=classes)
 
+
+
 @app.route('/dos/schedules', methods=['GET', 'POST'])
 def dos_schedules():
     if not check_permission(['dos']):
@@ -2167,64 +2095,113 @@ def dos_identifier_grading():
     cur.close()
     return render_template('dos/identifier_grading.html', rules=rules)
 
-@app.route('/dos/upload_subject_teachers', methods=['GET', 'POST'])
-def dos_upload_subject_teachers():
+@app.route('/dos/upload_teachers', methods=['GET', 'POST'])
+def dos_upload_teachers():
     if not check_permission(['dos']):
         abort(403)
+    
     if request.method == 'POST':
         file = request.files.get('excel_file')
         if not file or not file.filename:
             flash('Please upload an Excel file.', 'danger')
-            return redirect(url_for('dos_upload_subject_teachers'))
+            return redirect(url_for('dos_upload_teachers'))
+        
         try:
             from openpyxl import load_workbook
             wb = load_workbook(file, data_only=True)
             sheet = wb.active
             
+            # Get headers
             headers = []
             for cell in sheet[1]:
                 headers.append(str(cell.value).strip().lower() if cell.value else '')
             
-            username_col = None
-            class_col = None
-            subject_col = None
-            
+            # Find columns
+            col_map = {}
             for idx, h in enumerate(headers):
-                if h == 'username':
-                    username_col = idx
-                elif h == 'class_name':
-                    class_col = idx
-                elif h == 'subject':
-                    subject_col = idx
+                if h in ['username', 'full_name', 'class_name', 'subject', 'assignment_type']:
+                    col_map[h] = idx
             
-            if None in [username_col, class_col, subject_col]:
-                flash('Missing required columns: username, class_name, subject', 'danger')
-                return redirect(url_for('dos_upload_subject_teachers'))
+            required = ['username', 'full_name', 'class_name', 'assignment_type']
+            for r in required:
+                if r not in col_map:
+                    flash(f'Missing column: {r}', 'danger')
+                    return redirect(url_for('dos_upload_teachers'))
             
             db = get_db_dict()
             cur = db.cursor()
             success = 0
+            errors = []
             
             for row_idx in range(2, sheet.max_row + 1):
-                username = sheet.cell(row=row_idx, column=username_col + 1).value
-                class_name = sheet.cell(row=row_idx, column=class_col + 1).value
-                subject = sheet.cell(row=row_idx, column=subject_col + 1).value
+                username = str(sheet.cell(row=row_idx, column=col_map['username'] + 1).value or '').strip()
+                full_name = str(sheet.cell(row=row_idx, column=col_map['full_name'] + 1).value or '').strip()
+                class_name = str(sheet.cell(row=row_idx, column=col_map['class_name'] + 1).value or '').strip()
+                assignment_type = str(sheet.cell(row=row_idx, column=col_map['assignment_type'] + 1).value or '').strip().lower()
+                subject = str(sheet.cell(row=row_idx, column=col_map.get('subject', 999) + 1).value or '').strip() if 'subject' in col_map else None
                 
-                if not username or not class_name or not subject:
+                if not username or not class_name or not assignment_type:
                     continue
                 
-                cur.execute("SELECT id FROM users WHERE username=?", (str(username).strip(),))
+                # Check if user exists, if not create
+                cur.execute("SELECT id FROM users WHERE username=?", (username,))
                 user = cur.fetchone()
-                if user:
-                    assign_user_to_class(user['id'], str(class_name).strip(), str(subject).strip(), 'subject_teacher')
-                    success += 1
+                
+                if not user:
+                    # Create user with default password
+                    from werkzeug.security import generate_password_hash
+                    hashed = generate_password_hash('password123')
+                    cur.execute("INSERT INTO users (username, full_name, password, role, status) VALUES (?, ?, ?, ?, 1)",
+                               (username, full_name or username, hashed, 'subject_teacher' if assignment_type == 'subject_teacher' else 'classteacher'))
+                    user_id = cur.lastrowid
+                else:
+                    user_id = user['id']
+                    # Update full_name if provided
+                    if full_name:
+                        cur.execute("UPDATE users SET full_name=? WHERE id=?", (full_name, user_id))
+                
+                # For class teacher, check if class already has one
+                if assignment_type == 'classteacher':
+                    cur.execute("SELECT id FROM teacher_class_assignments WHERE class_name=? AND assignment_type='classteacher'", (class_name,))
+                    if cur.fetchone():
+                        errors.append(f"Class {class_name} already has a class teacher! Skipped {username}")
+                        continue
+                
+                # Assign teacher to class
+                assign_user_to_class(user_id, class_name, subject, assignment_type)
+                success += 1
             
+            db.commit()
             cur.close()
-            flash(f'{success} subject teacher assignments uploaded.', 'success')
+            flash(f'{success} assignments uploaded. Errors: {len(errors)}', 'success' if success else 'warning')
+            if errors:
+                for e in errors[:5]:
+                    flash(e, 'warning')
+                    
         except Exception as e:
             flash(f'Error: {str(e)}', 'danger')
+        
         return redirect(url_for('dos_teacher_assignments'))
-    return render_template('dos/upload_subject_teachers.html')
+    
+    return render_template('dos/upload_teachers.html')
+
+@app.route('/dos/teacher_assignments')
+def dos_teacher_assignments():
+    if not check_permission(['dos']):
+        abort(403)
+    
+    db = get_db_dict()
+    cur = db.cursor()
+    cur.execute("""
+        SELECT u.username, u.full_name, u.role, tca.class_name, tca.subject, tca.assignment_type, tca.assigned_by, tca.assigned_at 
+        FROM teacher_class_assignments tca 
+        JOIN users u ON tca.user_id = u.id 
+        ORDER BY tca.class_name, tca.assignment_type, u.full_name
+    """)
+    assignments = cur.fetchall()
+    cur.close()
+    
+    return render_template('dos/teacher_assignments.html', assignments=assignments)
 
 @app.route('/dos/report_card/<student_id>')
 def dos_report_card(student_id):
