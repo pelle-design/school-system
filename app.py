@@ -633,11 +633,6 @@ def query_db(query, args=(), one=False):
     cur.close()
     return (rv[0] if rv else None) if one else rv
 
-import requests
-import base64
-import uuid
-from datetime import datetime
-
 def get_mtn_access_token():
     """Get access token from MTN MoMo API"""
     api_user = os.environ.get('MTN_API_USER', 'sandbox')
@@ -768,7 +763,10 @@ def allowed_file(filename, allowed_set):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in allowed_set
 
 def check_permission(allowed_roles):
-    return 'role' in session and session.get('role') in allowed_roles
+    """Check if logged-in user has one of the allowed roles"""
+    if 'role' not in session:
+        return False
+    return session.get('role') in allowed_roles
 
 def login_required(f):
     @wraps(f)
@@ -1161,36 +1159,23 @@ def add_security_headers(response):
     response.headers['X-XSS-Protection'] = '1; mode=block'
     return response
 
-from werkzeug.security import check_password_hash
-
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
-        username = request.form['username'].strip()
+        username = sanitize_input(request.form['username'].strip())
         password = request.form['password'].strip()
         
-        db = get_db()
-        cur = db.cursor()
+        cur = get_db().cursor()
         cur.execute("SELECT id, username, role, status, phone, must_change_password, password FROM users WHERE username=?", (username,))
         user = cur.fetchone()
         cur.close()
         
-        if user:
+        if user and user[3] == 1:
             stored_password = user[6]
-            password_valid = False
-            
-            # Check if stored password is hashed (starts with pbkdf2: or scrypt:)
-            if stored_password.startswith(('pbkdf2:sha256:', 'scrypt:')):
-                # Hashed password
-                password_valid = check_password_hash(stored_password, password)
-            else:
-                # Plain text password
-                password_valid = (stored_password == password)
-            
-            if password_valid and user[3] == 1:
+            if stored_password == password or check_password_hash(stored_password, password):
                 session['user_id'] = user[0]
                 session['username'] = user[1]
-                session['role'] = user[2]
+                session['role'] = user[2]  # Make sure role is stored
                 session['phone'] = user[4]
                 
                 if user[5] == 1:
@@ -1199,12 +1184,10 @@ def login():
                 
                 flash(f'Welcome {username}!', 'success')
                 return redirect(url_for('dashboard'))
-            else:
-                flash('Invalid credentials.', 'danger')
-        else:
-            flash('Invalid credentials.', 'danger')
         
+        flash('Invalid credentials.', 'danger')
         return redirect(url_for('login'))
+    
     return render_template('login.html')
 
 @app.route('/change_password', methods=['GET', 'POST'])
