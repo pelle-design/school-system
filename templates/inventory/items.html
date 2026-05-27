@@ -11,6 +11,9 @@
 <div class="card shadow">
     <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
         <h5 class="mb-0"><i class="fas fa-boxes"></i> Inventory Items</h5>
+        <button onclick="window.print()" class="btn btn-light btn-sm me-2">
+            <i class="fas fa-print"></i> Print List
+        </button>
         {% if session.role in ['admin', 'bursar', 'stores_keeper'] %}
         <a href="{{ url_for('inventory_item_add') }}" class="btn btn-light btn-sm">
             <i class="fas fa-plus"></i> Add Item
