@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}Predefined Comments - DOS{% endblock %}
+{% block content %}
+<div class="card shadow">
+    <div class="card-header bg-primary text-white d-flex justify-content-between">
+        <span><i class="fas fa-comment-dots"></i> Predefined Comments for Report Cards</span>
+        <button class="btn btn-light btn-sm" data-bs-toggle="modal" data-bs-target="#addModal">+ Add Comment</button>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-6">
+                <h5><i class="fas fa-chalkboard-teacher"></i> Class Teacher Comments</h5>
+                {% for c in comments if c.comment_type == 'class_teacher' %}
+                <div class="alert alert-secondary d-flex justify-content-between align-items-center">
+                    <span>"{{ c.comment_text }}"</span>
+                    <a href="{{ url_for('dos_predefined_comments_delete', comment_id=c.id) }}" class="text-danger" onclick="return confirm('Delete this comment?')">
+                        <i class="fas fa-trash-alt"></i>
+                    </a>
+                </div>
+                {% else %}
+                <p class="text-muted">No class teacher comments yet.</p>
+                {% endfor %}
+            </div>
+            <div class="col-md-6">
+                <h5><i class="fas fa-user-graduate"></i> Headteacher Comments</h5>
+                {% for c in comments if c.comment_type == 'headteacher' %}
+                <div class="alert alert-info d-flex justify-content-between align-items-center">
+                    <span>"{{ c.comment_text }}"</span>
+                    <a href="{{ url_for('dos_predefined_comments_delete', comment_id=c.id) }}" class="text-danger" onclick="return confirm('Delete this comment?')">
+                        <i class="fas fa-trash-alt"></i>
+                    </a>
+                </div>
+                {% else %}
+                <p class="text-muted">No headteacher comments yet.</p>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Comment Modal -->
+<div class="modal fade" id="addModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5><i class="fas fa-plus"></i> Add Predefined Comment</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('dos_predefined_comments_add') }}">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label>Comment Type</label>
+                        <select name="comment_type" class="form-select" required>
+                            <option value="class_teacher">Class Teacher</option>
+                            <option value="headteacher">Headteacher</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label>Comment Text</label>
+                        <textarea name="comment_text" class="form-control" rows="3" required placeholder="Enter the comment text..."></textarea>
+                        <small class="text-muted">This will appear as an option in the report card dropdown.</small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="submit" class="btn btn-primary">Save Comment</button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
