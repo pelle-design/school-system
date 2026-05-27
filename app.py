@@ -3025,28 +3025,46 @@ def generate_payroll_no():
 def bursar_staff():
     if not check_permission(['bursar']):
         abort(403)
+    
     db = get_db_dict()
     cur = db.cursor()
     cur.execute("SELECT * FROM staff ORDER BY full_name")
     staff = cur.fetchall()
-    cur.execute("SELECT nssf_employee_rate, paye_rate, paye_threshold FROM school_settings WHERE id=1")
-    rates = cur.fetchone()
-    cur.close()
-    nssf_rate = rates[0] if rates else 5.0
-    paye_rate = rates[1] if rates else 10.0
-    paye_threshold = rates[2] if rates else 235000
     
-    total_basic = total_allowances = total_gross = total_nssf = total_paye = total_deductions = total_net = 0
+    # Get NSSF and PAYE rates - handle dictionary result
+    cur.execute("SELECT nssf_employee_rate, paye_rate, paye_threshold FROM school_settings WHERE id=1")
+    rates_row = cur.fetchone()
+    
+    if rates_row:
+        nssf_rate = rates_row['nssf_employee_rate'] if 'nssf_employee_rate' in rates_row else 5.0
+        paye_rate = rates_row['paye_rate'] if 'paye_rate' in rates_row else 10.0
+        paye_threshold = rates_row['paye_threshold'] if 'paye_threshold' in rates_row else 235000
+    else:
+        nssf_rate = 5.0
+        paye_rate = 10.0
+        paye_threshold = 235000
+    
+    # Calculate totals and add NSSF/PAYE to each staff
+    total_basic = 0
+    total_allowances = 0
+    total_gross = 0
+    total_nssf = 0
+    total_paye = 0
+    total_deductions = 0
+    total_net = 0
+    
     for s in staff:
         gross = s['salary_basic'] + (s['salary_allowances'] or 0)
         nssf = (gross * nssf_rate) / 100
         taxable = max(0, gross - paye_threshold)
         paye = (taxable * paye_rate) / 100
         net = gross - nssf - paye - (s['salary_deductions'] or 0)
+        
         s['gross'] = gross
         s['nssf'] = round(nssf, 2)
         s['paye'] = round(paye, 2)
         s['net'] = net
+        
         total_basic += s['salary_basic']
         total_allowances += (s['salary_allowances'] or 0)
         total_gross += gross
@@ -3055,10 +3073,20 @@ def bursar_staff():
         total_deductions += (s['salary_deductions'] or 0)
         total_net += net
     
-    return render_template('bursar/staff.html', staff=staff, total_basic=total_basic, total_allowances=total_allowances,
-                          total_gross=total_gross, total_nssf=total_nssf, total_paye=total_paye,
-                          total_deductions=total_deductions, total_net=total_net,
-                          nssf_rate=nssf_rate, paye_rate=paye_rate, paye_threshold=paye_threshold)
+    cur.close()
+    
+    return render_template('bursar/staff.html', 
+                          staff=staff,
+                          total_basic=total_basic,
+                          total_allowances=total_allowances,
+                          total_gross=total_gross,
+                          total_nssf=total_nssf,
+                          total_paye=total_paye,
+                          total_deductions=total_deductions,
+                          total_net=total_net,
+                          nssf_rate=nssf_rate,
+                          paye_rate=paye_rate,
+                          paye_threshold=paye_threshold)
 
 @app.route('/bursar/staff/add', methods=['GET', 'POST'])
 def bursar_staff_add():
