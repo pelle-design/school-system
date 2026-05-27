@@ -16,19 +16,19 @@
     </div>
     <div class="col-md-3">
         <div class="stat-card">
-            <div class="stat-number">UGX {{ (totals.total_fees|default(0))|round(2) }}</div>
+            <div class="stat-number">UGX {{ (totals.total_fees|default(0))|float|round(2) if totals.total_fees else '0.00' }}</div>
             <div class="stat-label">Total Fees</div>
         </div>
     </div>
     <div class="col-md-3">
         <div class="stat-card">
-            <div class="stat-number">UGX {{ (totals.total_paid|default(0))|round(2) }}</div>
+            <div class="stat-number">UGX {{ (totals.total_paid|default(0))|float|round(2) if totals.total_paid else '0.00' }}</div>
             <div class="stat-label">Total Collected</div>
         </div>
     </div>
     <div class="col-md-3">
         <div class="stat-card">
-            <div class="stat-number">UGX {{ (totals.total_balance|default(0))|round(2) }}</div>
+            <div class="stat-number">UGX {{ (totals.total_balance|default(0))|float|round(2) if totals.total_balance else '0.00' }}</div>
             <div class="stat-label">Outstanding Balance</div>
             <small>Defaulters: {{ defaulter_count|default(0) }}</small>
         </div>
@@ -55,7 +55,7 @@
                         <td>{{ p.receipt_no }}</td>
                         <td>{{ p.full_name }}</td>
                         <td>{{ p.class }}</td>
-                        <td>UGX {{ p.amount|round(2) }}</td>
+                        <td>UGX {{ p.amount|float|round(2) if p.amount else '0.00' }}</td>
                         <td>{{ p.payment_date }}</td>
                     </tr>
                     {% else %}
