@@ -2767,20 +2767,23 @@ def bursar_dashboard():
     if not check_permission(['bursar']):
         abort(403)
     
-    db = get_db_dict()
+    db = get_db()
     cur = db.cursor()
     
     # Get totals safely
     cur.execute("SELECT SUM(fees_total) as total_fees, SUM(fees_paid) as total_paid, SUM(fees_balance) as total_balance FROM students")
-    totals = cur.fetchone()
+    row = cur.fetchone()
+    totals = {
+        'total_fees': row[0] if row and row[0] else 0,
+        'total_paid': row[1] if row and row[1] else 0,
+        'total_balance': row[2] if row and row[2] else 0
+    }
     
-    cur.execute("SELECT COUNT(*) as count FROM students WHERE fees_balance > 0")
-    defaulter = cur.fetchone()
-    defaulter_count = defaulter['count'] if defaulter else 0
+    cur.execute("SELECT COUNT(*) FROM students WHERE fees_balance > 0")
+    defaulter_count = cur.fetchone()[0] or 0
     
-    cur.execute("SELECT COUNT(*) as count FROM students")
-    total_students_row = cur.fetchone()
-    total_students = total_students_row['count'] if total_students_row else 0
+    cur.execute("SELECT COUNT(*) FROM students")
+    total_students = cur.fetchone()[0] or 0
     
     # Recent payments
     cur.execute("""
