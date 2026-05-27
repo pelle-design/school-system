@@ -66,27 +66,9 @@
             </a>
 
             {% if session.role == 'admin' %}
-                <div class="modal fade" id="addUserModal" tabindex="-1">
-                    <div class="modal-dialog"><div class="modal-content">
-                        <div class="modal-header bg-primary text-white"><h5>Add User</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
-                        <form method="POST" action="{{ url_for('add_user') }}">
-                            <div class="modal-body">
-                                <input type="text" name="full_name" class="form-control mb-2" placeholder="Full Name" required>
-                                <input type="text" name="username" class="form-control mb-2" placeholder="Username" required>
-                                <input type="password" name="password" class="form-control mb-2" placeholder="Password" required>
-                                <input type="text" name="phone" class="form-control mb-2" placeholder="Phone">
-                                <select name="role" class="form-select mb-2">
-                                    <option>headteacher</option><option>admin</option><option>dos</option>
-                                    <option>classteacher</option><option>subject_teacher</option><option>parent</option>
-                                    <option>student</option><option>bursar</option><option>management</option>
-                                    <option>stores_keeper</option>
-                                </select>
-                                <input type="text" name="child_id" class="form-control mb-2" placeholder="Child ID">
-                            </div>
-                            <div class="modal-footer"><button type="submit" class="btn btn-primary">Create</button></div>
-                        </form>
-                    </div></div>
-                </div>
+                <a href="#" data-bs-toggle="modal" data-bs-target="#addUserModal">
+                    <i class="fas fa-user-plus"></i> Add User
+                </a>
                 <a href="{{ url_for('school_settings') }}"><i class="fas fa-cogs"></i> School Settings</a>
                 <a href="{{ url_for('admin_predefined_comments') }}"><i class="fas fa-comment-dots"></i> Predefined Comments</a>
                 <a href="{{ url_for('logout') }}"><i class="fas fa-sign-out-alt"></i> Logout</a>
@@ -217,13 +199,14 @@
             {% endif %}
 
             <!-- Inventory Module (visible to multiple roles) -->
-            {% if session.role in [ 'bursar', 'dos'] %}
+            {% if session.role in ['admin', 'bursar', 'dos'] %}
             <div class="dropdown-menu-item">
                 <a href="#" onclick="toggleDropdown(this); return false;">
                     <i class="fas fa-boxes"></i> Inventory
                     <i class="fas fa-chevron-down chevron"></i>
                 </a>
                 <div class="dropdown-submenu">
+                    <a href="{{ url_for('inventory_dashboard') }}">Dashboard</a>
                     <a href="{{ url_for('inventory_items') }}">All Items</a>
                     <a href="{{ url_for('inventory_transactions') }}">Transactions</a>
                     <a href="{{ url_for('inventory_alerts') }}">Alerts</a>
@@ -269,7 +252,6 @@
 </div>
 
 <!-- Add User Modal -->
-{% if session.role == 'admin' %}
 <div class="modal fade" id="addUserModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
@@ -279,6 +261,7 @@
             </div>
             <form method="POST" action="{{ url_for('add_user') }}">
                 <div class="modal-body">
+                    <input type="text" name="full_name" class="form-control mb-2" placeholder="Full Name" required>
                     <input type="text" name="username" class="form-control mb-2" placeholder="Username" required>
                     <input type="password" name="password" class="form-control mb-2" placeholder="Password" required>
                     <input type="text" name="phone" class="form-control mb-2" placeholder="Phone">
@@ -288,7 +271,6 @@
                         <option>student</option><option>bursar</option><option>management</option>
                         <option>stores_keeper</option>
                     </select>
-                    <input type="text" name="assigned_class" class="form-control mb-2" placeholder="Assigned Class">
                     <input type="text" name="child_id" class="form-control mb-2" placeholder="Child ID">
                 </div>
                 <div class="modal-footer">
@@ -298,7 +280,6 @@
         </div>
     </div>
 </div>
-{% endif %}
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
 <script>
