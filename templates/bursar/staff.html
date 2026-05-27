@@ -1,128 +1,56 @@
 {% extends "base.html" %}
 {% block title %}Staff Management{% endblock %}
 {% block content %}
-<style>
-    .status-badge { padding: 5px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; }
-    .table tbody tr:hover { background-color: #f5f5f5; }
-    .text-nssf { color: #17a2b8; }
-    .text-paye { color: #ffc107; }
-    .table th, .table td { vertical-align: middle; padding: 10px; }
-    .text-end { text-align: right; }
-    .text-center { text-align: center; }
-    .fw-bold { font-weight: bold; }
-</style>
-
 <div class="card shadow">
-    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-        <h5 class="mb-0"><i class="fas fa-users"></i> Staff Payroll</h5>
+    <div class="card-header bg-primary text-white d-flex justify-content-between">
+        <span><i class="fas fa-users"></i> Staff Payroll</span>
         <div>
-            <button onclick="printSelectedStaff()" class="btn btn-light btn-sm" title="Print Selected Staff">
-                <i class="fas fa-print"></i> Print Selected
-            </button>
-            <a href="{{ url_for('bursar_print_payroll') }}" class="btn btn-light btn-sm" target="_blank" title="Print All Staff">
-                <i class="fas fa-print"></i> Print All
-            </a>
-            <a href="{{ url_for('bursar_staff_add') }}" class="btn btn-light btn-sm" title="Add New Staff">
-                <i class="fas fa-plus"></i> Add Staff
-            </a>
-            <a href="{{ url_for('bursar_generate_payroll') }}" class="btn btn-light btn-sm" title="Generate Payroll">
-                <i class="fas fa-credit-card"></i> Generate Payroll
-            </a>
+            <a href="{{ url_for('bursar_staff_add') }}" class="btn btn-light btn-sm">Add Staff</a>
+            <a href="{{ url_for('bursar_generate_payroll') }}" class="btn btn-light btn-sm">Generate Payroll</a>
         </div>
     </div>
     <div class="card-body">
         <div class="table-responsive">
-            <table class="table table-bordered table-striped table-hover">
+            <table class="table table-bordered table-striped">
                 <thead class="table-dark">
-                    <tr style="text-align: center;">
-                        <th style="width: 3%;"><input type="checkbox" id="selectAll" onclick="toggleAll(this)"></th>
-                        <th style="width: 8%;">Staff No</th>
-                        <th style="width: 12%;">Full Name</th>
-                        <th style="width: 10%;">Position</th>
-                        <th style="width: 8%;">Department</th>
-                        <th style="width: 8%;">Basic Salary</th>
-                        <th style="width: 7%;">Allowances</th>
-                        <th style="width: 8%;">Gross</th>
-                        <th style="width: 7%;">NSSF</th>
-                        <th style="width: 7%;">PAYE</th>
-                        <th style="width: 7%;">Other Deduct</th>
-                        <th style="width: 8%;">Net Salary</th>
-                        <th style="width: 8%;">Phone</th>
-                        <th style="width: 10%;">Bank Account</th>
+                    <tr>
+                        <th>Staff No</th>
+                        <th>Full Name</th>
+                        <th>Position</th>
+                        <th>Basic Salary</th>
+                        <th>NSSF</th>
+                        <th>PAYE</th>
+                        <th>Net Salary</th>
+                        <th>Phone</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for s in staff %}
-                    <tr style="text-align: center;">
-                        <td><input type="checkbox" class="staff-checkbox" value="{{ s.id }}"></td>
-                        <td><strong>{{ s.staff_no }}</strong></td>
-                        <td style="text-align: left;"><strong>{{ s.full_name }}</strong></td>
+                    <tr>
+                        <td>{{ s.staff_no }}</td>
+                        <td>{{ s.full_name }}</td>
                         <td>{{ s.position }}</td>
-                        <td>{{ s.department or '-' }}</td>
                         <td class="text-end">UGX {{ "{:,.2f}".format(s.salary_basic) }}</td>
-                        <td class="text-end">UGX {{ "{:,.2f}".format(s.salary_allowances|default(0)) }}</td>
-                        <td class="text-end">UGX {{ "{:,.2f}".format(s.salary_basic + s.salary_allowances|default(0)) }}</td>
-                        <td class="text-end text-nssf">UGX {{ "{:,.2f}".format(s.nssf|default(0)) }}</td>
-                        <td class="text-end text-paye">UGX {{ "{:,.2f}".format(s.paye|default(0)) }}</td>
-                        <td class="text-end">UGX {{ "{:,.2f}".format(s.salary_deductions|default(0)) }}</td>
-                        <td class="bg-light fw-bold">UGX {{ "{:,.2f}".format(s.salary_net) }}</td>
+                        <td class="text-end">UGX {{ "{:,.2f}".format(s.nssf|default(0)) }}</td>
+                        <td class="text-end">UGX {{ "{:,.2f}".format(s.paye|default(0)) }}</td>
+                        <td class="text-end fw-bold">UGX {{ "{:,.2f}".format(s.salary_net) }}</td>
                         <td>{{ s.phone or '-' }}</td>
-                        <td style="text-align: left;">{{ s.bank_account or '-' }}<br><small class="text-muted">{{ s.bank_name or '' }}</small></td>
                     </tr>
                     {% else %}
-                    <tr>
-                        <td colspan="14" class="text-center text-muted py-4">
-                            <i class="fas fa-user-slash fa-2x mb-2 d-block"></i>No staff records found.
-                        </td>
-                    </tr>
-                    {% endfor %}
+                    <tr><td colspan="8">No staff records found.{% endfor %}
                 </tbody>
                 <tfoot class="table-secondary">
-                    <tr style="text-align: center;">
-                        <td colspan="5" class="text-end fw-bold"><strong>TOTAL:</strong></td>
-                        <td class="text-end"><strong>UGX {{ "{:,.2f}".format(total_basic|default(0)) }}</strong></td>
-                        <td class="text-end"><strong>UGX {{ "{:,.2f}".format(total_allowances|default(0)) }}</strong></td>
-                        <td class="text-end"><strong>UGX {{ "{:,.2f}".format(total_gross|default(0)) }}</strong></td>
-                        <td class="text-end"><strong>UGX {{ "{:,.2f}".format(total_nssf|default(0)) }}</strong></td>
-                        <td class="text-end"><strong>UGX {{ "{:,.2f}".format(total_paye|default(0)) }}</strong></td>
-                        <td class="text-end"><strong>UGX {{ "{:,.2f}".format(total_deductions|default(0)) }}</strong></td>
-                        <td class="text-end bg-success text-white"><strong>UGX {{ "{:,.2f}".format(total_net|default(0)) }}</strong></td>
-                        <td colspan="3"></td>
+                    <tr>
+                        <td colspan="3" class="text-end fw-bold">TOTAL:</td>
+                        <td class="text-end">UGX {{ "{:,.2f}".format(total_basic) }}</td>
+                        <td class="text-end">UGX {{ "{:,.2f}".format(total_nssf) }}</td>
+                        <td class="text-end">UGX {{ "{:,.2f}".format(total_paye) }}</td>
+                        <td class="text-end fw-bold">UGX {{ "{:,.2f}".format(total_net) }}</td>
+                        <td></td>
                     </tr>
                 </tfoot>
             </table>
         </div>
     </div>
 </div>
-
-<div class="alert alert-info mt-3 no-print">
-    <i class="fas fa-info-circle"></i> 
-    <strong>Payroll Process:</strong><br>
-    1. Click "Generate Payroll" to create a monthly payroll for selected staff.<br>
-    2. Headteacher will receive an SMS with approval code and link.<br>
-    3. After Headteacher approval, Management will receive SMS to authorize bank payment.<br>
-    4. Once authorized, the system will process payments to staff accounts/wallets.
-</div>
-
-<script>
-function toggleAll(source) {
-    var checkboxes = document.querySelectorAll('.staff-checkbox');
-    for(var i = 0; i < checkboxes.length; i++) {
-        checkboxes[i].checked = source.checked;
-    }
-}
-
-function printSelectedStaff() {
-    var selected = [];
-    var checkboxes = document.querySelectorAll('.staff-checkbox:checked');
-    for(var i = 0; i < checkboxes.length; i++) {
-        selected.push(checkboxes[i].value);
-    }
-    if(selected.length > 0) {
-        window.open('/bursar/print_payroll?staff_ids=' + selected.join(','), '_blank');
-    } else {
-        alert('Please select at least one staff member to print.');
-    }
-}
-</script>
 {% endblock %}
