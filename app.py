@@ -4073,7 +4073,10 @@ def test_error():
         return "admin_teacher_assignments exists"
     except Exception as e:
         return f"Error: {str(e)}"
-
+        
+@app.route('/test_template')
+def test_template():
+    return render_template('test.html')
 
 # Force register all admin endpoints
 app.add_url_rule('/admin/teacher_assignments', endpoint='admin_teacher_assignments', view_func=admin_teacher_assignments)
