@@ -52,41 +52,48 @@ def init_db():
     db = get_db()
     cursor = db.cursor()
     
-    # Create all tables
-    cursor.executescript('''
-        -- Users table
+    # Create tables one by one (avoiding complex SQLite issues)
+    
+    # Users table
+    cursor.execute('''
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             username TEXT UNIQUE NOT NULL,
             password TEXT NOT NULL,
+            full_name TEXT DEFAULT '',
             role TEXT NOT NULL,
             phone TEXT,
-            full_name TEXT DEFAULT
             status INTEGER DEFAULT 1,
             child_id TEXT,
             profile_pic TEXT DEFAULT 'default_avatar.png',
             must_change_password INTEGER DEFAULT 0
-        );
-        
-        -- Role limits table
+        )
+    ''')
+    
+    # Role limits table
+    cursor.execute('''
         CREATE TABLE IF NOT EXISTS role_limits (
             role_name TEXT PRIMARY KEY,
             max_count INTEGER DEFAULT 1
-        );
-        
-        -- Admission settings table
+        )
+    ''')
+    
+    # Admission settings
+    cursor.execute('''
         CREATE TABLE IF NOT EXISTS admission_settings (
             id INTEGER PRIMARY KEY DEFAULT 1,
             is_open INTEGER DEFAULT 1,
             deadline DATE,
             closing_reason TEXT,
-            fee_amount DECIMAL(12,2) DEFAULT 50000,
+            fee_amount REAL DEFAULT 50000,
             payment_gateway TEXT DEFAULT 'MTN',
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        );
-        
-        -- Students table
+        )
+    ''')
+    
+    # Students table
+    cursor.execute('''
         CREATE TABLE IF NOT EXISTS students (
             student_id TEXT PRIMARY KEY,
             full_name TEXT NOT NULL,
@@ -110,9 +117,11 @@ def init_db():
             payment_status TEXT DEFAULT 'pending',
             payment_transaction_id TEXT,
             payment_date TIMESTAMP
-        );
-        
-        -- Staff table
+        )
+    ''')
+    
+    # Staff table (without GENERATED column)
+    cursor.execute('''
         CREATE TABLE IF NOT EXISTS staff (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             staff_no TEXT UNIQUE,
@@ -128,12 +137,13 @@ def init_db():
             salary_basic REAL DEFAULT 0,
             salary_allowances REAL DEFAULT 0,
             salary_deductions REAL DEFAULT 0,
-            salary_net REAL GENERATED ALWAYS AS (salary_basic + salary_allowances - salary_deductions) STORED,
             status TEXT DEFAULT 'active',
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        );
-        
-        -- Payroll table
+        )
+    ''')
+    
+    # Payroll table
+    cursor.execute('''
         CREATE TABLE IF NOT EXISTS payroll (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             payroll_no TEXT UNIQUE,
@@ -159,9 +169,11 @@ def init_db():
             bank_payment_response TEXT,
             token_resend_count INTEGER DEFAULT 0,
             last_resend_at TIMESTAMP
-        );
-        
-        -- Salary payments table
+        )
+    ''')
+    
+    # Salary payments table
+    cursor.execute('''
         CREATE TABLE IF NOT EXISTS salary_payments (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             staff_id INTEGER,
@@ -183,9 +195,11 @@ def init_db():
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (staff_id) REFERENCES staff(id),
             FOREIGN KEY (payroll_id) REFERENCES payroll(id)
-        );
-        
-        -- Marks table
+        )
+    ''')
+    
+    # Marks table
+    cursor.execute('''
         CREATE TABLE IF NOT EXISTS marks (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             student_id TEXT,
@@ -211,9 +225,11 @@ def init_db():
             paper2 REAL,
             points INTEGER,
             FOREIGN KEY (student_id) REFERENCES students(student_id)
-        );
-        
-        -- Attendance table
+        )
+    ''')
+    
+    # Attendance table
+    cursor.execute('''
         CREATE TABLE IF NOT EXISTS attendance (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             student_id TEXT,
@@ -221,26 +237,33 @@ def init_db():
             status TEXT,
             FOREIGN KEY (student_id) REFERENCES students(student_id),
             UNIQUE(student_id, date)
-        );
-        
-        -- Schedules table
+        )
+    ''')
+    
+    # Schedules table
+    cursor.execute('''
         CREATE TABLE IF NOT EXISTS schedules (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             type TEXT,
             term_scope TEXT,
             content TEXT,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        );
-        
-        -- Grading system tables
+        )
+    ''')
+    
+    # Grading system
+    cursor.execute('''
         CREATE TABLE IF NOT EXISTS grading_system (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             min_score REAL,
             max_score REAL,
             grade TEXT,
             descriptor TEXT
-        );
-        
+        )
+    ''')
+    
+    # A-Level grading
+    cursor.execute('''
         CREATE TABLE IF NOT EXISTS alevel_grading (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             min_score REAL,
@@ -248,16 +271,21 @@ def init_db():
             grade TEXT,
             points INTEGER,
             is_subsidiary INTEGER DEFAULT 0
-        );
-        
+        )
+    ''')
+    
+    # Identifier grading
+    cursor.execute('''
         CREATE TABLE IF NOT EXISTS identifier_grading (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             min_value REAL,
             max_value REAL,
             descriptor TEXT
-        );
-        
-        -- Teacher comments table
+        )
+    ''')
+    
+    # Teacher comments
+    cursor.execute('''
         CREATE TABLE IF NOT EXISTS teacher_comments (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             student_id TEXT,
@@ -268,9 +296,11 @@ def init_db():
             class_teacher_comment_locked INTEGER DEFAULT 0,
             headteacher_comment_locked INTEGER DEFAULT 0,
             FOREIGN KEY (student_id) REFERENCES students(student_id)
-        );
-        
-        -- Teacher class assignments
+        )
+    ''')
+    
+    # Teacher class assignments
+    cursor.execute('''
         CREATE TABLE IF NOT EXISTS teacher_class_assignments (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER,
@@ -281,9 +311,11 @@ def init_db():
             assigned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (user_id) REFERENCES users(id),
             UNIQUE(user_id, class_name, assignment_type)
-        );
-        
-        -- Notifications table
+        )
+    ''')
+    
+    # Notifications
+    cursor.execute('''
         CREATE TABLE IF NOT EXISTS notifications (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_role TEXT,
@@ -291,9 +323,11 @@ def init_db():
             link TEXT,
             is_read INTEGER DEFAULT 0,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        );
-        
-        -- School settings
+        )
+    ''')
+    
+    # School settings
+    cursor.execute('''
         CREATE TABLE IF NOT EXISTS school_settings (
             id INTEGER PRIMARY KEY DEFAULT 1,
             next_term_begins DATE,
@@ -307,18 +341,22 @@ def init_db():
             nssf_employee_rate REAL DEFAULT 5.0,
             paye_rate REAL DEFAULT 10.0,
             paye_threshold REAL DEFAULT 235000
-        );
-        
-        -- Predefined comments
+        )
+    ''')
+    
+    # Predefined comments
+    cursor.execute('''
         CREATE TABLE IF NOT EXISTS predefined_comments (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             comment_type TEXT,
             comment_text TEXT,
             is_active INTEGER DEFAULT 1,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        );
-        
-        -- Payments table
+        )
+    ''')
+    
+    # Payments
+    cursor.execute('''
         CREATE TABLE IF NOT EXISTS payments (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             student_id TEXT,
@@ -330,9 +368,11 @@ def init_db():
             recorded_by TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (student_id) REFERENCES students(student_id)
-        );
-        
-        -- Budget categories
+        )
+    ''')
+    
+    # Budget categories
+    cursor.execute('''
         CREATE TABLE IF NOT EXISTS budget_categories (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             code TEXT UNIQUE,
@@ -340,9 +380,11 @@ def init_db():
             description TEXT,
             allocated_amount REAL,
             year INTEGER
-        );
-        
-        -- Expenditures
+        )
+    ''')
+    
+    # Expenditures
+    cursor.execute('''
         CREATE TABLE IF NOT EXISTS expenditures (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             voucher_no TEXT UNIQUE,
@@ -357,17 +399,22 @@ def init_db():
             recorded_by TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (category_id) REFERENCES budget_categories(id)
-        );
-        
-        -- Inventory tables
+        )
+    ''')
+    
+    # Inventory categories
+    cursor.execute('''
         CREATE TABLE IF NOT EXISTS inventory_categories (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT NOT NULL,
             description TEXT,
             warning_level INTEGER DEFAULT 10,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        );
-        
+        )
+    ''')
+    
+    # Inventory items
+    cursor.execute('''
         CREATE TABLE IF NOT EXISTS inventory_items (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             item_code TEXT UNIQUE NOT NULL,
@@ -393,8 +440,11 @@ def init_db():
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (category_id) REFERENCES inventory_categories(id)
-        );
-        
+        )
+    ''')
+    
+    # Inventory transactions
+    cursor.execute('''
         CREATE TABLE IF NOT EXISTS inventory_transactions (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             item_id INTEGER,
@@ -412,8 +462,11 @@ def init_db():
             notes TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (item_id) REFERENCES inventory_items(id)
-        );
-        
+        )
+    ''')
+    
+    # Inventory alerts
+    cursor.execute('''
         CREATE TABLE IF NOT EXISTS inventory_alerts (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             item_id INTEGER,
@@ -422,22 +475,29 @@ def init_db():
             is_read INTEGER DEFAULT 0,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (item_id) REFERENCES inventory_items(id)
-        );
-        
-        -- Houses and sports
+        )
+    ''')
+    
+    # Houses
+    cursor.execute('''
         CREATE TABLE IF NOT EXISTS houses (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT UNIQUE,
             description TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        );
-        
+        )
+    ''')
+    
+    # Sports activities
+    cursor.execute('''
         CREATE TABLE IF NOT EXISTS sports_activities (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT UNIQUE
-        );
-        
-        -- Payment webhooks
+        )
+    ''')
+    
+    # Payment webhooks
+    cursor.execute('''
         CREATE TABLE IF NOT EXISTS payment_webhooks (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             transaction_id TEXT,
@@ -450,9 +510,11 @@ def init_db():
             status TEXT,
             processed INTEGER DEFAULT 0,
             received_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        );
-        
-        -- Payment gateway config
+        )
+    ''')
+    
+    # Payment gateway config
+    cursor.execute('''
         CREATE TABLE IF NOT EXISTS payment_gateway_config (
             id INTEGER PRIMARY KEY DEFAULT 1,
             gateway_name TEXT DEFAULT 'School Pay',
@@ -461,9 +523,11 @@ def init_db():
             webhook_secret TEXT,
             callback_url TEXT,
             status TEXT DEFAULT 'inactive'
-        );
-        
-        -- Bank transaction logs
+        )
+    ''')
+    
+    # Bank transaction logs
+    cursor.execute('''
         CREATE TABLE IF NOT EXISTS bank_transaction_logs (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             payroll_id INTEGER,
@@ -477,9 +541,11 @@ def init_db():
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (payroll_id) REFERENCES payroll(id),
             FOREIGN KEY (staff_id) REFERENCES staff(id)
-        );
-        
-        -- Authorization logs
+        )
+    ''')
+    
+    # Authorization logs
+    cursor.execute('''
         CREATE TABLE IF NOT EXISTS authorization_logs (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             payroll_id INTEGER,
@@ -489,37 +555,54 @@ def init_db():
             details TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (payroll_id) REFERENCES payroll(id)
-        );
+        )
     ''')
     
-    # Insert role limits
+    # Insert default data
     cursor.execute("SELECT COUNT(*) FROM role_limits")
     if cursor.fetchone()[0] == 0:
-        role_limits = [
-            ('admin', 1), ('headteacher', 1), ('management', 1),
-            ('bursar', 1), ('dos', 1)
-        ]
-        cursor.executemany("INSERT INTO role_limits (role_name, max_count) VALUES (?, ?)", role_limits)
+        cursor.executemany("INSERT INTO role_limits (role_name, max_count) VALUES (?, ?)", 
+                          [('admin', 1), ('headteacher', 1), ('management', 1), ('bursar', 1), ('dos', 1)])
     
-    # Insert default admission settings
     cursor.execute("SELECT COUNT(*) FROM admission_settings")
     if cursor.fetchone()[0] == 0:
         cursor.execute("INSERT INTO admission_settings (id, is_open, fee_amount) VALUES (1, 1, 50000)")
     
-    # Insert default users
     cursor.execute("SELECT COUNT(*) FROM users")
     if cursor.fetchone()[0] == 0:
         from werkzeug.security import generate_password_hash
-        admin_hashed = generate_password_hash('admin123')
-        cursor.execute("INSERT INTO users (username, password, role, status) VALUES (?, ?, 'admin', 1)", (admin_hashed, 'admin'))
-        # The password column needs both values - fix this
-        # Actually let's do it properly:
-        cursor.execute("DELETE FROM users")
-        cursor.execute("INSERT INTO users (username, password, role, status, phone, must_change_password) VALUES (?, ?, 'admin', 1, '0700000000', 0)", ('admin', admin_hashed))
+        hashed = generate_password_hash('admin123')
+        cursor.execute("INSERT INTO users (username, password, full_name, role, status, phone, must_change_password) VALUES (?, ?, ?, 'admin', 1, '0700000000', 0)", 
+                      ('admin', hashed, 'Administrator'))
     
     cursor.execute("SELECT COUNT(*) FROM school_settings")
     if cursor.fetchone()[0] == 0:
         cursor.execute("INSERT INTO school_settings (id) VALUES (1)")
+    
+    cursor.execute("SELECT COUNT(*) FROM houses")
+    if cursor.fetchone()[0] == 0:
+        houses = [('House of Excellence', ''), ('House of Integrity', ''), ('House of Wisdom', ''), ('House of Courage', '')]
+        cursor.executemany("INSERT INTO houses (name, description) VALUES (?, ?)", houses)
+    
+    cursor.execute("SELECT COUNT(*) FROM sports_activities")
+    if cursor.fetchone()[0] == 0:
+        sports = ['Football', 'Basketball', 'Netball', 'Athletics', 'Swimming', 'Tennis', 'Table Tennis', 'Volleyball', 'Chess', 'Scouts']
+        cursor.executemany("INSERT INTO sports_activities (name) VALUES (?)", [(s,) for s in sports])
+    
+    cursor.execute("SELECT COUNT(*) FROM grading_system")
+    if cursor.fetchone()[0] == 0:
+        grading = [(80, 100, 'A', 'Excellent'), (70, 79, 'B', 'Very Good'), (60, 69, 'C', 'Good'), (50, 59, 'D', 'Pass'), (0, 49, 'E', 'Fail')]
+        cursor.executemany("INSERT INTO grading_system (min_score, max_score, grade, descriptor) VALUES (?, ?, ?, ?)", grading)
+    
+    cursor.execute("SELECT COUNT(*) FROM identifier_grading")
+    if cursor.fetchone()[0] == 0:
+        identifier = [(2.4, 3.0, 'Excellent'), (1.8, 2.39, 'Very Good'), (1.2, 1.79, 'Good'), (0.6, 1.19, 'Satisfactory'), (0.0, 0.59, 'Needs Improvement')]
+        cursor.executemany("INSERT INTO identifier_grading (min_value, max_value, descriptor) VALUES (?, ?, ?)", identifier)
+    
+    cursor.execute("SELECT COUNT(*) FROM alevel_grading")
+    if cursor.fetchone()[0] == 0:
+        alevel = [(80, 100, 'A', 5, 0), (70, 79, 'B', 4, 0), (60, 69, 'C', 3, 0), (50, 59, 'D', 2, 0), (0, 49, 'E', 1, 0)]
+        cursor.executemany("INSERT INTO alevel_grading (min_score, max_score, grade, points, is_subsidiary) VALUES (?, ?, ?, ?, ?)", alevel)
     
     cursor.execute("SELECT COUNT(*) FROM inventory_categories")
     if cursor.fetchone()[0] == 0:
@@ -536,50 +619,6 @@ def init_db():
             ('Maintenance', 'Tools, spare parts, repair items', 5)
         ]
         cursor.executemany("INSERT INTO inventory_categories (name, description, warning_level) VALUES (?, ?, ?)", categories)
-    
-    cursor.execute("SELECT COUNT(*) FROM houses")
-    if cursor.fetchone()[0] == 0:
-        houses = [('House of Excellence', ''), ('House of Integrity', ''), ('House of Wisdom', ''), ('House of Courage', '')]
-        cursor.executemany("INSERT INTO houses (name, description) VALUES (?, ?)", houses)
-    
-    cursor.execute("SELECT COUNT(*) FROM sports_activities")
-    if cursor.fetchone()[0] == 0:
-        sports = ['Football', 'Basketball', 'Netball', 'Athletics', 'Swimming', 'Tennis', 'Table Tennis', 'Volleyball', 'Chess', 'Scouts']
-        cursor.executemany("INSERT INTO sports_activities (name) VALUES (?)", [(s,) for s in sports])
-    
-    # Insert default grading system
-    cursor.execute("SELECT COUNT(*) FROM grading_system")
-    if cursor.fetchone()[0] == 0:
-        grading = [
-            (80, 100, 'A', 'Excellent'),
-            (70, 79, 'B', 'Very Good'),
-            (60, 69, 'C', 'Good'),
-            (50, 59, 'D', 'Pass'),
-            (0, 49, 'E', 'Fail')
-        ]
-        cursor.executemany("INSERT INTO grading_system (min_score, max_score, grade, descriptor) VALUES (?, ?, ?, ?)", grading)
-    
-    cursor.execute("SELECT COUNT(*) FROM identifier_grading")
-    if cursor.fetchone()[0] == 0:
-        identifier = [
-            (2.4, 3.0, 'Excellent'),
-            (1.8, 2.39, 'Very Good'),
-            (1.2, 1.79, 'Good'),
-            (0.6, 1.19, 'Satisfactory'),
-            (0.0, 0.59, 'Needs Improvement')
-        ]
-        cursor.executemany("INSERT INTO identifier_grading (min_value, max_value, descriptor) VALUES (?, ?, ?)", identifier)
-    
-    cursor.execute("SELECT COUNT(*) FROM alevel_grading")
-    if cursor.fetchone()[0] == 0:
-        alevel = [
-            (80, 100, 'A', 5, 0),
-            (70, 79, 'B', 4, 0),
-            (60, 69, 'C', 3, 0),
-            (50, 59, 'D', 2, 0),
-            (0, 49, 'E', 1, 0)
-        ]
-        cursor.executemany("INSERT INTO alevel_grading (min_score, max_score, grade, points, is_subsidiary) VALUES (?, ?, ?, ?, ?)", alevel)
     
     db.commit()
     print("Database initialized successfully!")
