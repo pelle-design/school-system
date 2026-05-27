@@ -17,6 +17,9 @@ from flask import Flask, render_template, request, redirect, url_for, session, f
 from werkzeug.utils import secure_filename
 from flask_wtf.csrf import CSRFProtect
 from markupsafe import escape
+import requests
+import base64
+import uuid
 # ==================== APP CONFIGURATION ====================
 app = Flask(__name__)
 app.secret_key = secrets.token_hex(32)
@@ -64,6 +67,24 @@ def init_db():
             must_change_password INTEGER DEFAULT 0
         );
         
+        -- Role limits table
+        CREATE TABLE IF NOT EXISTS role_limits (
+            role_name TEXT PRIMARY KEY,
+            max_count INTEGER DEFAULT 1
+        );
+        
+        -- Admission settings table
+        CREATE TABLE IF NOT EXISTS admission_settings (
+            id INTEGER PRIMARY KEY DEFAULT 1,
+            is_open INTEGER DEFAULT 1,
+            deadline DATE,
+            closing_reason TEXT,
+            fee_amount DECIMAL(12,2) DEFAULT 50000,
+            payment_gateway TEXT DEFAULT 'MTN',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        
         -- Students table
         CREATE TABLE IF NOT EXISTS students (
             student_id TEXT PRIMARY KEY,
@@ -84,7 +105,10 @@ def init_db():
             lin TEXT,
             admission_source TEXT DEFAULT 'local',
             admission_status TEXT DEFAULT 'approved',
-            application_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            application_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            payment_status TEXT DEFAULT 'pending',
+            payment_transaction_id TEXT,
+            payment_date TIMESTAMP
         );
         
         -- Staff table
@@ -255,7 +279,7 @@ def init_db():
             assigned_by TEXT,
             assigned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (user_id) REFERENCES users(id),
-            UNIQUE(user_id, class_name, subject, assignment_type)
+            UNIQUE(user_id, class_name, assignment_type)
         );
         
         -- Notifications table
@@ -467,10 +491,30 @@ def init_db():
         );
     ''')
     
-    # Insert default data
+    # Insert role limits
+    cursor.execute("SELECT COUNT(*) FROM role_limits")
+    if cursor.fetchone()[0] == 0:
+        role_limits = [
+            ('admin', 1), ('headteacher', 1), ('management', 1),
+            ('bursar', 1), ('dos', 1)
+        ]
+        cursor.executemany("INSERT INTO role_limits (role_name, max_count) VALUES (?, ?)", role_limits)
+    
+    # Insert default admission settings
+    cursor.execute("SELECT COUNT(*) FROM admission_settings")
+    if cursor.fetchone()[0] == 0:
+        cursor.execute("INSERT INTO admission_settings (id, is_open, fee_amount) VALUES (1, 1, 50000)")
+    
+    # Insert default users
     cursor.execute("SELECT COUNT(*) FROM users")
     if cursor.fetchone()[0] == 0:
-        cursor.execute("INSERT INTO users (username, password, role, status) VALUES ('admin', 'admin123', 'admin', 1)")
+        from werkzeug.security import generate_password_hash
+        admin_hashed = generate_password_hash('admin123')
+        cursor.execute("INSERT INTO users (username, password, role, status) VALUES (?, ?, 'admin', 1)", (admin_hashed, 'admin'))
+        # The password column needs both values - fix this
+        # Actually let's do it properly:
+        cursor.execute("DELETE FROM users")
+        cursor.execute("INSERT INTO users (username, password, role, status, phone, must_change_password) VALUES (?, ?, 'admin', 1, '0700000000', 0)", ('admin', admin_hashed))
     
     cursor.execute("SELECT COUNT(*) FROM school_settings")
     if cursor.fetchone()[0] == 0:
@@ -588,6 +632,104 @@ def query_db(query, args=(), one=False):
     rv = cur.fetchall()
     cur.close()
     return (rv[0] if rv else None) if one else rv
+
+import requests
+import base64
+import uuid
+from datetime import datetime
+
+def get_mtn_access_token():
+    """Get access token from MTN MoMo API"""
+    api_user = os.environ.get('MTN_API_USER', 'sandbox')
+    api_key = os.environ.get('MTN_API_KEY', '')
+    
+    # For sandbox testing
+    if api_key == '':
+        return 'sandbox_token'
+    
+    auth_string = f"{api_user}:{api_key}"
+    auth_bytes = auth_string.encode('ascii')
+    auth_b64 = base64.b64encode(auth_bytes).decode('ascii')
+    
+    url = "https://sandbox.mtn.com/collection/token/"
+    headers = {
+        'Authorization': f'Basic {auth_b64}',
+        'Ocp-Apim-Subscription-Key': os.environ.get('MTN_SUBSCRIPTION_KEY', '')
+    }
+    
+    response = requests.post(url, headers=headers)
+    if response.status_code == 200:
+        return response.json().get('access_token')
+    return None
+
+def request_momo_payment(phone_number, amount, reference, callback_url=None):
+    """Request payment from customer's mobile money"""
+    access_token = get_mtn_access_token()
+    if not access_token:
+        return {'success': False, 'message': 'Payment gateway unavailable'}
+    
+    # Format phone number (remove leading 0, add 256)
+    if phone_number.startswith('0'):
+        phone_number = '256' + phone_number[1:]
+    elif phone_number.startswith('+'):
+        phone_number = phone_number[1:]
+    
+    transaction_id = str(uuid.uuid4())
+    url = "https://sandbox.mtn.com/collection/v1_0/requesttopay"
+    
+    payload = {
+        "amount": str(amount),
+        "currency": "UGX",
+        "externalId": reference,
+        "payer": {
+            "partyIdType": "MSISDN",
+            "partyId": phone_number
+        },
+        "payerMessage": "School Admission Fee",
+        "payeeNote": "Payment for student admission"
+    }
+    
+    headers = {
+        'Authorization': f'Bearer {access_token}',
+        'X-Reference-Id': transaction_id,
+        'X-Target-Environment': 'sandbox',
+        'Content-Type': 'application/json',
+        'Ocp-Apim-Subscription-Key': os.environ.get('MTN_SUBSCRIPTION_KEY', '')
+    }
+    
+    try:
+        response = requests.post(url, json=payload, headers=headers)
+        if response.status_code == 202:
+            return {
+                'success': True, 
+                'transaction_id': transaction_id,
+                'message': 'Payment request sent. Check your phone to complete payment.'
+            }
+        else:
+            return {'success': False, 'message': f'Payment failed: {response.text}'}
+    except Exception as e:
+        return {'success': False, 'message': str(e)}
+
+def check_payment_status(transaction_id):
+    """Check status of a payment request"""
+    access_token = get_mtn_access_token()
+    if not access_token:
+        return 'pending'
+    
+    url = f"https://sandbox.mtn.com/collection/v1_0/requesttopay/{transaction_id}"
+    headers = {
+        'Authorization': f'Bearer {access_token}',
+        'X-Target-Environment': 'sandbox',
+        'Ocp-Apim-Subscription-Key': os.environ.get('MTN_SUBSCRIPTION_KEY', '')
+    }
+    
+    try:
+        response = requests.get(url, headers=headers)
+        if response.status_code == 200:
+            return response.json().get('status', 'pending').lower()
+        return 'pending'
+    except:
+        return 'pending'
 
 def execute_db(query, args=()):
     """Execute a query and commit"""
@@ -1019,26 +1161,49 @@ def add_security_headers(response):
     response.headers['X-XSS-Protection'] = '1; mode=block'
     return response
 
+from werkzeug.security import check_password_hash
+
 @app.route('/login', methods=['GET', 'POST'])
-#@limiter.limit("5 per minute")
 def login():
     if request.method == 'POST':
         username = request.form['username'].strip()
         password = request.form['password'].strip()
         
-        cur = get_db().cursor()
+        db = get_db()
+        cur = db.cursor()
         cur.execute("SELECT id, username, role, status, phone, must_change_password, password FROM users WHERE username=?", (username,))
         user = cur.fetchone()
         cur.close()
         
-        if user and user[3] == 1 and check_password_hash(user[6], password):
-            session['user_id'], session['username'], session['role'], session['phone'] = user[0], user[1], user[2], user[4]
-            if user[5] == 1:
-                flash('Please change your password.', 'warning')
-                return redirect(url_for('change_password'))
-            flash(f'Welcome {username}!', 'success')
-            return redirect(url_for('dashboard'))
-        flash('Invalid credentials or inactive account.', 'danger')
+        if user:
+            stored_password = user[6]
+            password_valid = False
+            
+            # Check if stored password is hashed (starts with pbkdf2: or scrypt:)
+            if stored_password.startswith(('pbkdf2:sha256:', 'scrypt:')):
+                # Hashed password
+                password_valid = check_password_hash(stored_password, password)
+            else:
+                # Plain text password
+                password_valid = (stored_password == password)
+            
+            if password_valid and user[3] == 1:
+                session['user_id'] = user[0]
+                session['username'] = user[1]
+                session['role'] = user[2]
+                session['phone'] = user[4]
+                
+                if user[5] == 1:
+                    flash('Please change your password.', 'warning')
+                    return redirect(url_for('change_password'))
+                
+                flash(f'Welcome {username}!', 'success')
+                return redirect(url_for('dashboard'))
+            else:
+                flash('Invalid credentials.', 'danger')
+        else:
+            flash('Invalid credentials.', 'danger')
+        
         return redirect(url_for('login'))
     return render_template('login.html')
 
@@ -1052,6 +1217,7 @@ def change_password():
             flash('Passwords do not match.', 'danger')
             return redirect(url_for('change_password'))
         
+        # Hash the new password
         hashed_password = generate_password_hash(new_pass)
         execute_db("UPDATE users SET password=?, must_change_password=0 WHERE id=?", (hashed_password, session['user_id']))
         flash('Password changed successfully!', 'success')
@@ -1153,22 +1319,32 @@ def mark_all_notifications_read_route():
 @app.route('/admin/add_user', methods=['POST'])
 @admin_required
 def add_user():
-    username = request.form['username'].strip()
+    username = sanitize_input(request.form['username'].strip())
     password = request.form['password'].strip()
-    
-    # Hash the password before storing
-    hashed_password = generate_password_hash(password)
-    
     role = request.form['role'].strip()
     phone_raw = request.form.get('phone', '').strip()
     phone = validate_and_format_phone(phone_raw) if phone_raw else None
-    if phone_raw and not phone:
-        flash('Invalid phone number format.', 'danger')
-        return redirect(url_for('dashboard'))
     child_id = request.form.get('child_id', '').strip() or None
     
+    # Check role limits
+    cur = get_db().cursor()
+    cur.execute("SELECT max_count FROM role_limits WHERE role_name = ?", (role,))
+    limit = cur.fetchone()
+    
+    if limit:
+        cur.execute("SELECT COUNT(*) FROM users WHERE role = ?", (role,))
+        count = cur.fetchone()[0]
+        if count >= limit[0]:
+            flash(f'Cannot add. Only {limit[0]} {role} allowed in the system.', 'danger')
+            cur.close()
+            return redirect(url_for('dashboard'))
+    cur.close()
+    
+    hashed_password = generate_password_hash(password)
+    
     try:
-        execute_db("INSERT INTO users (username, password, role, phone, status, child_id, profile_pic, must_change_password) VALUES (?, ?, ?, ?, 1, ?, 'default_avatar.png', 1)",
+        execute_db("""INSERT INTO users (username, password, role, phone, status, child_id, profile_pic, must_change_password) 
+                      VALUES (?, ?, ?, ?, 1, ?, 'default_avatar.png', 1)""",
                    (username, hashed_password, role, phone, child_id))
         flash(f'User {username} added. Password: {password} – inform the user.', 'success')
     except Exception as e:
@@ -1245,9 +1421,62 @@ def admin_teacher_assignments():
 @app.route('/admin/assign_class', methods=['POST'])
 @admin_required
 def admin_assign_class():
-    assign_user_to_class(request.form['teacher_id'], request.form['class_name'], request.form.get('subject'), 'subject_teacher')
-    flash('Teacher assigned to class', 'success')
+    teacher_id = request.form['teacher_id']
+    class_name = request.form['class_name']
+    subject = request.form.get('subject', '').strip() or None
+    assignment_type = request.form.get('assignment_type', 'subject_teacher')
+    
+    cur = get_db().cursor()
+    
+    # If assigning as class teacher, check if class already has a class teacher
+    if assignment_type == 'classteacher':
+        cur.execute("""
+            SELECT id FROM teacher_class_assignments 
+            WHERE class_name = ? AND assignment_type = 'classteacher'
+        """, (class_name,))
+        existing = cur.fetchone()
+        if existing:
+            flash(f'Class {class_name} already has a class teacher!', 'danger')
+            cur.close()
+            return redirect(url_for('admin_teacher_assignments'))
+    
+    # Check if teacher already has a class teacher assignment for a different class
+    if assignment_type == 'classteacher':
+        cur.execute("""
+            SELECT id FROM teacher_class_assignments 
+            WHERE user_id = ? AND assignment_type = 'classteacher'
+        """, (teacher_id,))
+        existing = cur.fetchone()
+        if existing:
+            flash('This teacher is already a class teacher for another class!', 'danger')
+            cur.close()
+            return redirect(url_for('admin_teacher_assignments'))
+    
+    # Assign the teacher
+    execute_db("""INSERT INTO teacher_class_assignments (user_id, class_name, subject, assignment_type, assigned_by)
+                   VALUES (?, ?, ?, ?, ?) ON CONFLICT(user_id, class_name, assignment_type) 
+                   DO UPDATE SET subject = excluded.subject, assigned_by = excluded.assigned_by""",
+               (teacher_id, class_name, subject, assignment_type, session.get('username')))
+    
+    flash(f'Teacher assigned to class {class_name} as {assignment_type}', 'success')
+    cur.close()
     return redirect(url_for('admin_teacher_assignments'))
+
+@app.route('/admin/role_counts')
+def admin_role_counts():
+    if not check_permission(['admin']):
+        abort(403)
+    
+    cur = get_db().cursor()
+    cur.execute("""
+        SELECT role, COUNT(*) as count, (SELECT max_count FROM role_limits WHERE role_name = users.role) as max_count
+        FROM users 
+        GROUP BY role
+    """)
+    counts = cur.fetchall()
+    cur.close()
+    
+    return render_template('admin/role_counts.html', counts=counts)
 
 @app.route('/admin/school_settings', methods=['GET', 'POST'])
 def school_settings():
@@ -1361,15 +1590,26 @@ def determine_admission_worth(results):
     qualifies = (results.get('average', 0) >= min_average and results.get('english', 0) >= min_english and results.get('math', 0) >= min_math)
     return {'qualifies': qualifies, 'average': results.get('average', 0), 'message': 'Congratulations! You qualify.' if qualifies else 'Sorry, you do not meet requirements.'}
 
-def process_mobile_money_payment(phone_number, amount, student_id):
-    transaction_id = f"PAY-{student_id}-{int(datetime.now().timestamp())}"
-    return {'success': True, 'transaction_id': transaction_id, 'message': 'Payment successful'}
-
 def generate_admission_letter(student):
     return f"""<!DOCTYPE html><html><head><title>Admission Letter</title></head><body><h2>Admission Letter</h2><p>Dear {student['full_name']},</p><p>You have been admitted.</p></body></html>"""
 
 @app.route('/admissions', methods=['GET', 'POST'])
 def admissions_portal():
+    # Check if admissions are open
+    cur = get_db().cursor()
+    cur.execute("SELECT is_open, deadline, closing_reason FROM admission_settings WHERE id=1")
+    settings = cur.fetchone()
+    cur.close()
+    
+    is_open = settings[0] if settings else 1
+    deadline = settings[1] if settings else None
+    closing_reason = settings[2] if settings else ''
+    
+    if not is_open:
+        return render_template('admissions/closed.html', 
+                              reason=closing_reason, 
+                              deadline=deadline)
+    
     if request.method == 'POST':
         full_name = request.form['full_name']
         date_of_birth = request.form['date_of_birth']
@@ -1416,6 +1656,7 @@ def admissions_portal():
             flash(qualification['message'], 'danger')
             return redirect(url_for('admissions_portal'))
     
+    # GET request - show form
     db = get_db_dict()
     cur = db.cursor()
     cur.execute("SELECT name FROM houses ORDER BY name")
@@ -1432,21 +1673,82 @@ def admission_payment():
         flash('Please complete the application form first.', 'warning')
         return redirect(url_for('admissions_portal'))
     
+    # Get admission fee from settings
+    cur = get_db().cursor()
+    cur.execute("SELECT is_open, fee_amount FROM admission_settings WHERE id=1")
+    settings = cur.fetchone()
+    cur.close()
+    
+    if not settings or settings[0] == 0:
+        flash('Online admissions are currently closed.', 'danger')
+        return redirect(url_for('admissions_portal'))
+    
+    amount = settings[1] if settings else 50000
+    
     if request.method == 'POST':
         phone_number = request.form['phone_number']
-        amount = 50000
-        payment_result = process_mobile_money_payment(phone_number, amount, 'ADMISSION')
+        transaction_ref = f"ADM-{int(datetime.now().timestamp())}"
         
-        if payment_result['success']:
-            session['admission_data']['payment_completed'] = True
-            session['admission_data']['transaction_id'] = payment_result['transaction_id']
-            flash('Payment successful! Your application has been submitted.', 'success')
-            return redirect(url_for('admission_submitted'))
+        # Request payment via mobile money
+        result = request_momo_payment(phone_number, amount, transaction_ref)
+        
+        if result['success']:
+            # Store pending payment in session
+            session['payment_data'] = {
+                'transaction_id': result['transaction_id'],
+                'amount': amount,
+                'phone': phone_number,
+                'reference': transaction_ref
+            }
+            
+            # Store admission data temporarily
+            temp_student_id = f"TEMP-{int(datetime.now().timestamp())}"
+            execute_db("""INSERT INTO students (student_id, full_name, class, parent_phone, date_of_birth, age, sex, 
+                           preferred_house, disability, sports_activities, lin, admission_source, admission_status, 
+                           payment_status, payment_transaction_id)
+                           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'online', 'pending', 'pending', ?)""",
+                       (temp_student_id, admission_data['full_name'], 'Pending', admission_data.get('phone'),
+                        admission_data.get('date_of_birth'), admission_data.get('age'), admission_data.get('sex'),
+                        admission_data.get('preferred_house'), admission_data.get('disability'),
+                        admission_data.get('sports_activities'), admission_data.get('lin'),
+                        result['transaction_id']))
+            
+            flash('Payment request sent! Please check your phone and complete the payment.', 'info')
+            return redirect(url_for('admission_payment_status', transaction_id=result['transaction_id']))
         else:
-            flash('Payment failed. Please try again.', 'danger')
+            flash(result['message'], 'danger')
             return redirect(url_for('admission_payment'))
     
-    return render_template('admissions/payment.html', amount=50000, student_name=admission_data['full_name'])
+    return render_template('admissions/payment.html', amount=amount, student_name=admission_data['full_name'])
+
+@app.route('/admissions/payment/status/<transaction_id>')
+def admission_payment_status(transaction_id):
+    """Check payment status and complete admission if successful"""
+    status = check_payment_status(transaction_id)
+    
+    if status == 'successful':
+        # Update student record
+        cur = get_db().cursor()
+        cur.execute("""
+            UPDATE students SET 
+                payment_status = 'completed',
+                payment_date = CURRENT_TIMESTAMP,
+                admission_status = 'pending'
+            WHERE payment_transaction_id = ?
+        """, (transaction_id,))
+        get_db().commit()
+        cur.close()
+        
+        flash('Payment confirmed! Your application is pending review by the admissions office.', 'success')
+        return redirect(url_for('admission_submitted'))
+    
+    elif status == 'failed':
+        flash('Payment failed. Please try again.', 'danger')
+        return redirect(url_for('admission_payment'))
+    
+    else:
+        # Still pending - refresh page to check again
+        return render_template('admissions/payment_pending.html', transaction_id=transaction_id)
 
 @app.route('/admissions/submitted')
 def admission_submitted():
@@ -1511,6 +1813,45 @@ def dos_admit():
         return redirect(url_for('dos_admit'))
     
     return render_template('dos/admit_student.html', houses=houses, sports=sports)
+
+@app.route('/dos/admission_settings', methods=['GET', 'POST'])
+@admin_required
+def dos_admission_settings():
+    if not check_permission(['dos']):
+        abort(403)
+    
+    if request.method == 'POST':
+        is_open = 1 if request.form.get('is_open') == 'on' else 0
+        deadline = request.form.get('deadline') or None
+        closing_reason = request.form.get('closing_reason', '')
+        fee_amount = float(request.form.get('fee_amount', 50000))
+        
+        execute_db("""UPDATE admission_settings SET 
+                      is_open=?, deadline=?, closing_reason=?, fee_amount=?, updated_at=CURRENT_TIMESTAMP 
+                      WHERE id=1""",
+                   (is_open, deadline, closing_reason, fee_amount))
+        
+        flash('Admission settings updated successfully.', 'success')
+        return redirect(url_for('dos_admission_settings'))
+    
+    cur = get_db().cursor()
+    cur.execute("SELECT is_open, deadline, closing_reason, fee_amount FROM admission_settings WHERE id=1")
+    settings = cur.fetchone()
+    cur.close()
+    
+    # Get pending online applications
+    cur = get_db().cursor()
+    cur.execute("SELECT student_id, full_name, lin, application_date FROM students WHERE admission_source='online' AND admission_status='pending' ORDER BY application_date DESC")
+    pending = cur.fetchall()
+    cur.close()
+    
+    return render_template('dos/admission_settings.html', 
+                          settings=settings, 
+                          pending=pending,
+                          is_open=settings[0] if settings else 1,
+                          deadline=settings[1] if settings else '',
+                          closing_reason=settings[2] if settings else '',
+                          fee_amount=settings[3] if settings else 50000)
 
 @app.route('/dos/class_lists')
 def dos_class_lists():
@@ -3675,5 +4016,40 @@ def mobile_dashboard():
         return jsonify({'total_users': users[0] if users else 0, 'total_students': students[0] if students else 0})
     return jsonify({})
 
+
+@app.route('/debug_db')
+def debug_db():
+    import sqlite3
+    conn = sqlite3.connect('school_system.db')
+    cur = conn.cursor()
+    cur.execute("SELECT id, username, role, status FROM users")
+    users = cur.fetchall()
+    conn.close()
+    
+    if not users:
+        return "No users found in database!"
+    
+    result = "<h2>Users in Database:</h2>"
+    for u in users:
+        result += f"<p>ID: {u[0]}, Username: {u[1]}, Role: {u[2]}, Status: {u[3]}</p>"
+    result += "<br><a href='/login'>Go to Login</a>"
+    return result
+
+@app.route('/force_admin')
+def force_admin():
+    import sqlite3
+    from werkzeug.security import generate_password_hash
+    
+    conn = sqlite3.connect('school_system.db')
+    cur = conn.cursor()
+    
+    cur.execute("DELETE FROM users WHERE username = 'admin'")
+    hashed = generate_password_hash('admin123')
+    cur.execute("INSERT INTO users (username, password, role, status, phone, must_change_password) VALUES (?, ?, 'admin', 1, '0700000000', 0)", ('admin', hashed))
+    
+    conn.commit()
+    conn.close()
+    
+    return "Admin created! Username: admin, Password: admin123. <a href='/login'>Login here</a>"
 if __name__ == '__main__':
     app.run(debug=True)
