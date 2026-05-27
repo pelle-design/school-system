@@ -3060,10 +3060,10 @@ def bursar_staff():
         paye = (taxable * paye_rate) / 100
         net = gross - nssf - paye - (s['salary_deductions'] or 0)
         
-        s['gross'] = gross
-        s['nssf'] = round(nssf, 2)
-        s['paye'] = round(paye, 2)
-        s['net'] = net
+        s['gross'] = gross or 0
+        s['nssf'] = round(nssf, 2) if nssf else 0
+        s['paye'] = round(paye, 2) if paye else 0
+        s['net'] = net 0r 0
         
         total_basic += s['salary_basic']
         total_allowances += (s['salary_allowances'] or 0)
