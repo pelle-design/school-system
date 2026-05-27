@@ -4035,20 +4035,37 @@ def inventory_update_status(item_id):
 def inventory_transactions():
     if not check_permission(['admin', 'bursar', 'dos', 'stores_keeper']):
         abort(403)
+    
     item_id = request.args.get('item_id', '')
     db = get_db_dict()
     cur = db.cursor()
+    
     if item_id:
-        cur.execute("""SELECT t.*, i.name as item_name, i.item_code FROM inventory_transactions t JOIN inventory_items i ON t.item_id = i.id 
-                       WHERE t.item_id = ? ORDER BY t.created_at DESC""", (item_id,))
+        cur.execute("""
+            SELECT t.*, i.name as item_name, i.item_code
+            FROM inventory_transactions t
+            JOIN inventory_items i ON t.item_id = i.id
+            WHERE t.item_id = ?
+            ORDER BY t.created_at DESC
+        """, (item_id,))
     else:
-        cur.execute("""SELECT t.*, i.name as item_name, i.item_code FROM inventory_transactions t JOIN inventory_items i ON t.item_id = i.id 
-                       ORDER BY t.created_at DESC LIMIT 100""")
+        cur.execute("""
+            SELECT t.*, i.name as item_name, i.item_code
+            FROM inventory_transactions t
+            JOIN inventory_items i ON t.item_id = i.id
+            ORDER BY t.created_at DESC
+        """)
+    
     transactions = cur.fetchall()
-    cur.execute("SELECT id, name FROM inventory_items ORDER BY name")
+    
+    cur.execute("SELECT id, name, item_code FROM inventory_items ORDER BY name")
     items = cur.fetchall()
     cur.close()
-    return render_template('inventory/transactions.html', transactions=transactions, items=items, selected_item=item_id)
+    
+    return render_template('inventory/transactions.html', 
+                          transactions=transactions, 
+                          items=items, 
+                          selected_item=item_id)
 
 @app.route('/inventory/alerts')
 def inventory_alerts():
