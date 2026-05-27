@@ -1169,15 +1169,35 @@ def process_bank_payment(payroll):
 @app.context_processor
 def inject_now():
     return {'datetime': datetime}
-
+    
 @app.context_processor
 def inject_notifications():
     if 'user_id' in session:
         role = session.get('role')
         if role in ['headteacher', 'bursar', 'management', 'admin']:
-            notification_count = get_notification_count(role)
-            notifications = get_notifications(role, limit=5)
-            return {'notification_count': notification_count, 'notifications': notifications}
+            try:
+                db = get_db()
+                cur = db.cursor()
+                cur.execute("SELECT COUNT(*) FROM notifications WHERE user_role = ? AND is_read = 0", (role,))
+                count_row = cur.fetchone()
+                notification_count = count_row[0] if count_row else 0
+                
+                cur.execute("SELECT * FROM notifications WHERE user_role = ? AND is_read = 0 ORDER BY created_at DESC LIMIT 5", (role,))
+                rows = cur.fetchall()
+                notifications = []
+                for row in rows:
+                    notifications.append({
+                        'id': row[0],
+                        'user_role': row[1],
+                        'message': row[2],
+                        'link': row[3],
+                        'is_read': row[4],
+                        'created_at': row[5]
+                    })
+                cur.close()
+                return {'notification_count': notification_count, 'notifications': notifications}
+            except:
+                return {'notification_count': 0, 'notifications': []}
     return {'notification_count': 0, 'notifications': []}
 
 # ==================== TEMPLATE FILTERS ====================
