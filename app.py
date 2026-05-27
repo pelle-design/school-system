@@ -1411,11 +1411,20 @@ def delete_user(user_id):
 def admin_teacher_assignments():
     db = get_db_dict()
     cur = db.cursor()
-    cur.execute("SELECT u.id, u.username, u.role, GROUP_CONCAT(tca.class_name) as assigned_classes FROM users u LEFT JOIN teacher_class_assignments tca ON u.id = tca.user_id WHERE u.role IN ('classteacher', 'subject_teacher') GROUP BY u.id ORDER BY u.username")
+    cur.execute("""
+        SELECT u.id, u.username, u.role, GROUP_CONCAT(tca.class_name) as assigned_classes 
+        FROM users u 
+        LEFT JOIN teacher_class_assignments tca ON u.id = tca.user_id 
+        WHERE u.role IN ('classteacher', 'subject_teacher') 
+        GROUP BY u.id 
+        ORDER BY u.username
+    """)
     teachers = cur.fetchall()
+    
     cur.execute("SELECT DISTINCT class FROM students WHERE class IS NOT NULL ORDER BY class")
-    all_classes = [row[0] for row in cur.fetchall()]
+    all_classes = [row['class'] for row in cur.fetchall()]
     cur.close()
+    
     return render_template('admin/teacher_assignments.html', teachers=teachers, all_classes=all_classes)
 
 @app.route('/admin/assign_class', methods=['POST'])
