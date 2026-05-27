@@ -3366,16 +3366,29 @@ def headteacher_approvals():
 def headteacher_approval_access(token):
     if not check_permission(['headteacher']):
         abort(403)
+    
     db = get_db_dict()
     cur = db.cursor()
     cur.execute("SELECT * FROM payroll WHERE headteacher_access_token=? AND approval_status='pending'", (token,))
     payroll = cur.fetchone()
+    
     if not payroll:
         flash('Invalid approval link.', 'danger')
         return redirect(url_for('headteacher_approvals'))
+    
+    # Get staff list for this payroll
+    cur.execute("""
+        SELECT sp.*, s.full_name, s.position, s.gross_salary, s.nssf_employee, s.paye_tax, s.deductions, s.net_salary
+        FROM salary_payments sp
+        JOIN staff s ON sp.staff_id = s.id
+        WHERE sp.payroll_id = ?
+    """, (payroll['id'],))
+    staff_list = cur.fetchall()
+    
     if payroll['approval_status'] != 'pending':
         flash(f'This payroll has already been {payroll["approval_status"]}.', 'warning')
         return redirect(url_for('headteacher_approvals'))
+    
     if payroll.get('token_expires_at') and payroll['token_expires_at'] <= datetime.now():
         flash('This approval link has expired. Please request a new link.', 'danger')
         return redirect(url_for('headteacher_approvals'))
@@ -3383,18 +3396,22 @@ def headteacher_approval_access(token):
     if request.method == 'POST':
         approval_code = request.form.get('approval_code')
         action = request.form.get('action')
+        
         if payroll['approval_code'] != approval_code:
             flash('Invalid approval code.', 'danger')
             return redirect(url_for('headteacher_approval_access', token=token))
+        
         if action == 'approve':
             mgmt_code = generate_approval_code()
             mgmt_token, mgmt_expires = generate_secure_token(2)
+            
             cur.execute("""UPDATE payroll SET approval_status='approved', approved_by=?, approved_at=CURRENT_TIMESTAMP, 
                            management_approval_code=?, management_access_token=?, management_token_expires_at=?, 
                            management_approval_status='pending' WHERE id=?""",
                        ('Headteacher', mgmt_code, mgmt_token, mgmt_expires, payroll['id']))
             cur.execute("UPDATE salary_payments SET approval_status='approved' WHERE payroll_id=?", (payroll['id'],))
             db.commit()
+            
             management_link = url_for('management_authorization_access', token=mgmt_token, _external=True)
             expires_str = mgmt_expires.strftime('%Y-%m-%d %H:%M:%S')
             cur.execute("SELECT phone FROM users WHERE role='management' AND status=1")
@@ -3404,12 +3421,14 @@ def headteacher_approval_access(token):
                     send_sms(mgmt['phone'], f"BANK AUTHORIZATION NEEDED: Payroll {payroll['payroll_no']} - UGX {payroll['total_amount']:,.2f}. Code: {mgmt_code}. Expires: {expires_str}. Link: {management_link}")
             add_notification('management', f"Payroll {payroll['payroll_no']} needs bank authorization. Code: {mgmt_code}", f"/management/authorization/{mgmt_token}")
             flash('Payroll approved. Management notified for bank authorization.', 'success')
+            
         elif action == 'reject':
             cur.execute("UPDATE payroll SET approval_status='rejected', approved_by=?, approved_at=CURRENT_TIMESTAMP WHERE id=?", ('Headteacher', payroll['id']))
             cur.execute("UPDATE salary_payments SET approval_status='rejected' WHERE payroll_id=?", (payroll['id'],))
             db.commit()
             add_notification('bursar', f"Payroll {payroll['payroll_no']} was REJECTED by Headteacher.", '/bursar/payroll/list')
             flash('Payroll rejected.', 'warning')
+        
         cur.close()
         return redirect(url_for('headteacher_approvals'))
     
@@ -3417,8 +3436,12 @@ def headteacher_approval_access(token):
     if payroll.get('token_expires_at'):
         remaining = payroll['token_expires_at'] - datetime.now()
         remaining_minutes = int(remaining.total_seconds() / 60)
+    
     cur.close()
-    return render_template('headteacher/approve_payroll_secure.html', payroll=payroll, remaining_minutes=remaining_minutes)
+    return render_template('headteacher/approve_payroll_secure.html', 
+                          payroll=payroll, 
+                          remaining_minutes=remaining_minutes,
+                          staff_list=staff_list)
 
 @app.route('/headteacher/reject_payroll/<int:payroll_id>')
 def headteacher_reject_payroll(payroll_id):
