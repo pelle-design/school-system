@@ -70,7 +70,6 @@
                     <i class="fas fa-user-plus"></i> Add User
                 </a>
                 <a href="{{ url_for('school_settings') }}"><i class="fas fa-cogs"></i> School Settings</a>
-                <a href="{{ url_for('admin_predefined_comments') }}"><i class="fas fa-comment-dots"></i> Predefined Comments</a>
                 <a href="{{ url_for('logout') }}"><i class="fas fa-sign-out-alt"></i> Logout</a>
 
             {% elif session.role == 'dos' %}
