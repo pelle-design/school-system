@@ -3,15 +3,48 @@
 {% block content %}
 <div class="card shadow">
     <div class="card-header bg-primary text-white d-flex justify-content-between">
-        <span>Teacher Class & Subject Assignments</span>
-        <a href="{{ url_for('dos_upload_subject_teachers') }}" class="btn btn-light btn-sm"><i class="fas fa-upload"></i> Upload Subject Teachers</a>
+        <span><i class="fas fa-chalkboard-teacher"></i> Teacher Assignments</span>
+        <a href="{{ url_for('dos_upload_teachers') }}" class="btn btn-light btn-sm">
+            <i class="fas fa-upload"></i> Upload Teachers
+        </a>
     </div>
     <div class="card-body">
-        <table class="table table-hover"><thead><tr><th>Teacher</th><th>Role</th><th>Class</th><th>Subject</th><th>Type</th><th>Assigned By</th><th>Date</th></tr></thead>
-        <tbody>{% for a in assignments %}<tr><td>{{ a.username }}</td><td>{{ a.role }}</td><td>{{ a.class_name }}</td><td>{{ a.subject or 'All' }}</td>
-        <td>{% if a.assignment_type == 'classteacher' %}<span class="badge bg-primary">Class Teacher</span>{% else %}<span class="badge bg-success">Subject Teacher</span>{% endif %}</td>
-        <td>{{ a.assigned_by or '-' }}</td><td>{{ a.assigned_at.strftime('%Y-%m-%d') if a.assigned_at else '-' }}</td></tr>{% endfor %}</tbody>
-        </table>
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Teacher</th>
+                        <th>Full Name</th>
+                        <th>Class</th>
+                        <th>Subject</th>
+                        <th>Type</th>
+                        <th>Assigned By</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for a in assignments %}
+                    <tr>
+                        <td>{{ a.username }}</td
+                        <td>{{ a.full_name or '-' }}</td
+                        <td>{{ a.class_name }}</td
+                        <td>{{ a.subject or 'All' }}</td
+                        <td>
+                            {% if a.assignment_type == 'classteacher' %}
+                                <span class="badge bg-primary">Class Teacher</span>
+                            {% else %}
+                                <span class="badge bg-success">Subject Teacher</span>
+                            {% endif %}
+                        </td
+                        <td>{{ a.assigned_by or 'DOS' }}</td
+                    </tr
+                    {% else %}
+                    <tr
+                        <td colspan="6">No assignments found.</td
+                    </tr
+                    {% endfor %}
+                </tbody>
+            </table
+        </div>
     </div>
 </div>
 {% endblock %}
