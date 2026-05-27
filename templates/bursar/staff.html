@@ -27,32 +27,32 @@
                 <tbody>
                     {% for s in staff %}
                     <tr>
-                        <td>{{ s.staff_no or '-' }}</td
-                        <td>{{ s.full_name or '-' }}</td
-                        <td>{{ s.position or '-' }}</td
-                        <td class="text-end">UGX {{ "{:,.2f}".format(s.salary_basic) if s.salary_basic else '0.00' }}</td
-                        <td class="text-end">UGX {{ "{:,.2f}".format(s.nssf) if s.nssf else '0.00' }}</td
-                        <td class="text-end">UGX {{ "{:,.2f}".format(s.paye) if s.paye else '0.00' }}</td
-                        <td class="text-end fw-bold">UGX {{ "{:,.2f}".format(s.salary_net) if s.salary_net else '0.00' }}</td
-                        <td>{{ s.phone or '-' }}</td
-                    </tr
+                        <td>{{ s.staff_no or '-' }}</td>
+                        <td>{{ s.full_name or '-' }}</td>
+                        <td>{{ s.position or '-' }}</td>
+                        <td class="text-end">UGX {{ "{:,.2f}".format(s.salary_basic) if s.salary_basic else '0.00' }}</td>
+                        <td class="text-end">UGX {{ "{:,.2f}".format(s.nssf) if s.nssf else '0.00' }}</td>
+                        <td class="text-end">UGX {{ "{:,.2f}".format(s.paye) if s.paye else '0.00' }}</td>
+                        <td class="text-end fw-bold">UGX {{ "{:,.2f}".format(s.salary_net) if s.salary_net else '0.00' }}</td>
+                        <td>{{ s.phone or '-' }}</td>
+                    </tr>
                     {% else %}
-                    <tr
-                        <td colspan="8">No staff records found.</td
-                    </tr
+                    <tr>
+                        <td colspan="8" class="text-center">No staff records found.</td>
+                    </tr>
                     {% endfor %}
                 </tbody>
                 <tfoot class="table-secondary">
-                    <tr
-                        <td colspan="3" class="text-end fw-bold">TOTAL:</td
-                        <td class="text-end">UGX {{ "{:,.2f}".format(total_basic|default(0)) }}</td
-                        <td class="text-end">UGX {{ "{:,.2f}".format(total_nssf|default(0)) }}</td
-                        <td class="text-end">UGX {{ "{:,.2f}".format(total_paye|default(0)) }}</td
-                        <td class="text-end fw-bold">UGX {{ "{:,.2f}".format(total_net|default(0)) }}</td
-                        <td></td
-                    </tr
+                    <tr>
+                        <td colspan="3" class="text-end fw-bold"><strong>TOTAL:</strong></td>
+                        <td class="text-end"><strong>UGX {{ "{:,.2f}".format(total_basic|default(0)) }}</strong></td>
+                        <td class="text-end"><strong>UGX {{ "{:,.2f}".format(total_nssf|default(0)) }}</strong></td>
+                        <td class="text-end"><strong>UGX {{ "{:,.2f}".format(total_paye|default(0)) }}</strong></td>
+                        <td class="text-end"><strong>UGX {{ "{:,.2f}".format(total_net|default(0)) }}</strong></td>
+                        <td></td>
+                    </tr>
                 </tfoot>
-            </table
+            </table>
         </div>
     </div>
 </div>
