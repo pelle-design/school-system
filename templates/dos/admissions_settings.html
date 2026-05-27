@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}Admission Settings{% endblock %}
+{% block content %}
+<div class="row">
+    <div class="col-md-6">
+        <div class="card shadow">
+            <div class="card-header bg-primary text-white">
+                <i class="fas fa-cog"></i> Online Admission Settings
+            </div>
+            <div class="card-body">
+                <form method="POST">
+                    <div class="form-check mb-3">
+                        <input type="checkbox" name="is_open" class="form-check-input" id="is_open" {% if is_open %}checked{% endif %}>
+                        <label class="form-check-label" for="is_open">Accept Online Applications</label>
+                    </div>
+                    <div class="mb-3">
+                        <label>Application Deadline</label>
+                        <input type="date" name="deadline" class="form-control" value="{{ deadline }}">
+                    </div>
+                    <div class="mb-3">
+                        <label>Closing Reason (shown to applicants)</label>
+                        <textarea name="closing_reason" class="form-control" rows="3" placeholder="e.g., Admissions closed for the academic year.">{{ closing_reason }}</textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label>Admission Fee (UGX)</label>
+                        <input type="number" name="fee_amount" class="form-control" step="0.01" value="{{ fee_amount }}">
+                    </div>
+                    <button type="submit" class="btn btn-primary">Save Settings</button>
+                </form>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card shadow">
+            <div class="card-header bg-warning text-dark">
+                <i class="fas fa-clock"></i> Pending Online Applications
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr><th>Student</th><th>LIN</th><th>Date</th><th>Action</th></tr>
+                        </thead>
+                        <tbody>
+                            {% for p in pending %}
+                            <tr>
+                                <td>{{ p[1] }}</td
+                                <td>{{ p[2] }}</td
+                                <td>{{ p[3][:10] if p[3] else '-' }}</td
+                                <td>
+                                    <a href="{{ url_for('dos_approve_admission', student_id=p[0]) }}" class="btn btn-sm btn-success">Approve</a>
+                                    <a href="{{ url_for('dos_reject_admission', student_id=p[0]) }}" class="btn btn-sm btn-danger">Reject</a>
+                                </td
+                            </tr
+                            {% else %}
+                            <tr><td colspan="4">No pending applications.</tr
+                            {% endfor %}
+                        </tbody>
+                    </table
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
