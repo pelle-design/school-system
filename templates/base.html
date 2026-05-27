@@ -198,22 +198,6 @@
                 <a href="{{ url_for('logout') }}"><i class="fas fa-sign-out-alt"></i> Logout</a>
             {% endif %}
 
-            <!-- Inventory Module (visible to multiple roles) -->
-            {% if session.role in ['admin', 'bursar', 'dos'] %}
-            <div class="dropdown-menu-item">
-                <a href="#" onclick="toggleDropdown(this); return false;">
-                    <i class="fas fa-boxes"></i> Inventory
-                    <i class="fas fa-chevron-down chevron"></i>
-                </a>
-                <div class="dropdown-submenu">
-                    <a href="{{ url_for('inventory_dashboard') }}">Dashboard</a>
-                    <a href="{{ url_for('inventory_items') }}">All Items</a>
-                    <a href="{{ url_for('inventory_transactions') }}">Transactions</a>
-                    <a href="{{ url_for('inventory_alerts') }}">Alerts</a>
-                    <a href="{{ url_for('inventory_reports') }}">Reports</a>
-                </div>
-            </div>
-            {% endif %}
         </div>
 
         <!-- MAIN CONTENT AREA -->
