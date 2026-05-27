@@ -1,38 +1,36 @@
 {% extends "base.html" %}
 {% block title %}Bursar Dashboard{% endblock %}
 {% block content %}
-<div class="row mb-4">
-    <div class="col-md-3 mb-3">
-        <div class="card text-white bg-primary">
-            <div class="card-body">
-                <h5 class="card-title">Total Students</h5>
-                <p class="card-text display-4">{{ total_students }}</p>
-            </div>
+<style>
+    .stat-card { background: white; border-radius: 10px; padding: 20px; margin-bottom: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+    .stat-number { font-size: 28px; font-weight: bold; }
+    .stat-label { color: #666; font-size: 12px; text-transform: uppercase; }
+</style>
+
+<div class="row">
+    <div class="col-md-3">
+        <div class="stat-card">
+            <div class="stat-number">{{ total_students|default(0) }}</div>
+            <div class="stat-label">Total Students</div>
         </div>
     </div>
-    <div class="col-md-3 mb-3">
-        <div class="card text-white bg-success">
-            <div class="card-body">
-                <h5 class="card-title">Total Fees</h5>
-                <p class="card-text display-6">UGX {{ totals.total_fees|default(0)|round(2) }}</p>
-            </div>
+    <div class="col-md-3">
+        <div class="stat-card">
+            <div class="stat-number">UGX {{ (totals.total_fees|default(0))|round(2) }}</div>
+            <div class="stat-label">Total Fees</div>
         </div>
     </div>
-    <div class="col-md-3 mb-3">
-        <div class="card text-white bg-info">
-            <div class="card-body">
-                <h5 class="card-title">Total Collected</h5>
-                <p class="card-text display-6">UGX {{ totals.total_paid|default(0)|round(2) }}</p>
-            </div>
+    <div class="col-md-3">
+        <div class="stat-card">
+            <div class="stat-number">UGX {{ (totals.total_paid|default(0))|round(2) }}</div>
+            <div class="stat-label">Total Collected</div>
         </div>
     </div>
-    <div class="col-md-3 mb-3">
-        <div class="card text-white bg-warning">
-            <div class="card-body">
-                <h5 class="card-title">Outstanding Balance</h5>
-                <p class="card-text display-6">UGX {{ totals.total_balance|default(0)|round(2) }}</p>
-                <small>Defaulters: {{ defaulter_count }}</small>
-            </div>
+    <div class="col-md-3">
+        <div class="stat-card">
+            <div class="stat-number">UGX {{ (totals.total_balance|default(0))|round(2) }}</div>
+            <div class="stat-label">Outstanding Balance</div>
+            <small>Defaulters: {{ defaulter_count|default(0) }}</small>
         </div>
     </div>
 </div>
@@ -43,7 +41,13 @@
         <div class="table-responsive">
             <table class="table table-hover">
                 <thead>
-                    <tr><th>Receipt No</th><th>Student</th><th>Class</th><th>Amount</th><th>Date</th><th>Method</th></tr>
+                    <tr>
+                        <th>Receipt No</th>
+                        <th>Student</th>
+                        <th>Class</th>
+                        <th>Amount</th>
+                        <th>Date</th>
+                    </tr>
                 </thead>
                 <tbody>
                     {% for p in recent_payments %}
@@ -53,10 +57,9 @@
                         <td>{{ p.class }}</td>
                         <td>UGX {{ p.amount|round(2) }}</td>
                         <td>{{ p.payment_date }}</td>
-                        <td>{{ p.payment_method }}</td>
                     </tr>
                     {% else %}
-                    <tr><td colspan="6">No payments recorded yet.{% endfor %}
+                    <tr><td colspan="5">No payments recorded.{% endfor %}
                 </tbody>
             </table>
         </div>
