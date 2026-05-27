@@ -2742,23 +2742,38 @@ def calculate_nssf_and_paye(gross_salary):
 def bursar_dashboard():
     if not check_permission(['bursar']):
         abort(403)
-    notification_count = get_notification_count('bursar')
-    notifications = get_notifications('bursar')
     
     db = get_db_dict()
     cur = db.cursor()
+    
+    # Get totals safely
     cur.execute("SELECT SUM(fees_total) as total_fees, SUM(fees_paid) as total_paid, SUM(fees_balance) as total_balance FROM students")
     totals = cur.fetchone()
-    cur.execute("SELECT COUNT(*) as defaulter_count FROM students WHERE fees_balance > 0")
-    defaulter_count = cur.fetchone()
-    cur.execute("SELECT COUNT(*) as total_students FROM students")
-    total_students = cur.fetchone()
-    cur.execute("SELECT p.*, s.full_name, s.class FROM payments p JOIN students s ON p.student_id = s.student_id ORDER BY p.payment_date DESC LIMIT 10")
+    
+    cur.execute("SELECT COUNT(*) as count FROM students WHERE fees_balance > 0")
+    defaulter = cur.fetchone()
+    defaulter_count = defaulter['count'] if defaulter else 0
+    
+    cur.execute("SELECT COUNT(*) as count FROM students")
+    total_students_row = cur.fetchone()
+    total_students = total_students_row['count'] if total_students_row else 0
+    
+    # Recent payments
+    cur.execute("""
+        SELECT p.*, s.full_name, s.class 
+        FROM payments p 
+        JOIN students s ON p.student_id = s.student_id 
+        ORDER BY p.payment_date DESC 
+        LIMIT 10
+    """)
     recent_payments = cur.fetchall()
     cur.close()
-    return render_template('bursar/dashboard.html', totals=totals, notification_count=notification_count,
-                          notifications=notifications, defaulter_count=defaulter_count['defaulter_count'] if defaulter_count else 0,
-                          total_students=total_students['total_students'] if total_students else 0, recent_payments=recent_payments)
+    
+    return render_template('bursar/dashboard.html', 
+                          totals=totals,
+                          defaulter_count=defaulter_count,
+                          total_students=total_students,
+                          recent_payments=recent_payments)
 
 @app.route('/bursar/students')
 def bursar_students():
@@ -3786,42 +3801,85 @@ def inventory_items():
 def inventory_item_add():
     if not check_permission(['admin', 'bursar', 'stores_keeper']):
         abort(403)
+    
     db = get_db_dict()
     cur = db.cursor()
+    
     if request.method == 'POST':
-        category_id = request.form['category_id']
-        name = request.form['name']
-        unit = request.form['unit']
-        quantity = int(request.form['quantity'])
-        minimum_quantity = int(request.form.get('minimum_quantity', 0))
-        reorder_level = int(request.form.get('reorder_level', 5))
-        location = request.form.get('location', '')
-        supplier = request.form.get('supplier', '')
-        purchase_price = float(request.form.get('purchase_price', 0))
-        current_value = quantity * purchase_price
-        status = request.form.get('status', 'working')
-        responsible_person = request.form.get('responsible_person', '')
-        responsible_role = request.form.get('responsible_role', '')
-        cur.execute("SELECT name FROM inventory_categories WHERE id=?", (category_id,))
-        category = cur.fetchone()
-        item_code = generate_item_code(category['name'])
-        image_file = request.files.get('image')
-        image_path = None
-        if image_file and image_file.filename and allowed_file(image_file.filename, ALLOWED_IMAGE_EXTENSIONS):
-            filename = secure_filename(f"item_{item_code}_{image_file.filename}")
-            image_file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
-            image_path = filename
-        cur.execute("""INSERT INTO inventory_items (item_code, name, category_id, unit, quantity, minimum_quantity, reorder_level, location, supplier, purchase_price, current_value, status, responsible_person, responsible_role, image_path)
-                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                   (item_code, name, category_id, unit, quantity, minimum_quantity, reorder_level, location, supplier,
-                    purchase_price, current_value, status, responsible_person, responsible_role, image_path))
-        transaction_id = cur.lastrowid
-        cur.execute("INSERT INTO inventory_transactions (item_id, transaction_type, quantity, unit_price, total_amount, transaction_date, recorded_by, notes) VALUES (?, 'purchase', ?, ?, ?, DATE('now'), ?, 'Initial stock')",
-                   (transaction_id, quantity, purchase_price, current_value, session.get('username')))
-        db.commit()
-        cur.close()
-        flash(f'Item {name} added successfully. Code: {item_code}', 'success')
+        try:
+            category_id = request.form['category_id']
+            name = request.form['name'].strip()
+            unit = request.form['unit']
+            quantity = int(request.form['quantity'])
+            minimum_quantity = int(request.form.get('minimum_quantity', 0))
+            reorder_level = int(request.form.get('reorder_level', 5))
+            location = request.form.get('location', '')
+            supplier = request.form.get('supplier', '')
+            purchase_price = float(request.form.get('purchase_price', 0))
+            current_value = quantity * purchase_price
+            status = request.form.get('status', 'working')
+            responsible_person = request.form.get('responsible_person', '')
+            responsible_role = request.form.get('responsible_role', '')
+            
+            # Get category name for item code
+            cur.execute("SELECT name FROM inventory_categories WHERE id=?", (category_id,))
+            category = cur.fetchone()
+            if not category:
+                flash('Invalid category selected.', 'danger')
+                return redirect(url_for('inventory_item_add'))
+            
+            # Generate item code
+            prefix = category['name'][:3].upper()
+            year = datetime.now().strftime("%Y")
+            cur.execute("SELECT item_code FROM inventory_items WHERE item_code LIKE ? ORDER BY item_code DESC LIMIT 1", (f'{prefix}-{year}-%',))
+            last = cur.fetchone()
+            if last:
+                last_num = int(last['item_code'].split('-')[-1])
+                new_num = last_num + 1
+            else:
+                new_num = 1
+            item_code = f"{prefix}-{year}-{new_num:04d}"
+            
+            # Handle image upload
+            image_file = request.files.get('image')
+            image_path = None
+            if image_file and image_file.filename:
+                if allowed_file(image_file.filename, ALLOWED_IMAGE_EXTENSIONS):
+                    filename = secure_filename(f"item_{item_code}_{image_file.filename}")
+                    image_file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+                    image_path = filename
+            
+            cur.execute("""
+                INSERT INTO inventory_items 
+                (item_code, name, category_id, unit, quantity, minimum_quantity, reorder_level, 
+                 location, supplier, purchase_price, current_value, status, responsible_person, 
+                 responsible_role, image_path, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            """, (item_code, name, category_id, unit, quantity, minimum_quantity, reorder_level,
+                  location, supplier, purchase_price, current_value, status, responsible_person,
+                  responsible_role, image_path))
+            
+            item_id = cur.lastrowid
+            
+            # Record initial stock transaction
+            cur.execute("""
+                INSERT INTO inventory_transactions 
+                (item_id, transaction_type, quantity, unit_price, total_amount, transaction_date, recorded_by, notes)
+                VALUES (?, 'purchase', ?, ?, ?, DATE('now'), ?, 'Initial stock')
+            """, (item_id, quantity, purchase_price, current_value, session.get('username')))
+            
+            db.commit()
+            flash(f'Item {name} added successfully. Code: {item_code}', 'success')
+            
+        except Exception as e:
+            db.rollback()
+            flash(f'Error: {str(e)}', 'danger')
+        finally:
+            cur.close()
+        
         return redirect(url_for('inventory_items'))
+    
+    # GET request - show form
     cur.execute("SELECT * FROM inventory_categories ORDER BY name")
     categories = cur.fetchall()
     cur.close()
@@ -3980,6 +4038,7 @@ def inventory_alert_read(alert_id):
     execute_db("UPDATE inventory_alerts SET is_read=1 WHERE id=?", (alert_id,))
     flash('Alert acknowledged.', 'success')
     return redirect(url_for('inventory_alerts'))
+
 @app.route('/inventory/reports')
 def inventory_reports():
     if not check_permission(['admin', 'bursar', 'stores_keeper']):
@@ -4026,15 +4085,22 @@ def inventory_reports():
     """)
     recent_issues = cur.fetchall()
     
-    # Summary stats
-    cur.execute("SELECT COUNT(*) as total_items FROM inventory_items")
-    total_items = cur.fetchone()['total_items'] if cur.fetchone() else 0
-    cur.execute("SELECT SUM(quantity) as total_quantity FROM inventory_items WHERE status='working'")
-    total_quantity = cur.fetchone()['total_quantity'] if cur.fetchone() else 0
-    cur.execute("SELECT COUNT(*) as low_stock_count FROM inventory_items WHERE quantity <= reorder_level AND status='working'")
-    low_stock_count = cur.fetchone()['low_stock_count'] if cur.fetchone() else 0
-    cur.execute("SELECT SUM(current_value) as total_value FROM inventory_items")
-    total_value = cur.fetchone()['total_value'] if cur.fetchone() else 0
+    # Simple summary stats (one at a time to avoid errors)
+    cur.execute("SELECT COUNT(*) as count FROM inventory_items")
+    total_items_row = cur.fetchone()
+    total_items = total_items_row['count'] if total_items_row else 0
+    
+    cur.execute("SELECT SUM(quantity) as total FROM inventory_items WHERE status='working'")
+    total_qty_row = cur.fetchone()
+    total_quantity = total_qty_row['total'] if total_qty_row and total_qty_row['total'] else 0
+    
+    cur.execute("SELECT COUNT(*) as count FROM inventory_items WHERE quantity <= reorder_level AND status='working'")
+    low_count_row = cur.fetchone()
+    low_stock_count = low_count_row['count'] if low_count_row else 0
+    
+    cur.execute("SELECT SUM(current_value) as total FROM inventory_items")
+    total_val_row = cur.fetchone()
+    total_value = total_val_row['total'] if total_val_row and total_val_row['total'] else 0
     
     cur.close()
     
