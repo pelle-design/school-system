@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Admissions Closed{% endblock %}
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <div class="card shadow text-center">
+            <div class="card-header bg-danger text-white">
+                <h4>Online Admissions Closed</h4>
+            </div>
+            <div class="card-body">
+                <i class="fas fa-door-closed fa-5x text-danger mb-3"></i>
+                <p>{{ reason or 'Online admissions are currently closed.' }}</p>
+                {% if deadline %}
+                <p>Applications will reopen on: <strong>{{ deadline }}</strong></p>
+                {% endif %}
+                <a href="/" class="btn btn-primary">Return to Home</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
