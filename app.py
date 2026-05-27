@@ -3807,15 +3807,44 @@ def inventory_item_add():
     
     if request.method == 'POST':
         try:
-            category_id = request.form['category_id']
-            name = request.form['name'].strip()
-            unit = request.form['unit']
-            quantity = int(request.form['quantity'])
-            minimum_quantity = int(request.form.get('minimum_quantity', 0))
-            reorder_level = int(request.form.get('reorder_level', 5))
+            category_id = request.form.get('category_id')
+            if not category_id:
+                flash('Please select a category.', 'danger')
+                return redirect(url_for('inventory_item_add'))
+            
+            name = request.form.get('name', '').strip()
+            if not name:
+                flash('Item name is required.', 'danger')
+                return redirect(url_for('inventory_item_add'))
+            
+            unit = request.form.get('unit', 'pieces')
+            
+            # Handle numeric values with defaults
+            try:
+                quantity = int(request.form.get('quantity', 0))
+            except:
+                quantity = 0
+            
+            try:
+                minimum_quantity = int(request.form.get('minimum_quantity', 10))
+            except:
+                minimum_quantity = 10
+            
+            try:
+                reorder_level = int(request.form.get('reorder_level', 5))
+            except:
+                reorder_level = 5
+            
             location = request.form.get('location', '')
             supplier = request.form.get('supplier', '')
-            purchase_price = float(request.form.get('purchase_price', 0))
+            
+            # Handle purchase price - convert empty string to 0
+            purchase_price_str = request.form.get('purchase_price', '0')
+            try:
+                purchase_price = float(purchase_price_str) if purchase_price_str else 0
+            except:
+                purchase_price = 0
+            
             current_value = quantity * purchase_price
             status = request.form.get('status', 'working')
             responsible_person = request.form.get('responsible_person', '')
@@ -3874,6 +3903,8 @@ def inventory_item_add():
         except Exception as e:
             db.rollback()
             flash(f'Error: {str(e)}', 'danger')
+            import traceback
+            traceback.print_exc()
         finally:
             cur.close()
         
