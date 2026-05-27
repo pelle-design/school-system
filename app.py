@@ -3980,27 +3980,73 @@ def inventory_alert_read(alert_id):
     execute_db("UPDATE inventory_alerts SET is_read=1 WHERE id=?", (alert_id,))
     flash('Alert acknowledged.', 'success')
     return redirect(url_for('inventory_alerts'))
-
 @app.route('/inventory/reports')
 def inventory_reports():
     if not check_permission(['admin', 'bursar', 'stores_keeper']):
         abort(403)
+    
     db = get_db_dict()
     cur = db.cursor()
-    cur.execute("""SELECT c.name as category, COUNT(i.id) as item_count, SUM(i.quantity) as total_quantity, SUM(i.current_value) as total_value
-                   FROM inventory_categories c LEFT JOIN inventory_items i ON c.id = i.category_id GROUP BY c.id ORDER BY total_value DESC""")
+    
+    # Stock by category
+    cur.execute("""
+        SELECT c.name as category, COUNT(i.id) as item_count, SUM(i.quantity) as total_quantity, SUM(i.current_value) as total_value
+        FROM inventory_categories c
+        LEFT JOIN inventory_items i ON c.id = i.category_id
+        GROUP BY c.id
+        ORDER BY total_value DESC
+    """)
     by_category = cur.fetchall()
-    cur.execute("SELECT status, COUNT(*) as count, SUM(quantity) as quantity FROM inventory_items GROUP BY status")
+    
+    # Stock by status
+    cur.execute("""
+        SELECT status, COUNT(*) as count, SUM(quantity) as quantity
+        FROM inventory_items
+        GROUP BY status
+    """)
     by_status = cur.fetchall()
-    cur.execute("""SELECT i.*, c.name as category_name FROM inventory_items i JOIN inventory_categories c ON i.category_id = c.id 
-                   WHERE i.quantity <= i.reorder_level AND i.status = 'working' ORDER BY i.quantity ASC""")
+    
+    # Low stock items
+    cur.execute("""
+        SELECT i.*, c.name as category_name
+        FROM inventory_items i
+        JOIN inventory_categories c ON i.category_id = c.id
+        WHERE i.quantity <= i.reorder_level AND i.status = 'working'
+        ORDER BY i.quantity ASC
+    """)
     low_stock_items = cur.fetchall()
-    cur.execute("""SELECT t.*, i.name as item_name FROM inventory_transactions t JOIN inventory_items i ON t.item_id = i.id 
-                   WHERE t.transaction_type = 'issued' ORDER BY t.created_at DESC LIMIT 20""")
+    
+    # Recent issues
+    cur.execute("""
+        SELECT t.*, i.name as item_name
+        FROM inventory_transactions t
+        JOIN inventory_items i ON t.item_id = i.id
+        WHERE t.transaction_type = 'issued'
+        ORDER BY t.created_at DESC LIMIT 20
+    """)
     recent_issues = cur.fetchall()
+    
+    # Summary stats
+    cur.execute("SELECT COUNT(*) as total_items FROM inventory_items")
+    total_items = cur.fetchone()['total_items'] if cur.fetchone() else 0
+    cur.execute("SELECT SUM(quantity) as total_quantity FROM inventory_items WHERE status='working'")
+    total_quantity = cur.fetchone()['total_quantity'] if cur.fetchone() else 0
+    cur.execute("SELECT COUNT(*) as low_stock_count FROM inventory_items WHERE quantity <= reorder_level AND status='working'")
+    low_stock_count = cur.fetchone()['low_stock_count'] if cur.fetchone() else 0
+    cur.execute("SELECT SUM(current_value) as total_value FROM inventory_items")
+    total_value = cur.fetchone()['total_value'] if cur.fetchone() else 0
+    
     cur.close()
-    return render_template('inventory/reports.html', by_category=by_category, by_status=by_status,
-                          low_stock_items=low_stock_items, recent_issues=recent_issues)
+    
+    return render_template('inventory/reports.html',
+                          by_category=by_category,
+                          by_status=by_status,
+                          low_stock_items=low_stock_items,
+                          recent_issues=recent_issues,
+                          total_items=total_items,
+                          total_quantity=total_quantity,
+                          low_stock_count=low_stock_count,
+                          total_value=total_value)
 
 @app.route('/inventory/print_report')
 def inventory_print_report():
