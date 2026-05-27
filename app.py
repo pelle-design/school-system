@@ -4075,65 +4075,110 @@ def inventory_reports():
     if not check_permission(['admin', 'bursar', 'stores_keeper']):
         abort(403)
     
-    db = get_db_dict()
-    cur = db.cursor()
+    # Initialize all variables with default values
+    by_category = []
+    by_status = []
+    low_stock_items = []
+    recent_issues = []
+    total_items = 0
+    total_quantity = 0
+    low_stock_count = 0
+    total_value = 0
     
-    # Stock by category
-    cur.execute("""
-        SELECT c.name as category, COUNT(i.id) as item_count, SUM(i.quantity) as total_quantity, SUM(i.current_value) as total_value
-        FROM inventory_categories c
-        LEFT JOIN inventory_items i ON c.id = i.category_id
-        GROUP BY c.id
-        ORDER BY total_value DESC
-    """)
-    by_category = cur.fetchall()
-    
-    # Stock by status
-    cur.execute("""
-        SELECT status, COUNT(*) as count, SUM(quantity) as quantity
-        FROM inventory_items
-        GROUP BY status
-    """)
-    by_status = cur.fetchall()
-    
-    # Low stock items
-    cur.execute("""
-        SELECT i.*, c.name as category_name
-        FROM inventory_items i
-        JOIN inventory_categories c ON i.category_id = c.id
-        WHERE i.quantity <= i.reorder_level AND i.status = 'working'
-        ORDER BY i.quantity ASC
-    """)
-    low_stock_items = cur.fetchall()
-    
-    # Recent issues
-    cur.execute("""
-        SELECT t.*, i.name as item_name
-        FROM inventory_transactions t
-        JOIN inventory_items i ON t.item_id = i.id
-        WHERE t.transaction_type = 'issued'
-        ORDER BY t.created_at DESC LIMIT 20
-    """)
-    recent_issues = cur.fetchall()
-    
-    # Simple summary stats (one at a time to avoid errors)
-    cur.execute("SELECT COUNT(*) as count FROM inventory_items")
-    total_items_row = cur.fetchone()
-    total_items = total_items_row['count'] if total_items_row else 0
-    
-    cur.execute("SELECT SUM(quantity) as total FROM inventory_items WHERE status='working'")
-    total_qty_row = cur.fetchone()
-    total_quantity = total_qty_row['total'] if total_qty_row and total_qty_row['total'] else 0
-    
-    cur.execute("SELECT COUNT(*) as count FROM inventory_items WHERE quantity <= reorder_level AND status='working'")
-    low_count_row = cur.fetchone()
-    low_stock_count = low_count_row['count'] if low_count_row else 0
-    
-    cur.execute("SELECT SUM(current_value) as total FROM inventory_items")
-    total_val_row = cur.fetchone()
-    total_value = total_val_row['total'] if total_val_row and total_val_row['total'] else 0
-    
-    cur.close()
+    try:
+        db = get_db()
+        cur = db.cursor()
+        
+        # Total items
+        cur.execute("SELECT COUNT(*) FROM inventory_items")
+        row = cur.fetchone()
+        total_items = row[0] if row else 0
+        
+        # Total quantity
+        cur.execute("SELECT SUM(quantity) FROM inventory_items WHERE status='working'")
+        row = cur.fetchone()
+        total_quantity = row[0] if row and row[0] else 0
+        
+        # Low stock count
+        cur.execute("SELECT COUNT(*) FROM inventory_items WHERE quantity <= reorder_level AND status='working'")
+        row = cur.fetchone()
+        low_stock_count = row[0] if row else 0
+        
+        # Total value
+        cur.execute("SELECT SUM(current_value) FROM inventory_items")
+        row = cur.fetchone()
+        total_value = row[0] if row and row[0] else 0
+        
+        # Stock by category
+        cur.execute("""
+            SELECT c.name, COUNT(i.id), SUM(i.quantity), SUM(i.current_value)
+            FROM inventory_categories c
+            LEFT JOIN inventory_items i ON c.id = i.category_id
+            GROUP BY c.id
+        """)
+        rows = cur.fetchall()
+        for row in rows:
+            by_category.append({
+                'category': row[0] or 'Unknown',
+                'item_count': row[1] or 0,
+                'total_quantity': row[2] or 0,
+                'total_value': row[3] or 0
+            })
+        
+        # Stock by status
+        cur.execute("SELECT status, COUNT(*), SUM(quantity) FROM inventory_items GROUP BY status")
+        rows = cur.fetchall()
+        for row in rows:
+            by_status.append({
+                'status': row[0] or 'Unknown',
+                'count': row[1] or 0,
+                'quantity': row[2] or 0
+            })
+        
+        # Low stock items
+        cur.execute("""
+            SELECT i.id, i.item_code, i.name, i.quantity, i.reorder_level, i.unit, c.name
+            FROM inventory_items i
+            LEFT JOIN inventory_categories c ON i.category_id = c.id
+            WHERE i.quantity <= i.reorder_level AND i.status = 'working'
+            ORDER BY i.quantity ASC
+        """)
+        rows = cur.fetchall()
+        for row in rows:
+            low_stock_items.append({
+                'id': row[0],
+                'item_code': row[1],
+                'name': row[2],
+                'quantity': row[3],
+                'reorder_level': row[4],
+                'unit': row[5],
+                'category_name': row[6] or 'Unknown'
+            })
+        
+        # Recent issues
+        cur.execute("""
+            SELECT t.transaction_date, t.quantity, t.issued_to, t.purpose, t.recorded_by, i.name
+            FROM inventory_transactions t
+            LEFT JOIN inventory_items i ON t.item_id = i.id
+            WHERE t.transaction_type = 'issued'
+            ORDER BY t.created_at DESC LIMIT 20
+        """)
+        rows = cur.fetchall()
+        for row in rows:
+            recent_issues.append({
+                'transaction_date': row[0],
+                'quantity': row[1],
+                'issued_to': row[2],
+                'purpose': row[3],
+                'recorded_by': row[4],
+                'item_name': row[5] or 'Unknown'
+            })
+        
+        cur.close()
+        
+    except Exception as e:
+        print(f"Error in inventory_reports: {str(e)}")
+        flash(f'Error loading reports: {str(e)}', 'danger')
     
     return render_template('inventory/reports.html',
                           by_category=by_category,
