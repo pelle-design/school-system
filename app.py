@@ -1595,7 +1595,8 @@ def generate_admission_letter(student):
 
 @app.route('/admissions', methods=['GET', 'POST'])
 def admissions_portal():
-     cur = get_db().cursor()
+    # Check if admissions are open
+    cur = get_db().cursor()
     cur.execute("SELECT is_open, deadline, closing_reason FROM admission_settings WHERE id=1")
     settings = cur.fetchone()
     cur.close()
@@ -1608,60 +1609,62 @@ def admissions_portal():
         return render_template('admissions/closed.html', 
                               reason=closing_reason, 
                               deadline=deadline)
-        if request.method == 'POST':
-            full_name = request.form['full_name']
-            date_of_birth = request.form['date_of_birth']
-            sex = request.form['sex']
-            preferred_house = request.form['preferred_house']
-            disability = request.form.get('disability', '')
-            sports_activities = request.form.getlist('sports_activities')
-            lin = request.form['lin']
-            phone = request.form['phone']
-            email = request.form['email']
-            
-            birth_date = datetime.strptime(date_of_birth, '%Y-%m-%d').date()
-            age = calculate_age(birth_date)
-            
-            photo = request.files.get('photo')
-            photo_filename = None
-            if photo and photo.filename:
-                ext = photo.filename.rsplit('.', 1)[1].lower()
-                student_id_temp = f"TEMP-{int(datetime.now().timestamp())}"
-                photo_filename = f"{student_id_temp}.{ext}"
-                photo.save(os.path.join(app.config['UPLOAD_FOLDER'], photo_filename))
-            
-            results_file = request.files.get('results_pdf')
-            results_data = None
-            if results_file and results_file.filename:
-                filename = secure_filename(f"results_{int(datetime.now().timestamp())}_{results_file.filename}")
-                filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-                results_file.save(filepath)
-                results_data = extract_results_from_pdf(filepath)
-            
-            qualification = determine_admission_worth(results_data) if results_data else {'qualifies': False, 'message': 'Results not uploaded'}
-            
-            session['admission_data'] = {
-                'full_name': full_name, 'date_of_birth': date_of_birth, 'age': age, 'sex': sex,
-                'preferred_house': preferred_house, 'disability': disability,
-                'sports_activities': ','.join(sports_activities), 'lin': lin, 'phone': phone,
-                'email': email, 'photo_filename': photo_filename, 'qualification': qualification,
-                'results_data': results_data
-            }
-            
-            if qualification['qualifies']:
-                return redirect(url_for('admission_payment'))
-            else:
-                flash(qualification['message'], 'danger')
-                return redirect(url_for('admissions_portal'))
+    
+    if request.method == 'POST':
+        full_name = request.form['full_name']
+        date_of_birth = request.form['date_of_birth']
+        sex = request.form['sex']
+        preferred_house = request.form['preferred_house']
+        disability = request.form.get('disability', '')
+        sports_activities = request.form.getlist('sports_activities')
+        lin = request.form['lin']
+        phone = request.form['phone']
+        email = request.form['email']
         
-        db = get_db_dict()
-        cur = db.cursor()
-        cur.execute("SELECT name FROM houses ORDER BY name")
-        houses = cur.fetchall()
-        cur.execute("SELECT name FROM sports_activities ORDER BY name")
-        sports = cur.fetchall()
-        cur.close()
-        return render_template('admissions/apply.html', houses=houses, sports=sports)
+        birth_date = datetime.strptime(date_of_birth, '%Y-%m-%d').date()
+        age = calculate_age(birth_date)
+        
+        photo = request.files.get('photo')
+        photo_filename = None
+        if photo and photo.filename:
+            ext = photo.filename.rsplit('.', 1)[1].lower()
+            student_id_temp = f"TEMP-{int(datetime.now().timestamp())}"
+            photo_filename = f"{student_id_temp}.{ext}"
+            photo.save(os.path.join(app.config['UPLOAD_FOLDER'], photo_filename))
+        
+        results_file = request.files.get('results_pdf')
+        results_data = None
+        if results_file and results_file.filename:
+            filename = secure_filename(f"results_{int(datetime.now().timestamp())}_{results_file.filename}")
+            filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+            results_file.save(filepath)
+            results_data = extract_results_from_pdf(filepath)
+        
+        qualification = determine_admission_worth(results_data) if results_data else {'qualifies': False, 'message': 'Results not uploaded'}
+        
+        session['admission_data'] = {
+            'full_name': full_name, 'date_of_birth': date_of_birth, 'age': age, 'sex': sex,
+            'preferred_house': preferred_house, 'disability': disability,
+            'sports_activities': ','.join(sports_activities), 'lin': lin, 'phone': phone,
+            'email': email, 'photo_filename': photo_filename, 'qualification': qualification,
+            'results_data': results_data
+        }
+        
+        if qualification['qualifies']:
+            return redirect(url_for('admission_payment'))
+        else:
+            flash(qualification['message'], 'danger')
+            return redirect(url_for('admissions_portal'))
+    
+    # GET request - show form
+    db = get_db_dict()
+    cur = db.cursor()
+    cur.execute("SELECT name FROM houses ORDER BY name")
+    houses = cur.fetchall()
+    cur.execute("SELECT name FROM sports_activities ORDER BY name")
+    sports = cur.fetchall()
+    cur.close()
+    return render_template('admissions/apply.html', houses=houses, sports=sports)
 
 @app.route('/admissions/payment', methods=['GET', 'POST'])
 def admission_payment():
