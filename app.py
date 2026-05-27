@@ -1418,41 +1418,53 @@ def admin_assign_class():
     subject = request.form.get('subject', '').strip() or None
     assignment_type = request.form.get('assignment_type', 'subject_teacher')
     
-    cur = get_db().cursor()
+    assign_user_to_class(teacher_id, class_name, subject, assignment_type)
+    flash('Teacher assigned successfully', 'success')
+    return redirect(url_for('admin_teacher_assignments'))
+    
+#@app.route('/admin/assign_class', methods=['POST'])
+#@admin_required
+#def admin_assign_class():
+    #teacher_id = request.form['teacher_id']
+    #class_name = request.form['class_name']
+    #subject = request.form.get('subject', '').strip() or None
+    #assignment_type = request.form.get('assignment_type', 'subject_teacher')
+    
+    #cur = get_db().cursor()
     
     # If assigning as class teacher, check if class already has a class teacher
-    if assignment_type == 'classteacher':
-        cur.execute("""
-            SELECT id FROM teacher_class_assignments 
-            WHERE class_name = ? AND assignment_type = 'classteacher'
-        """, (class_name,))
-        existing = cur.fetchone()
-        if existing:
-            flash(f'Class {class_name} already has a class teacher!', 'danger')
-            cur.close()
-            return redirect(url_for('admin_teacher_assignments'))
+    #if assignment_type == 'classteacher':
+        #cur.execute("""
+            #SELECT id FROM teacher_class_assignments 
+            #WHERE class_name = ? AND assignment_type = 'classteacher'
+        #""", (class_name,))
+        #existing = cur.fetchone()
+        #if existing:
+            #flash(f'Class {class_name} already has a class teacher!', 'danger')
+            #cur.close()
+            #return redirect(url_for('admin_teacher_assignments'))
     
     # Check if teacher already has a class teacher assignment for a different class
-    if assignment_type == 'classteacher':
-        cur.execute("""
-            SELECT id FROM teacher_class_assignments 
-            WHERE user_id = ? AND assignment_type = 'classteacher'
-        """, (teacher_id,))
-        existing = cur.fetchone()
-        if existing:
-            flash('This teacher is already a class teacher for another class!', 'danger')
-            cur.close()
-            return redirect(url_for('admin_teacher_assignments'))
+    #if assignment_type == 'classteacher':
+        #cur.execute("""
+            #SELECT id FROM teacher_class_assignments 
+            #WHERE user_id = ? AND assignment_type = 'classteacher'
+        #""", (teacher_id,))
+        #existing = cur.fetchone()
+        #if existing:
+            #flash('This teacher is already a class teacher for another class!', 'danger')
+            #cur.close()
+            #return redirect(url_for('admin_teacher_assignments'))
     
     # Assign the teacher
-    execute_db("""INSERT INTO teacher_class_assignments (user_id, class_name, subject, assignment_type, assigned_by)
-                   VALUES (?, ?, ?, ?, ?) ON CONFLICT(user_id, class_name, assignment_type) 
-                   DO UPDATE SET subject = excluded.subject, assigned_by = excluded.assigned_by""",
-               (teacher_id, class_name, subject, assignment_type, session.get('username')))
+    #execute_db("""INSERT INTO teacher_class_assignments (user_id, class_name, subject, assignment_type, assigned_by)
+    #               VALUES (?, ?, ?, ?, ?) ON CONFLICT(user_id, class_name, assignment_type) 
+       #            DO UPDATE SET subject = excluded.subject, assigned_by = excluded.assigned_by""",
+      #         (teacher_id, class_name, subject, assignment_type, session.get('username')))
     
-    flash(f'Teacher assigned to class {class_name} as {assignment_type}', 'success')
-    cur.close()
-    return redirect(url_for('admin_teacher_assignments'))
+    #flash(f'Teacher assigned to class {class_name} as {assignment_type}', 'success')
+    #cur.close()
+    #return redirect(url_for('admin_teacher_assignments'))
 
 @app.route('/admin/role_counts')
 def admin_role_counts():
