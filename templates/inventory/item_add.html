@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% block title %}Add Inventory Item{% endblock %}
+{% block content %}
+<div class="card shadow">
+    <div class="card-header bg-primary text-white">
+        <i class="fas fa-plus"></i> Add Inventory Item
+    </div>
+    <div class="card-body">
+        <form method="POST" enctype="multipart/form-data">
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label>Category *</label>
+                    <select name="category_id" class="form-select" required>
+                        <option value="">Select Category</option>
+                        {% for c in categories %}
+                        <option value="{{ c.id }}">{{ c.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label>Item Name *</label>
+                    <input type="text" name="name" class="form-control" required>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-md-3 mb-3">
+                    <label>Unit *</label>
+                    <select name="unit" class="form-select" required>
+                        <option value="pieces">Pieces</option>
+                        <option value="kg">Kilograms</option>
+                        <option value="liters">Liters</option>
+                        <option value="boxes">Boxes</option>
+                        <option value="pairs">Pairs</option>
+                    </select>
+                </div>
+                <div class="col-md-3 mb-3">
+                    <label>Quantity *</label>
+                    <input type="number" name="quantity" class="form-control" required>
+                </div>
+                <div class="col-md-3 mb-3">
+                    <label>Minimum Quantity</label>
+                    <input type="number" name="minimum_quantity" class="form-control" value="10">
+                </div>
+                <div class="col-md-3 mb-3">
+                    <label>Reorder Level</label>
+                    <input type="number" name="reorder_level" class="form-control" value="5">
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label>Location</label>
+                    <input type="text" name="location" class="form-control" placeholder="e.g., Store Room A">
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label>Supplier</label>
+                    <input type="text" name="supplier" class="form-control">
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-md-4 mb-3">
+                    <label>Purchase Price (UGX)</label>
+                    <input type="number" name="purchase_price" class="form-control" step="0.01">
+                </div>
+                <div class="col-md-4 mb-3">
+                    <label>Status</label>
+                    <select name="status" class="form-select">
+                        <option value="working">Working</option>
+                        <option value="under_repair">Under Repair</option>
+                    </select>
+                </div>
+                <div class="col-md-4 mb-3">
+                    <label>Image (Optional)</label>
+                    <input type="file" name="image" class="form-control" accept="image/*">
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label>Responsible Person</label>
+                    <input type="text" name="responsible_person" class="form-control">
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label>Responsible Role</label>
+                    <input type="text" name="responsible_role" class="form-control">
+                </div>
+            </div>
+            <button type="submit" class="btn btn-primary">Add Item</button>
+            <a href="{{ url_for('inventory_items') }}" class="btn btn-secondary">Cancel</a>
+        </form>
+    </div>
+</div>
+{% endblock %}
