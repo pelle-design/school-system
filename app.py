@@ -1319,22 +1319,32 @@ def mark_all_notifications_read_route():
 @app.route('/admin/add_user', methods=['POST'])
 @admin_required
 def add_user():
-    username = request.form['username'].strip()
+    username = sanitize_input(request.form['username'].strip())
     password = request.form['password'].strip()
-    
-    # Hash the password before storing
-    hashed_password = generate_password_hash(password)
-    
     role = request.form['role'].strip()
     phone_raw = request.form.get('phone', '').strip()
     phone = validate_and_format_phone(phone_raw) if phone_raw else None
-    if phone_raw and not phone:
-        flash('Invalid phone number format.', 'danger')
-        return redirect(url_for('dashboard'))
     child_id = request.form.get('child_id', '').strip() or None
     
+    # Check role limits
+    cur = get_db().cursor()
+    cur.execute("SELECT max_count FROM role_limits WHERE role_name = ?", (role,))
+    limit = cur.fetchone()
+    
+    if limit:
+        cur.execute("SELECT COUNT(*) FROM users WHERE role = ?", (role,))
+        count = cur.fetchone()[0]
+        if count >= limit[0]:
+            flash(f'Cannot add. Only {limit[0]} {role} allowed in the system.', 'danger')
+            cur.close()
+            return redirect(url_for('dashboard'))
+    cur.close()
+    
+    hashed_password = generate_password_hash(password)
+    
     try:
-        execute_db("INSERT INTO users (username, password, role, phone, status, child_id, profile_pic, must_change_password) VALUES (?, ?, ?, ?, 1, ?, 'default_avatar.png', 1)",
+        execute_db("""INSERT INTO users (username, password, role, phone, status, child_id, profile_pic, must_change_password) 
+                      VALUES (?, ?, ?, ?, 1, ?, 'default_avatar.png', 1)""",
                    (username, hashed_password, role, phone, child_id))
         flash(f'User {username} added. Password: {password} – inform the user.', 'success')
     except Exception as e:
@@ -1411,9 +1421,62 @@ def admin_teacher_assignments():
 @app.route('/admin/assign_class', methods=['POST'])
 @admin_required
 def admin_assign_class():
-    assign_user_to_class(request.form['teacher_id'], request.form['class_name'], request.form.get('subject'), 'subject_teacher')
-    flash('Teacher assigned to class', 'success')
+    teacher_id = request.form['teacher_id']
+    class_name = request.form['class_name']
+    subject = request.form.get('subject', '').strip() or None
+    assignment_type = request.form.get('assignment_type', 'subject_teacher')
+    
+    cur = get_db().cursor()
+    
+    # If assigning as class teacher, check if class already has a class teacher
+    if assignment_type == 'classteacher':
+        cur.execute("""
+            SELECT id FROM teacher_class_assignments 
+            WHERE class_name = ? AND assignment_type = 'classteacher'
+        """, (class_name,))
+        existing = cur.fetchone()
+        if existing:
+            flash(f'Class {class_name} already has a class teacher!', 'danger')
+            cur.close()
+            return redirect(url_for('admin_teacher_assignments'))
+    
+    # Check if teacher already has a class teacher assignment for a different class
+    if assignment_type == 'classteacher':
+        cur.execute("""
+            SELECT id FROM teacher_class_assignments 
+            WHERE user_id = ? AND assignment_type = 'classteacher'
+        """, (teacher_id,))
+        existing = cur.fetchone()
+        if existing:
+            flash('This teacher is already a class teacher for another class!', 'danger')
+            cur.close()
+            return redirect(url_for('admin_teacher_assignments'))
+    
+    # Assign the teacher
+    execute_db("""INSERT INTO teacher_class_assignments (user_id, class_name, subject, assignment_type, assigned_by)
+                   VALUES (?, ?, ?, ?, ?) ON CONFLICT(user_id, class_name, assignment_type) 
+                   DO UPDATE SET subject = excluded.subject, assigned_by = excluded.assigned_by""",
+               (teacher_id, class_name, subject, assignment_type, session.get('username')))
+    
+    flash(f'Teacher assigned to class {class_name} as {assignment_type}', 'success')
+    cur.close()
     return redirect(url_for('admin_teacher_assignments'))
+
+@app.route('/admin/role_counts')
+def admin_role_counts():
+    if not check_permission(['admin']):
+        abort(403)
+    
+    cur = get_db().cursor()
+    cur.execute("""
+        SELECT role, COUNT(*) as count, (SELECT max_count FROM role_limits WHERE role_name = users.role) as max_count
+        FROM users 
+        GROUP BY role
+    """)
+    counts = cur.fetchall()
+    cur.close()
+    
+    return render_template('admin/role_counts.html', counts=counts)
 
 @app.route('/admin/school_settings', methods=['GET', 'POST'])
 def school_settings():
