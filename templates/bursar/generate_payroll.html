@@ -19,7 +19,11 @@
                     <div class="form-check">
                         <input type="checkbox" class="form-check-input staff-checkbox" name="staff_ids" value="{{ staff.id }}">
                         <label class="form-check-label">
-                            {{ staff.full_name }} - {{ staff.position }} (UGX {{ "{:,.2f}".format(staff.salary_net) }})
+                            {% if staff.salary_net %}
+                                {{ staff.full_name }} - {{ staff.position }} (UGX {{ "{:,.2f}".format(staff.salary_net) }})
+                            {% else %}
+                                {{ staff.full_name }} - {{ staff.position }} (UGX 0.00)
+                            {% endif %}
                         </label>
                     </div>
                     {% endfor %}
