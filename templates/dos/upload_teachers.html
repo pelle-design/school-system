@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Upload Teachers{% endblock %}
+{% block content %}
+<div class="card shadow">
+    <div class="card-header bg-primary text-white">
+        <i class="fas fa-upload"></i> Upload Teacher Assignments
+    </div>
+    <div class="card-body">
+        <div class="alert alert-info">
+            <strong>Excel Format:</strong><br>
+            username | full_name | class_name | subject | assignment_type<br>
+            (assignment_type: 'classteacher' or 'subject_teacher')
+        </div>
+        <form method="POST" enctype="multipart/form-data">
+            <div class="mb-3">
+                <label>Excel File (.xlsx)</label>
+                <input type="file" name="excel_file" class="form-control" accept=".xlsx, .xls" required>
+            </div>
+            <button type="submit" class="btn btn-primary">Upload Assignments</button>
+            <a href="{{ url_for('dos_teacher_assignments') }}" class="btn btn-secondary">View Assignments</a>
+        </form>
+        <hr>
+        <h5>Example Excel:</h5>
+        <pre>username | full_name | class_name | subject | assignment_type
+john_teacher | John Doe | S3 | Mathematics | subject_teacher
+john_teacher | John Doe | S3 | Physics | subject_teacher
+jane_teacher | Jane Smith | S3 | English | classteacher</pre>
+    </div>
+</div>
+{% endblock %}
