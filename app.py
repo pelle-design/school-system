@@ -885,23 +885,27 @@ def calculate_age(birth_date):
 
 # ==================== NOTIFICATION FUNCTIONS ====================
 def add_notification(user_role, message, link=None):
+    """Add a notification for a specific user role"""
     execute_db("INSERT INTO notifications (user_role, message, link, is_read, created_at) VALUES (?, ?, ?, 0, ?)",
                (user_role, message, link, datetime.now()))
 
+def get_notification_count(user_role):
+    """Get count of unread notifications for a user role"""
+    db = get_db()  # regular cursor, not dict
+    cur = db.cursor()
+    cur.execute("SELECT COUNT(*) FROM notifications WHERE user_role = ? AND is_read = 0", (user_role,))
+    result = cur.fetchone()
+    cur.close()
+    return result[0] if result else 0
+
 def get_notifications(user_role, limit=10):
-    db = get_db_dict()
+    """Get unread notifications for a user role"""
+    db = get_db_dict()  # dict cursor for row access
     cur = db.cursor()
     cur.execute("SELECT * FROM notifications WHERE user_role = ? AND is_read = 0 ORDER BY created_at DESC LIMIT ?", (user_role, limit))
     notifications = cur.fetchall()
     cur.close()
-    return notifications
-
-def get_notification_count(user_role):
-    cur = get_db().cursor()
-    cur.execute("SELECT COUNT(*) FROM notifications WHERE user_role = ? AND is_read = 0", (user_role,))
-    count = cur.fetchone()[0]
-    cur.close()
-    return count
+    return notifications if notifications else []
 
 def mark_notification_read(notification_id):
     execute_db("UPDATE notifications SET is_read = 1 WHERE id = ?", (notification_id,))
