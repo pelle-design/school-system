@@ -3063,7 +3063,7 @@ def bursar_staff():
         s['gross'] = gross or 0
         s['nssf'] = round(nssf, 2) if nssf else 0
         s['paye'] = round(paye, 2) if paye else 0
-        s['net'] = net 0r 0
+        s['net'] = net or 0
         
         total_basic += s['salary_basic']
         total_allowances += (s['salary_allowances'] or 0)
