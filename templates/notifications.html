@@ -1,36 +1,28 @@
 {% extends "base.html" %}
-{% block title %}Notifications{% endblock %}
+
 {% block content %}
-<div class="card shadow">
-    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-        <span><i class="fas fa-bell"></i> Notifications</span>
-        <a href="{{ url_for('mark_all_notifications_read_route') }}" class="btn btn-light btn-sm">Mark All Read</a>
-    </div>
-    <div class="card-body">
-        {% if notifications %}
+<div class="container mt-4">
+    <h2>Notifications</h2>
+    
+    {% if notifications %}
         <div class="list-group">
             {% for n in notifications %}
-            <div class="list-group-item {% if not n.is_read %}list-group-item-info{% endif %}">
-                <div class="d-flex justify-content-between align-items-center">
-                    <div>
-                        <p class="mb-1">{{ n.message }}</p>
-                        <small class="text-muted">{{ n.created_at.strftime('%Y-%m-%d %H:%M:%S') if n.created_at else '' }}</small>
-                        {% if n.link %}
-                        <a href="{{ n.link }}" class="btn btn-sm btn-link">View Details</a>
-                        {% endif %}
+                <div class="list-group-item {% if not n.is_read %}list-group-item-primary{% endif %}">
+                    <div class="d-flex w-100 justify-content-between">
+                        <h5 class="mb-1">{{ n.title }}</h5>
+                        <small class="text-muted">{{ n.created_at[:19] if n.created_at else '' }}</small>
                     </div>
-                    {% if not n.is_read %}
-                    <a href="{{ url_for('mark_notification_read_route', notification_id=n.id) }}" class="btn btn-sm btn-outline-success">Mark Read</a>
+                    <p class="mb-1">{{ n.message }}</p>
+                    {% if n.link %}
+                        <a href="{{ n.link }}" class="card-link">View Details →</a>
                     {% endif %}
                 </div>
-            </div>
             {% endfor %}
         </div>
-        {% else %}
-        <div class="alert alert-success">
-            <i class="fas fa-check-circle"></i> No notifications to display.
+    {% else %}
+        <div class="alert alert-info">
+            No notifications found.
         </div>
-        {% endif %}
-    </div>
+    {% endif %}
 </div>
 {% endblock %}
