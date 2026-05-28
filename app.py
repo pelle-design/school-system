@@ -3179,7 +3179,7 @@ def bursar_staff():
     total_deductions = 0
     total_net = 0
     
-   for s in staff_list:
+    for s in staff:
         gross = (s['salary_basic'] or 0) + (s['salary_allowances'] or 0)
         nssf = (gross * nssf_rate) / 100
         taxable = max(0, gross - paye_threshold)
@@ -3257,9 +3257,11 @@ def bursar_generate_payroll():
         db = get_db_dict()
         cur = db.cursor()
         
+        # Get rates from school settings
         cur.execute("SELECT nssf_employee_rate, paye_rate, paye_threshold FROM school_settings WHERE id=1")
         rates = cur.fetchone()
         
+        # Safe extraction - works for both tuple and dictionary
         if rates:
             if isinstance(rates, dict):
                 nssf_rate = rates.get('nssf_employee_rate', 5.0)
@@ -3274,6 +3276,7 @@ def bursar_generate_payroll():
             paye_rate = 10.0
             paye_threshold = 235000
         
+        # Get selected staff with bank details
         placeholders = ','.join(['?'] * len(selected_staff))
         cur.execute(f"""
             SELECT id, full_name, position, salary_basic, salary_allowances, 
@@ -3296,6 +3299,7 @@ def bursar_generate_payroll():
         approval_code = generate_approval_code()
         token, expires_at = generate_secure_token(2)
         
+        # FIXED: Added approval_status column
         cur.execute("""
             INSERT INTO payroll (
                 payroll_no, month_year, total_amount, approval_code, 
@@ -3342,9 +3346,11 @@ def bursar_generate_payroll():
         flash(f'Payroll {payroll_no} created. Approval link sent to Headteacher.', 'success')
         return redirect(url_for('bursar_payroll_list'))
     
+    # GET request - FIXED: Get rates and bank details
     db = get_db_dict()
     cur = db.cursor()
     
+    # Get rates from school settings to pass to template
     cur.execute("SELECT nssf_employee_rate, paye_rate, paye_threshold FROM school_settings WHERE id=1")
     rates = cur.fetchone()
     
@@ -3362,6 +3368,7 @@ def bursar_generate_payroll():
         paye_rate = 10.0
         paye_threshold = 235000
     
+    # Get staff list with bank details (not SELECT *)
     cur.execute("""
         SELECT id, full_name, position, salary_basic, salary_allowances, 
                salary_deductions, bank_name, bank_account, phone 
