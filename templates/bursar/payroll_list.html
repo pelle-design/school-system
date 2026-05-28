@@ -67,6 +67,11 @@
                                 {% endif %}
                             </div>
                         </td>
+                        <td>
+                            <a href="{{ url_for('bursar_print_payroll', payroll_id=p.id) }}" class="btn btn-sm btn-info" target="_blank">
+                                <i class="fas fa-print"></i> Print
+                            </a>
+                        </td>
                     </tr>
                     {% else %}
                     <tr>
