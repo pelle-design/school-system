@@ -3179,25 +3179,26 @@ def bursar_staff():
     total_deductions = 0
     total_net = 0
     
-    for s in staff:
-        gross = s['salary_basic'] + (s['salary_allowances'] or 0)
+   for s in staff_list:
+        gross = (s['salary_basic'] or 0) + (s['salary_allowances'] or 0)
         nssf = (gross * nssf_rate) / 100
         taxable = max(0, gross - paye_threshold)
         paye = (taxable * paye_rate) / 100
         net = gross - nssf - paye - (s['salary_deductions'] or 0)
         
-        s['gross'] = gross or 0
-        s['nssf'] = round(nssf, 2) if nssf else 0
-        s['paye'] = round(paye, 2) if paye else 0
-        s['net'] = net or 0
+        s['gross'] = float(gross)
+        s['nssf'] = float(round(nssf, 2))
+        s['paye'] = float(round(paye, 2))
+        s['net'] = float(round(net, 2))
+        s['salary_net'] = float(round(net, 2))
         
-        total_basic += s['salary_basic']
-        total_allowances += (s['salary_allowances'] or 0)
-        total_gross += gross
-        total_nssf += nssf
-        total_paye += paye
-        total_deductions += (s['salary_deductions'] or 0)
-        total_net += net
+        total_basic += float(s['salary_basic'] or 0)
+        total_allowances += float(s['salary_allowances'] or 0)
+        total_gross += float(gross)
+        total_nssf += float(nssf)
+        total_paye += float(paye)
+        total_deductions += float(s['salary_deductions'] or 0)
+        total_net += float(net)
     
     cur.close()
     
