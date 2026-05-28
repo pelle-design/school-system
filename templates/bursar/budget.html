@@ -28,26 +28,26 @@
                     </tr>
                 </thead>
                 <tbody>
-                    {% for item in summary %}
+                    {% for item in categories %}
                     <tr>
                         <td>{{ item.code }}</td>
                         <td>{{ item.name }}</td>
-                        <td>{{ item.allocated_amount|round(2) }}</td>
-                        <td>{{ item.spent|default(0)|round(2) }}</td>
-                        <td class="{% if (item.allocated_amount - (item.spent|default(0))) < 0 %}text-danger{% else %}text-success{% endif %}">
-                            {{ (item.allocated_amount - (item.spent|default(0)))|round(2) }}
+                        <td>{{ "{:,.2f}".format(item.allocated_amount or 0) }}</td>
+                        <td>{{ "{:,.2f}".format(item.spent or 0) }}</td>
+                        <td class="{% if ((item.allocated_amount or 0) - (item.spent or 0)) < 0 %}text-danger{% else %}text-success{% endif %}">
+                            {{ "{:,.2f}".format((item.allocated_amount or 0) - (item.spent or 0)) }}
                         </td>
                         <td style="width: 200px;">
-                            {% if item.allocated_amount > 0 %}
-                                {% set percent = (item.spent|default(0) / item.allocated_amount * 100) %}
+                            {% if item.allocated_amount and item.allocated_amount > 0 %}
+                                {% set percent = ((item.spent or 0) / item.allocated_amount * 100) %}
                                 <div class="progress">
                                     <div class="progress-bar 
                                         {% if percent > 90 %}bg-danger
                                         {% elif percent > 70 %}bg-warning
                                         {% else %}bg-success
                                         {% endif %}" 
-                                        style='width: {{ percent }}%;'>
-                                        {{ percent|round(1) }}%
+                                        style="width: {{ percent }}%;">
+                                        {{ "%.1f"|format(percent) }}%
                                     </div>
                                 </div>
                             {% else %}
