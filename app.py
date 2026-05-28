@@ -3573,10 +3573,10 @@ def headteacher_approvals():
     db = get_db_dict()
     cur = db.cursor()
     cur.execute("""
-        SELECT id, payroll_no, month_year, total_amount, status, 
+        SELECT id, payroll_no, month_year, total_amount, approval_status, 
                approval_code, created_at, recorded_by
         FROM payroll 
-        WHERE status = 'pending' 
+        WHERE approval_status = 'pending' 
         ORDER BY created_at DESC
     """)
     pending = cur.fetchall()
