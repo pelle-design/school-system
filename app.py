@@ -40,33 +40,22 @@ def get_db():
         db = g._database = sqlite3.connect(DATABASE)
         db.row_factory = sqlite3.Row
     return db
-    
-# Add this after creating your Flask app
+
 @app.template_filter('format_date')
-def format_date(date_value):
-    """Format date from various formats to YYYY-MM-DD"""
-    if not date_value:
+def format_date(value):
+    if not value:
         return '-'
-    
-    # If it's already a datetime object
-    if hasattr(date_value, 'strftime'):
-        return date_value.strftime('%Y-%m-%d')
-    
-    # If it's a string
-    if isinstance(date_value, str):
-        # Try to parse common formats
-        for fmt in ['%Y-%m-%d %H:%M:%S', '%Y-%m-%d', '%Y/%m/%d', '%d/%m/%Y']:
-            try:
-                dt = datetime.strptime(date_value, fmt)
-                return dt.strftime('%Y-%m-%d')
-            except ValueError:
-                continue
-        # If parsing fails, return first 10 characters if it looks like a date
-        if len(date_value) >= 10 and date_value[4] == '-' and date_value[7] == '-':
-            return date_value[:10]
-    
-    # If all else fails, return string representation
-    return str(date_value)[:10]
+    if hasattr(value, 'strftime'):
+        return value.strftime('%Y-%m-%d')
+    return str(value)[:10] if len(str(value)) >= 10 else str(value)
+
+@app.template_filter('format_datetime')
+def format_datetime(value):
+    if not value:
+        return '-'
+    if hasattr(value, 'strftime'):
+        return value.strftime('%Y-%m-%d %H:%M')
+    return str(value)[:16] if len(str(value)) >= 16 else str(value)
 
 @app.teardown_appcontext
 def close_connection(exception):
@@ -677,7 +666,6 @@ def add_security_headers(response):
     response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
     return response
 
-
 def validate_input(text, max_length=500, allow_html=False):
     """Validate and sanitize user input"""
     if not text:
@@ -873,20 +861,39 @@ def validate_and_format_phone(phone):
         return f'+{digits}'
     return None
 
-def generate_unique_number(prefix, table, column, year_format=True):
-    year = datetime.now().strftime("%Y%m") if year_format else ""
-    db = get_db()
+def generate_unique_number(prefix, table_name, column_name, year_format=False):
+    db = get_db_dict()
     cur = db.cursor()
-    cur.execute(f"SELECT {column} FROM {table} WHERE {column} LIKE ? ORDER BY {column} DESC LIMIT 1", 
-                (f'{prefix}-{year}-%' if year_format else f'{prefix}-%',))
+    cur.execute(f"SELECT {column_name} FROM {table_name} ORDER BY id DESC LIMIT 1")
     last = cur.fetchone()
     cur.close()
-    if last:
-        last_num = int(last[0].split('-')[-1])
-        new_num = last_num + 1
+    
+    if year_format:
+        current_year = datetime.now().year
+        if last:
+            last_value = last[column_name] if isinstance(last, dict) else last[0]
+            if last_value and str(current_year) in str(last_value):
+                try:
+                    last_num = int(str(last_value).split('-')[-1])
+                    new_num = last_num + 1
+                except:
+                    new_num = 1
+            else:
+                new_num = 1
+        else:
+            new_num = 1
+        return f"{prefix}-{current_year}-{new_num:04d}"
     else:
-        new_num = 1
-    return f"{prefix}-{year}-{new_num:04d}" if year_format else f"{prefix}-{new_num:04d}"
+        if last:
+            last_value = last[column_name] if isinstance(last, dict) else last[0]
+            try:
+                last_num = int(str(last_value).split('-')[-1])
+                new_num = last_num + 1
+            except:
+                new_num = 1
+        else:
+            new_num = 1
+        return f"{prefix}-{new_num:04d}"
 
 def generate_approval_code():
     return ''.join(random.choices('0123456789', k=6))
@@ -1005,12 +1012,6 @@ def get_user_classes(user_id=None, assignment_type=None):
     classes = [row[0] for row in cur.fetchall()]
     cur.close()
     return classes
-
-def assign_user_to_class(user_id, class_name, subject=None, assignment_type='subject_teacher'):
-    execute_db("""INSERT INTO teacher_class_assignments (user_id, class_name, subject, assignment_type, assigned_by)
-                   VALUES (?, ?, ?, ?, ?) ON CONFLICT(user_id, class_name, subject, assignment_type) 
-                   DO UPDATE SET subject = excluded.subject, assigned_by = excluded.assigned_by""",
-               (user_id, class_name, subject, assignment_type, session.get('username', 'admin')))
 
 # ==================== MARKS PROCESSING ====================
 def process_marks_upload(file, subject, term, year, assigned_class, teacher_id, level='olevel', is_subsidiary=False):
@@ -2092,6 +2093,7 @@ def dos_alevel_grading():
     rules = cur.fetchall()
     cur.close()
     return render_template('dos/alevel_grading.html', rules=rules)
+    
 @app.route('/dos/predefined_comments')
 def dos_predefined_comments():
     if not check_permission(['dos']):
@@ -2226,56 +2228,153 @@ def dos_upload_teachers():
             errors = []
             
             for row_idx in range(2, sheet.max_row + 1):
-                username = str(sheet.cell(row=row_idx, column=col_map['username'] + 1).value or '').strip()
-                full_name = str(sheet.cell(row=row_idx, column=col_map['full_name'] + 1).value or '').strip()
-                class_name = str(sheet.cell(row=row_idx, column=col_map['class_name'] + 1).value or '').strip()
-                assignment_type = str(sheet.cell(row=row_idx, column=col_map['assignment_type'] + 1).value or '').strip().lower()
-                subject = str(sheet.cell(row=row_idx, column=col_map.get('subject', 999) + 1).value or '').strip() if 'subject' in col_map else None
-                
-                if not username or not class_name or not assignment_type:
-                    continue
-                
-                # Check if user exists, if not create
-                cur.execute("SELECT id FROM users WHERE username=?", (username,))
-                user = cur.fetchone()
-                
-                if not user:
-                    # Create user with default password
-                    from werkzeug.security import generate_password_hash
-                    hashed = generate_password_hash('password123')
-                    cur.execute("INSERT INTO users (username, full_name, password, role, status) VALUES (?, ?, ?, ?, 1)",
-                               (username, full_name or username, hashed, 'subject_teacher' if assignment_type == 'subject_teacher' else 'classteacher'))
-                    user_id = cur.lastrowid
-                else:
-                    user_id = user['id']
-                    # Update full_name if provided
-                    if full_name:
-                        cur.execute("UPDATE users SET full_name=? WHERE id=?", (full_name, user_id))
-                
-                # For class teacher, check if class already has one
-                if assignment_type == 'classteacher':
-                    cur.execute("SELECT id FROM teacher_class_assignments WHERE class_name=? AND assignment_type='classteacher'", (class_name,))
-                    if cur.fetchone():
-                        errors.append(f"Class {class_name} already has a class teacher! Skipped {username}")
+                try:
+                    username = str(sheet.cell(row=row_idx, column=col_map['username'] + 1).value or '').strip()
+                    full_name = str(sheet.cell(row=row_idx, column=col_map['full_name'] + 1).value or '').strip()
+                    class_name = str(sheet.cell(row=row_idx, column=col_map['class_name'] + 1).value or '').strip()
+                    assignment_type = str(sheet.cell(row=row_idx, column=col_map['assignment_type'] + 1).value or '').strip().lower()
+                    subject = str(sheet.cell(row=row_idx, column=col_map.get('subject', 999) + 1).value or '').strip() if 'subject' in col_map else None
+                    
+                    if not username or not class_name or not assignment_type:
+                        errors.append(f"Row {row_idx}: Missing username, class_name, or assignment_type")
                         continue
-                
-                # Assign teacher to class
-                assign_user_to_class(user_id, class_name, subject, assignment_type)
-                success += 1
+                    
+                    # Validate assignment_type
+                    if assignment_type not in ['classteacher', 'subject_teacher']:
+                        errors.append(f"Row {row_idx}: Invalid assignment_type '{assignment_type}'. Must be 'classteacher' or 'subject_teacher'")
+                        continue
+                    
+                    # For subject_teacher, subject is required
+                    if assignment_type == 'subject_teacher' and not subject:
+                        errors.append(f"Row {row_idx}: Subject is required for subject_teacher")
+                        continue
+                    
+                    # Check if user exists, if not create
+                    cur.execute("SELECT id, full_name FROM users WHERE username=?", (username,))
+                    user = cur.fetchone()
+                    
+                    if not user:
+                        # Create user with default password
+                        hashed = generate_password_hash('password123')
+                        cur.execute("""
+                            INSERT INTO users (username, full_name, password, role, status) 
+                            VALUES (?, ?, ?, ?, 1)
+                        """, (username, full_name or username, hashed, 
+                              'subject_teacher' if assignment_type == 'subject_teacher' else 'classteacher'))
+                        user_id = cur.lastrowid
+                        success += 1
+                    else:
+                        user_id = user['id']
+                        # Update full_name if provided and different
+                        if full_name and full_name != user['full_name']:
+                            cur.execute("UPDATE users SET full_name=? WHERE id=?", (full_name, user_id))
+                        success += 1
+                    
+                    # For class teacher, check if class already has one
+                    if assignment_type == 'classteacher':
+                        cur.execute("""
+                            SELECT id FROM teacher_class_assignments 
+                            WHERE class_name=? AND assignment_type='classteacher'
+                        """, (class_name,))
+                        existing_class_teacher = cur.fetchone()
+                        
+                        if existing_class_teacher:
+                            errors.append(f"Row {row_idx}: Class '{class_name}' already has a class teacher! Skipped {username}")
+                            continue
+                    
+                    # Check if this specific assignment already exists
+                    cur.execute("""
+                        SELECT id FROM teacher_class_assignments 
+                        WHERE user_id=? AND class_name=? AND assignment_type=?
+                    """, (user_id, class_name, assignment_type))
+                    existing_assignment = cur.fetchone()
+                    
+                    if existing_assignment:
+                        # Update existing assignment
+                        if assignment_type == 'subject_teacher' and subject:
+                            cur.execute("""
+                                UPDATE teacher_class_assignments 
+                                SET subject=?, assigned_by=?, assigned_at=CURRENT_TIMESTAMP
+                                WHERE id=?
+                            """, (subject, session.get('username'), existing_assignment['id']))
+                            errors.append(f"Row {row_idx}: Updated existing assignment for {username} - {class_name} ({assignment_type})")
+                        else:
+                            errors.append(f"Row {row_idx}: Assignment already exists for {username} - {class_name} ({assignment_type})")
+                    else:
+                        # Insert new assignment
+                        cur.execute("""
+                            INSERT INTO teacher_class_assignments 
+                            (user_id, class_name, subject, assignment_type, assigned_by)
+                            VALUES (?, ?, ?, ?, ?)
+                        """, (user_id, class_name, subject, assignment_type, session.get('username')))
+                    
+                except Exception as e:
+                    errors.append(f"Row {row_idx}: {str(e)}")
+                    app.logger.error(f"Error in row {row_idx}: {str(e)}")
+                    continue
             
             db.commit()
             cur.close()
-            flash(f'{success} assignments uploaded. Errors: {len(errors)}', 'success' if success else 'warning')
+            
+            flash(f'{success} teachers processed. {len(errors)} issues found.', 
+                  'success' if success > 0 else 'warning')
             if errors:
-                for e in errors[:5]:
+                for e in errors[:10]:  # Show first 10 errors
                     flash(e, 'warning')
                     
         except Exception as e:
-            flash(f'Error: {str(e)}', 'danger')
+            app.logger.error(f"Upload error: {str(e)}")
+            flash(f'Error uploading file: {str(e)}', 'danger')
         
         return redirect(url_for('dos_teacher_assignments'))
     
     return render_template('dos/upload_teachers.html')
+
+
+def assign_user_to_class(user_id, class_name, subject=None, assignment_type='subject_teacher'):
+    """Helper function to assign a teacher to a class with proper conflict handling"""
+    try:
+        db = get_db_dict()
+        cur = db.cursor()
+        
+        # Check if assignment already exists
+        cur.execute("""
+            SELECT id FROM teacher_class_assignments 
+            WHERE user_id=? AND class_name=? AND assignment_type=?
+        """, (user_id, class_name, assignment_type))
+        
+        existing = cur.fetchone()
+        
+        if existing:
+            # Update existing assignment
+            if assignment_type == 'subject_teacher':
+                cur.execute("""
+                    UPDATE teacher_class_assignments 
+                    SET subject=?, assigned_at=CURRENT_TIMESTAMP
+                    WHERE id=?
+                """, (subject, existing['id']))
+            else:
+                # For classteacher, just update timestamp
+                cur.execute("""
+                    UPDATE teacher_class_assignments 
+                    SET assigned_at=CURRENT_TIMESTAMP
+                    WHERE id=?
+                """, (existing['id'],))
+        else:
+            # Insert new assignment
+            cur.execute("""
+                INSERT INTO teacher_class_assignments 
+                (user_id, class_name, subject, assignment_type, assigned_by)
+                VALUES (?, ?, ?, ?, ?)
+            """, (user_id, class_name, subject, assignment_type, session.get('username')))
+        
+        db.commit()
+        cur.close()
+        return True
+        
+    except Exception as e:
+        app.logger.error(f"Error in assign_user_to_class: {str(e)}")
+        return False
 
 @app.route('/dos/teacher_assignments')
 def dos_teacher_assignments():
@@ -3469,12 +3568,19 @@ def bursar_school_pay_config():
 def headteacher_approvals():
     if not check_permission(['headteacher']):
         abort(403)
+    
     db = get_db_dict()
     cur = db.cursor()
-    cur.execute("""SELECT p.*, COUNT(sp.id) as staff_count FROM payroll p LEFT JOIN salary_payments sp ON p.id = sp.payroll_id 
-                   WHERE p.approval_status = 'pending' GROUP BY p.id ORDER BY p.created_at DESC""")
+    cur.execute("""
+        SELECT id, payroll_no, month_year, total_amount, status, 
+               approval_code, created_at, recorded_by
+        FROM payroll 
+        WHERE status = 'pending' 
+        ORDER BY created_at DESC
+    """)
     pending = cur.fetchall()
     cur.close()
+    
     return render_template('headteacher/approvals.html', pending=pending)
 
 @app.route('/headteacher/approval/<token>', methods=['GET', 'POST'])
@@ -3626,28 +3732,15 @@ def headteacher_view_payroll(payroll_id):
 def headteacher_students():
     if not check_permission(['headteacher']):
         abort(403)
-    search = request.args.get('search', '')
-    class_filter = request.args.get('class', '')
+    
     db = get_db_dict()
     cur = db.cursor()
-    query = "SELECT student_id, full_name, class, photo_path FROM students WHERE 1=1"
-    params = []
-    if search:
-        query += " AND (student_id LIKE ? OR full_name LIKE ?)"
-        pattern = f"%{search}%"
-        params.extend([pattern, pattern])
-    if class_filter:
-        query += " AND class = ?"
-        params.append(class_filter)
-    query += " ORDER BY class, full_name"
-    cur.execute(query, params)
-    students = cur.fetchall()
-    for s in students:
-        s['photo_url'] = get_photo_url(s.get('photo_path'))
-    cur.execute("SELECT DISTINCT class FROM students WHERE class IS NOT NULL ORDER BY class")
-    classes = [row[0] for row in cur.fetchall()]
+    cur.execute("SELECT DISTINCT class_name FROM students ORDER BY class_name")
+    rows = cur.fetchall()
+    classes = [row['class_name'] for row in rows if row['class_name']]
     cur.close()
-    return render_template('headteacher/students.html', students=students, classes=classes, search=search, class_filter=class_filter)
+    
+    return render_template('headteacher/students.html', classes=classes)
 
 @app.route('/headteacher/update_comment', methods=['POST'])
 def headteacher_update_comment():
