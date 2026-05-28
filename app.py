@@ -2432,6 +2432,47 @@ def dos_delete_assignment(assignment_id):
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
 
+@app.route('/dos/edit_assignment/<int:assignment_id>', methods=['GET', 'POST'])
+def dos_edit_assignment(assignment_id):
+    if not check_permission(['dos']):
+        abort(403)
+    
+    db = get_db_dict()
+    cur = db.cursor()
+    
+    if request.method == 'POST':
+        class_name = request.form.get('class_name')
+        subject = request.form.get('subject')
+        assignment_type = request.form.get('assignment_type')
+        
+        cur.execute("""
+            UPDATE teacher_class_assignments 
+            SET class_name=?, subject=?, assignment_type=?, assigned_by=?
+            WHERE id=?
+        """, (class_name, subject, assignment_type, session.get('username'), assignment_id))
+        db.commit()
+        cur.close()
+        flash('Assignment updated successfully!', 'success')
+        return redirect(url_for('dos_teacher_assignments'))
+    
+    # GET request - show edit form
+    cur.execute("""
+        SELECT tca.*, u.username, u.full_name 
+        FROM teacher_class_assignments tca
+        JOIN users u ON tca.user_id = u.id
+        WHERE tca.id = ?
+    """, (assignment_id,))
+    assignment = cur.fetchone()
+    cur.close()
+    
+    # Get all classes for dropdown
+    cur = db.cursor()
+    cur.execute("SELECT DISTINCT class FROM students ORDER BY class")
+    classes = cur.fetchall()
+    cur.close()
+    
+    return render_template('dos/edit_assignment.html', assignment=assignment, classes=classes)
+
 @app.route('/dos/report_card/<student_id>')
 def dos_report_card(student_id):
     if not check_permission(['dos']):
