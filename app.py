@@ -3534,7 +3534,7 @@ def bursar_print_payroll():
         staff['gross'] = gross
         staff['nssf'] = round(nssf, 2)
         staff['paye'] = round(paye, 2)
-        staff['net'] = round(net, 2)
+        staff['salary_net'] = round(net, 2)
         
         total_basic += (staff['salary_basic'] or 0)
         total_allowances += (staff['salary_allowances'] or 0)
