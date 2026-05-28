@@ -924,34 +924,88 @@ def calculate_age(birth_date):
 
 
 # ==================== NOTIFICATION FUNCTIONS ====================
-def add_notification(user_role, message, link=None):
+def add_notification(user_role, message, link=None, title=None):
     """Add a notification for a specific user role"""
-    execute_db("INSERT INTO notifications (user_role, message, link, is_read, created_at) VALUES (?, ?, ?, 0, ?)",
-               (user_role, message, link, datetime.now()))
+    if title is None:
+        title = "New Notification"
+    
+    execute_db("""
+        INSERT INTO notifications (user_role, title, message, link, is_read, created_at) 
+        VALUES (?, ?, ?, ?, 0, ?)
+    """, (user_role, title, message, link, datetime.now()))
 
-def get_notification_count(user_role):
-    """Get count of unread notifications for a user role"""
-    db = get_db()  # regular cursor, not dict
-    cur = db.cursor()
-    cur.execute("SELECT COUNT(*) FROM notifications WHERE user_role = ? AND is_read = 0", (user_role,))
-    result = cur.fetchone()
-    cur.close()
-    return result[0] if result else 0
+# ==================== NOTIFICATION API ENDPOINTS ====================
 
-def get_notifications(user_role, limit=10):
-    """Get unread notifications for a user role"""
-    db = get_db_dict()  # dict cursor for row access
+@app.route('/get_notifications')
+def get_notifications():
+    """API endpoint for fetching notifications (called by JavaScript)"""
+    if not session.get('user_id'):
+        return jsonify([])
+    
+    # Get user role from session
+    user_role = session.get('role')
+    
+    db = get_db_dict()
     cur = db.cursor()
-    cur.execute("SELECT * FROM notifications WHERE user_role = ? AND is_read = 0 ORDER BY created_at DESC LIMIT ?", (user_role, limit))
+    
+    # Fetch notifications for this user role
+    cur.execute("""
+        SELECT id, title, message, link, is_read, created_at 
+        FROM notifications 
+        WHERE user_role = ? 
+        ORDER BY created_at DESC 
+        LIMIT 30
+    """, (user_role,))
+    
     notifications = cur.fetchall()
     cur.close()
-    return notifications if notifications else []
+    
+    # Convert to list of dicts for JSON
+    result = []
+    for n in notifications:
+        result.append({
+            'id': n['id'],
+            'title': n.get('title', 'Notification'),
+            'message': n['message'],
+            'link': n.get('link', ''),
+            'is_read': n['is_read'],
+            'created_at': n['created_at'][:19] if n['created_at'] else ''
+        })
+    
+    return jsonify(result)
 
-def mark_notification_read(notification_id):
-    execute_db("UPDATE notifications SET is_read = 1 WHERE id = ?", (notification_id,))
+
+@app.route('/mark_notifications_read', methods=['POST'])
+def mark_notifications_read():
+    """API endpoint for marking all notifications as read"""
+    if not session.get('user_id'):
+        return jsonify({'error': 'Not logged in'})
+    
+    user_role = session.get('role')
+    
+    try:
+        execute_db("UPDATE notifications SET is_read = 1 WHERE user_role = ?", (user_role,))
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+
+@app.route('/mark_single_notification_read/<int:notification_id>', methods=['POST'])
+def mark_single_notification_read(notification_id):
+    """API endpoint for marking a single notification as read"""
+    if not session.get('user_id'):
+        return jsonify({'error': 'Not logged in'})
+    
+    try:
+        mark_notification_read(notification_id)
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
 
 def mark_all_notifications_read(user_role):
     execute_db("UPDATE notifications SET is_read = 1 WHERE user_role = ?", (user_role,))
+
+
 
 # ==================== GRADING HELPERS ====================
 def get_grade_and_descriptor(score):
