@@ -2267,18 +2267,27 @@ def dos_upload_teachers():
                         continue
                     
                     # Check if user exists, if not create
-                    cur.execute("SELECT id, full_name, role FROM users WHERE username=?", (username,))
+                    cur.execute("SELECT id, full_name FROM users WHERE username=?", (username,))
                     user = cur.fetchone()
                     
                     if not user:
                         # Create user with default password
-                        hashed = generate_password_hash('password123')
+                        default_password = 'password123'
+                        hashed = generate_password_hash(default_password)
                         cur.execute("""
                             INSERT INTO users (username, full_name, password, role, status) 
                             VALUES (?, ?, ?, ?, 1)
                         """, (username, full_name or username, hashed, 
                               'subject_teacher' if assignment_type == 'subject_teacher' else 'classteacher'))
                         user_id = cur.lastrowid
+                        
+                        # Add notification to DOS only (not to teacher)
+                        add_notification(
+                            'dos',  # Send to DOS role
+                            f"New teacher created: {full_name or username}. Username: {username}, Password: {default_password}. Class: {class_name}, Type: {assignment_type}",
+                            f"/dos/teacher_assignments"
+                        )
+                        
                         success += 1
                     else:
                         user_id = user['id']
