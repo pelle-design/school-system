@@ -40,6 +40,33 @@ def get_db():
         db = g._database = sqlite3.connect(DATABASE)
         db.row_factory = sqlite3.Row
     return db
+    
+# Add this after creating your Flask app
+@app.template_filter('format_date')
+def format_date(date_value):
+    """Format date from various formats to YYYY-MM-DD"""
+    if not date_value:
+        return '-'
+    
+    # If it's already a datetime object
+    if hasattr(date_value, 'strftime'):
+        return date_value.strftime('%Y-%m-%d')
+    
+    # If it's a string
+    if isinstance(date_value, str):
+        # Try to parse common formats
+        for fmt in ['%Y-%m-%d %H:%M:%S', '%Y-%m-%d', '%Y/%m/%d', '%d/%m/%Y']:
+            try:
+                dt = datetime.strptime(date_value, fmt)
+                return dt.strftime('%Y-%m-%d')
+            except ValueError:
+                continue
+        # If parsing fails, return first 10 characters if it looks like a date
+        if len(date_value) >= 10 and date_value[4] == '-' and date_value[7] == '-':
+            return date_value[:10]
+    
+    # If all else fails, return string representation
+    return str(date_value)[:10]
 
 @app.teardown_appcontext
 def close_connection(exception):
