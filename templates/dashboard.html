@@ -1,286 +1,128 @@
 {% extends "base.html" %}
 {% block title %}Dashboard{% endblock %}
-
 {% block content %}
-{% if session.role == 'admin' %}
-    <!-- Admin Dashboard -->
-    <div class="card mb-4 p-3">
-        <form method="GET" class="row g-2">
-            <div class="col-md-8">
-                <input type="text" name="search" class="form-control" placeholder="Search username..." value="{{ search }}">
-            </div>
-            <div class="col-md-4">
-                <button type="submit" class="btn btn-primary w-100">Filter</button>
-            </div>
-        </form>
-    </div>
-    <div class="card">
-        <div class="card-header bg-primary text-white">User Management</div>
-        <div class="card-body p-0">
-            <div class="table-responsive">
-                <table class="table table-hover mb-0">
-                    <thead class="table-light">
-                        <tr>
-                            <th>ID</th>
-                            <th>Photo</th>
-                            <th>Username</th>
-                            <th>Role</th>
-                            <th>Phone</th>
-                            <th>Status</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for u in data.users %}
-                        <tr>
-                            <td>{{ u[0] }}</td>
-                            <td><img src="{{ url_for('uploaded_file', filename=u[5]) }}" width="40" class="rounded-circle"></td>
-                            <td>{{ u[1] }}</td>
-                            <td>{{ u[2] }}</td>
-                            <td>{{ u[3] or '-' }}</td>
-                            <td>{% if u[4] == 1 %}<span class="badge bg-success">Active</span>{% else %}<span class="badge bg-secondary">Inactive</span>{% endif %}</td>
-                            <td>
-                                <a href="{{ url_for('edit_user', user_id=u[0]) }}" class="btn btn-sm btn-info">Edit</a>
-                                <a href="{{ url_for('toggle_user', user_id=u[0]) }}" class="btn btn-sm btn-warning">Toggle</a>
-                                <a href="{{ url_for('delete_user', user_id=u[0]) }}" class="btn btn-sm btn-danger" onclick="return confirm('Delete?')">Delete</a>
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
+    {% if session.role == 'admin' %}
+        <!-- Admin Dashboard -->
+        <div class="card mb-4 p-3">
+            <form method="GET" class="row g-2">
+                <div class="col-md-8">
+                    <input type="text" name="search" class="form-control" placeholder="Search username..." value="{{ search }}">
+                </div>
+                <div class="col-md-4">
+                    <button type="submit" class="btn btn-primary w-100">Filter</button>
+                </div>
+            </form>
+        </div>
+        <div class="card">
+            <div class="card-header bg-primary text-white">User Management</div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>ID</th>
+                                <th>Photo</th>
+                                <th>Username</th>
+                                <th>Role</th>
+                                <th>Phone</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for u in data.users %}
+                            <tr>
+                                <td>{{ u[0] }}</td>
+                                <td><img src="{{ url_for('uploaded_file', filename=u[5]) }}" width="40" class="rounded-circle"></td>
+                                <td>{{ u[1] }}</td>
+                                <td>{{ u[2] }}</td>
+                                <td>{{ u[3] or '-' }}</td>
+                                <td>{% if u[4] == 1 %}<span class="badge bg-success">Active</span>{% else %}<span class="badge bg-secondary">Inactive</span>{% endif %}</td>
+                                <td>
+                                    <a href="{{ url_for('edit_user', user_id=u[0]) }}" class="btn btn-sm btn-info">Edit</a>
+                                    <a href="{{ url_for('toggle_user', user_id=u[0]) }}" class="btn btn-sm btn-warning">Toggle</a>
+                                    <a href="{{ url_for('delete_user', user_id=u[0]) }}" class="btn btn-sm btn-danger" onclick="return confirm('Delete?')">Delete</a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
-    </div>
-    {% if data.total_pages > 1 %}
-    <nav class="mt-4">
-        <ul class="pagination justify-content-center">
-            {% for p in range(1, data.total_pages+1) %}
-            <li class="page-item {% if p == data.current_page %}active{% endif %}">
-                <a class="page-link" href="{{ url_for('dashboard', page=p, search=search) }}">{{ p }}</a>
-            </li>
-            {% endfor %}
-        </ul>
-    </nav>
+        {% if data.total_pages > 1 %}
+        <nav class="mt-4">
+            <ul class="pagination justify-content-center">
+                {% for p in range(1, data.total_pages+1) %}
+                <li class="page-item {% if p == data.current_page %}active{% endif %}">
+                    <a class="page-link" href="{{ url_for('dashboard', page=p, search=search) }}">{{ p }}</a>
+                </li>
+                {% endfor %}
+            </ul>
+        </nav>
+        {% endif %}
+    {% elif session.role == 'bursar' %}
+        <!-- Bursar Dashboard -->
+        <div class="alert alert-info">
+            <i class="fas fa-coins"></i> 
+            <strong>Bursar Dashboard</strong><br>
+            Manage student fees, record payments, and send payment reminders to parents.
+        </div>
+    {% elif session.role == 'headteacher' %}
+        <!-- Headteacher Dashboard -->
+        <div class="alert alert-info">
+            <i class="fas fa-gavel"></i> 
+            <strong>Headteacher Dashboard</strong><br>
+            Review and approve payrolls, manage school settings.
+        </div>
+    {% elif session.role == 'management' %}
+        <!-- Management Dashboard -->
+        <div class="alert alert-info">
+            <i class="fas fa-building"></i> 
+            <strong>Management Dashboard</strong><br>
+            Authorize bank payments and oversee financial operations.
+        </div>
+    {% elif session.role == 'classteacher' %}
+        <!-- Class Teacher Dashboard -->
+        <div class="alert alert-info">
+            <i class="fas fa-chalkboard-teacher"></i> 
+            <strong>Class Teacher Dashboard</strong><br>
+            Manage your class, upload marks, and record attendance.
+        </div>
+    {% elif session.role == 'subject_teacher' %}
+        <!-- Subject Teacher Dashboard -->
+        <div class="alert alert-info">
+            <i class="fas fa-chalkboard-teacher"></i> 
+            <strong>Subject Teacher Dashboard</strong><br>
+            Upload marks and view student report cards.
+        </div>
+    {% elif session.role == 'parent' %}
+        <!-- Parent Dashboard -->
+        <div class="alert alert-info">
+            <i class="fas fa-child"></i> 
+            <strong>Parent Dashboard</strong><br>
+            View your children's progress and report cards.
+        </div>
+    {% elif session.role == 'dos' %}
+        <!-- DOS Dashboard -->
+        <div class="alert alert-info">
+            <i class="fas fa-graduation-cap"></i> 
+            <strong>Director of Studies Dashboard</strong><br>
+            Manage student admissions, class lists, promotions, and grading systems.
+        </div>
+    {% elif session.role == 'stores_keeper' %}
+        <!-- Stores Keeper Dashboard -->
+        <div class="alert alert-info">
+            <i class="fas fa-boxes"></i> 
+            <strong>Stores Keeper Dashboard</strong><br>
+            Manage inventory, track stock levels, and process item requests.
+        </div>
+    {% else %}
+        <!-- Default Dashboard -->
+        <div class="alert alert-info">
+            <i class="fas fa-info-circle"></i> 
+            <strong>Welcome to your Dashboard</strong><br>
+            Use the sidebar to navigate through the system.
+        </div>
     {% endif %}
-
-{% elif session.role == 'bursar' %}
-    <!-- Bursar Dashboard -->
-    <div class="row">
-        <div class="col-md-3">
-            <div class="card bg-primary text-white">
-                <div class="card-body">
-                    <h5>Total Fees Collected</h5>
-                    <h3>UGX {{ "{:,.2f}".format(total_fees|default(0)) }}</h3>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card bg-warning text-white">
-                <div class="card-body">
-                    <h5>Pending Payments</h5>
-                    <h3>{{ pending_payments|default(0) }}</h3>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card bg-success text-white">
-                <div class="card-body">
-                    <h5>Cleared Students</h5>
-                    <h3>{{ cleared_students|default(0) }}</h3>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card bg-info text-white">
-                <div class="card-body">
-                    <h5>Total Students</h5>
-                    <h3>{{ total_students|default(0) }}</h3>
-                </div>
-            </div>
-        </div>
-    </div>
-
-{% elif session.role == 'headteacher' %}
-    <!-- Headteacher Dashboard -->
-    <div class="row">
-        <div class="col-md-6">
-            <div class="card">
-                <div class="card-header bg-warning">Pending Approvals</div>
-                <div class="card-body">
-                    <h3>{{ pending_approvals|default(0) }}</h3>
-                    <a href="{{ url_for('headteacher_approvals') }}" class="btn btn-primary">Review</a>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-6">
-            <div class="card">
-                <div class="card-header bg-success">Approved Payrolls</div>
-                <div class="card-body">
-                    <h3>{{ approved_payrolls|default(0) }}</h3>
-                    <a href="{{ url_for('bursar_payroll_list') }}" class="btn btn-secondary">View All</a>
-                </div>
-            </div>
-        </div>
-    </div>
-
-{% elif session.role == 'dos' %}
-    <!-- DOS Dashboard - Minimal Stats Only -->
-    <div class="row mb-4">
-        <div class="col-md-3">
-            <div class="card bg-primary text-white">
-                <div class="card-body">
-                    <h5>Total Students</h5>
-                    <h3>{{ total_students|default(0) }}</h3>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card bg-success text-white">
-                <div class="card-body">
-                    <h5>Total Teachers</h5>
-                    <h3>{{ total_teachers|default(0) }}</h3>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card bg-warning text-white">
-                <div class="card-body">
-                    <h5>Total Classes</h5>
-                    <h3>{{ total_classes|default(0) }}</h3>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card bg-info text-white">
-                <div class="card-body">
-                    <h5>Subjects</h5>
-                    <h3>{{ total_subjects|default(0) }}</h3>
-                </div>
-            </div>
-        </div>
-    </div>
-
-{% elif session.role == 'classteacher' %}
-    <!-- Class Teacher Dashboard -->
-    <div class="row">
-        <div class="col-md-6">
-            <div class="card">
-                <div class="card-header bg-primary text-white">My Class</div>
-                <div class="card-body">
-                    <h5>Class: {{ my_class|default('Not assigned') }}</h5>
-                    <p>Students: {{ class_students|default(0) }}</p>
-                    <a href="{{ url_for('teacher_students') }}" class="btn btn-primary">View Class</a>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-6">
-            <div class="card">
-                <div class="card-header bg-success text-white">My Subjects</div>
-                <div class="card-body">
-                    <ul>
-                        {% for subject in my_subjects|default([]) %}
-                        <li>{{ subject }}</li>
-                        {% else %}
-                        <li>No subjects assigned</li>
-                        {% endfor %}
-                    </ul>
-                </div>
-            </div>
-        </div>
-    </div>
-
-{% elif session.role == 'subject_teacher' %}
-    <!-- Subject Teacher Dashboard -->
-    <div class="card">
-        <div class="card-header bg-primary text-white">My Subjects & Classes</div>
-        <div class="card-body">
-            <div class="table-responsive">
-                <table class="table">
-                    <thead>
-                        <tr>
-                            <th>Subject</th>
-                            <th>Class</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for assignment in my_assignments|default([]) %}
-                        <tr>
-                            <td>{{ assignment.subject }}</td
-                            <td>{{ assignment.class_name }}</td
-                            <td>
-                                <a href="{{ url_for('teacher_upload_marks', class_id=assignment.class_name, subject=assignment.subject) }}" class="btn btn-sm btn-primary">Upload Marks</a>
-                                <a href="{{ url_for('teacher_view_marks', class_id=assignment.class_name, subject=assignment.subject) }}" class="btn btn-sm btn-info">View Marks</a>
-                            </td
-                        </tr>
-                        {% else %}
-                        <tr>
-                            <td colspan="3" class="text-center">No subjects assigned</td
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </div>
-
-{% elif session.role == 'parent' %}
-    <!-- Parent Dashboard -->
-    <div class="row">
-        {% for child in children|default([]) %}
-        <div class="col-md-6">
-            <div class="card">
-                <div class="card-header bg-primary text-white">{{ child.full_name }}</div>
-                <div class="card-body">
-                    <p><strong>Student ID:</strong> {{ child.student_id }}</p>
-                    <p><strong>Class:</strong> {{ child.class }}</p>
-                    <p><strong>Fees Balance:</strong> UGX {{ "{:,.2f}".format(child.fees_balance|default(0)) }}</p>
-                    <a href="{{ url_for('parent_report_card', student_id=child.student_id) }}" class="btn btn-primary">View Report Card</a>
-                </div>
-            </div>
-        </div>
-        {% else %}
-        <div class="col-md-12">
-            <div class="alert alert-warning">No children linked to your account.</div>
-        </div>
-        {% endfor %}
-    </div>
-
-{% elif session.role == 'stores_keeper' %}
-    <!-- Stores Keeper Dashboard -->
-    <div class="row">
-        <div class="col-md-4">
-            <div class="card bg-primary text-white">
-                <div class="card-body">
-                    <h5>Low Stock Items</h5>
-                    <h3>{{ low_stock|default(0) }}</h3>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-4">
-            <div class="card bg-warning text-white">
-                <div class="card-body">
-                    <h5>Pending Requests</h5>
-                    <h3>{{ pending_requests|default(0) }}</h3>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-4">
-            <div class="card bg-success text-white">
-                <div class="card-body">
-                    <h5>Total Items</h5>
-                    <h3>{{ total_items|default(0) }}</h3>
-                </div>
-            </div>
-        </div>
-    </div>
-
-{% else %}
-    <!-- Default Dashboard -->
-    <div class="alert alert-info">
-        <i class="fas fa-info-circle"></i> 
-        <strong>Welcome to your Dashboard</strong><br>
-        Use the sidebar to navigate through the system.
-    </div>
-{% endif %}
 {% endblock %}
