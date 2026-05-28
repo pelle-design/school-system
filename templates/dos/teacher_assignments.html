@@ -36,6 +36,14 @@
                             {% endif %}
                         </td>
                         <td>{{ a.assigned_by or 'DOS' }}</td>
+                        <td>
+                            <button class="btn btn-sm btn-warning" onclick="editAssignment({{ a.id }})">
+                                <i class="fas fa-edit"></i> Edit
+                            </button>
+                            <button class="btn btn-sm btn-danger" onclick="deleteAssignment({{ a.id }})">
+                                <i class="fas fa-trash"></i> Delete
+                            </button>
+                        </td>
                     </tr>
                     {% else %}
                     <tr>
