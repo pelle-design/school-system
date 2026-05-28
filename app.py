@@ -3128,11 +3128,29 @@ def bursar_generate_payroll():
         
         db = get_db_dict()
         cur = db.cursor()
+        
+        # FIX: Handle different return types from fetchone()
         cur.execute("SELECT nssf_employee_rate, paye_rate, paye_threshold FROM school_settings WHERE id=1")
         rates = cur.fetchone()
-        nssf_rate = rates[0] if rates else 5.0
-        paye_rate = rates[1] if rates else 10.0
-        paye_threshold = rates[2] if rates else 235000
+        
+        # Debug: Log what we got
+        print(f"Rates type: {type(rates)}")
+        print(f"Rates content: {rates}")
+        
+        # Safe extraction - works for both tuple and dictionary
+        if rates:
+            if isinstance(rates, dict):
+                nssf_rate = rates.get('nssf_employee_rate', 5.0)
+                paye_rate = rates.get('paye_rate', 10.0)
+                paye_threshold = rates.get('paye_threshold', 235000)
+            else:  # Assume tuple or list
+                nssf_rate = rates[0] if len(rates) > 0 else 5.0
+                paye_rate = rates[1] if len(rates) > 1 else 10.0
+                paye_threshold = rates[2] if len(rates) > 2 else 235000
+        else:
+            nssf_rate = 5.0
+            paye_rate = 10.0
+            paye_threshold = 235000
         
         placeholders = ','.join(['?'] * len(selected_staff))
         cur.execute(f"SELECT * FROM staff WHERE id IN ({placeholders})", selected_staff)
