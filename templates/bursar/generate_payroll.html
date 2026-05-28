@@ -30,13 +30,22 @@
                                     <th>Bank</th>
                                     <th>Account Number</th>
                                     <th>Phone</th>
+                                    <th>Gross (UGX)</th>
+                                    <th>NSSF (UGX)</th>
+                                    <th>PAYE (UGX)</th>
                                     <th>Net Pay (UGX)</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {% for staff in staff_list %}
-                                {% set gross = staff.salary_basic|float + staff.salary_allowances|float %}
-                                {% set net = gross - staff.salary_deductions|float %}
+                                {% set basic = staff.salary_basic|float or 0 %}
+                                {% set allowances = staff.salary_allowances|float or 0 %}
+                                {% set deductions = staff.salary_deductions|float or 0 %}
+                                {% set gross = basic + allowances %}
+                                {% set nssf = (gross * (nssf_rate|float)) / 100 %}
+                                {% set taxable = [0, gross - (paye_threshold|float)]|max %}
+                                {% set paye = (taxable * (paye_rate|float)) / 100 %}
+                                {% set net = gross - nssf - paye - deductions %}
                                 <tr>
                                     <td>
                                         <input type="checkbox" class="form-check-input staff-checkbox" name="staff_ids" value="{{ staff.id }}">
@@ -46,7 +55,10 @@
                                     <td>{{ staff.bank_name or 'N/A' }}</td>
                                     <td>{{ staff.bank_account or 'N/A' }}</td>
                                     <td>{{ staff.phone or 'N/A' }}</td>
-                                    <td class="text-end fw-bold">UGX {{ "{:,.2f}".format(net) }}</td>
+                                    <td class="text-end">UGX {{ "{:,.2f}".format(gross) }}</td>
+                                    <td class="text-end">UGX {{ "{:,.2f}".format(nssf) }}</td>
+                                    <td class="text-end">UGX {{ "{:,.2f}".format(paye) }}</td>
+                                    <td class="text-end fw-bold bg-light">UGX {{ "{:,.2f}".format(net) }}</td>
                                 </tr>
                                 {% endfor %}
                             </tbody>
