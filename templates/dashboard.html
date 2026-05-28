@@ -2,26 +2,6 @@
 {% block title %}Dashboard{% endblock %}
 
 {% block content %}
-<!-- Common Notification Bar for All Users -->
-<div class="notification-bar no-print" style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 10px 15px; margin-bottom: 20px; border-radius: 5px;">
-    <div class="d-flex justify-content-between align-items-center">
-        <div>
-            <i class="fas fa-bell text-warning"></i>
-            <strong>Notifications:</strong>
-            <span id="notificationMessage">Loading...</span>
-        </div>
-        <div>
-            <span class="badge bg-danger" id="notificationCount">0</span>
-            <button onclick="toggleNotifications()" class="btn btn-sm btn-link">View All</button>
-            <button onclick="markAllRead()" class="btn btn-sm btn-link">Mark read</button>
-            <button onclick="refreshNotifications()" class="btn btn-sm btn-link"><i class="fas fa-sync-alt"></i></button>
-        </div>
-    </div>
-    <div id="notificationList" style="max-height: 200px; overflow-y: auto; display: none; margin-top: 10px; background: white; border-radius: 5px;">
-        <!-- Notifications will load here -->
-    </div>
-</div>
-
 <!-- Role-specific Dashboard Content -->
 {% if session.role == 'admin' %}
     <!-- Admin Dashboard -->
@@ -68,7 +48,7 @@
                         </tr>
                         {% endfor %}
                     </tbody>
-                </table>
+                <table>
             </div>
         </div>
     </div>
@@ -95,7 +75,6 @@
             </div>
         </div>
     </div>
-    <!-- Bursar Stats Cards -->
     <div class="row">
         <div class="col-md-3">
             <div class="card bg-primary text-white">
@@ -164,7 +143,7 @@
     </div>
 
 {% elif session.role == 'dos' %}
-    <!-- DOS Dashboard with Enhanced Features -->
+    <!-- DOS Dashboard -->
     <div class="row">
         <div class="col-md-12">
             <div class="alert alert-info">
@@ -174,8 +153,6 @@
             </div>
         </div>
     </div>
-    
-    <!-- DOS Stats Cards -->
     <div class="row mb-4">
         <div class="col-md-3">
             <div class="card bg-primary text-white">
@@ -210,8 +187,6 @@
             </div>
         </div>
     </div>
-    
-    <!-- DOS Quick Actions -->
     <div class="row">
         <div class="col-md-4">
             <div class="card">
@@ -252,7 +227,7 @@
                                 </tr>
                                 {% else %}
                                 <tr>
-                                    <td colspan="2">No recent activities</td
+                                    <td colspan="2" class="text-center">No recent activities</td>
                                 </tr>
                                 {% endfor %}
                             </tbody>
@@ -338,7 +313,7 @@
                                 </tr>
                                 {% else %}
                                 <tr>
-                                    <td colspan="3">No subjects assigned</td
+                                    <td colspan="3" class="text-center">No subjects assigned</td>
                                 </tr>
                                 {% endfor %}
                             </tbody>
@@ -426,52 +401,4 @@
         Use the sidebar to navigate through the system.
     </div>
 {% endif %}
-
-<!-- Common JavaScript for Notifications -->
-<script>
-function loadNotifications() {
-    fetch('/get_notifications')
-        .then(response => response.json())
-        .then(data => {
-            const unread = data.filter(n => !n.is_read);
-            document.getElementById('notificationCount').innerText = unread.length;
-            if (unread.length > 0) {
-                document.getElementById('notificationMessage').innerHTML = `You have ${unread.length} new notification(s)`;
-            } else {
-                document.getElementById('notificationMessage').innerHTML = 'No new notifications';
-            }
-            
-            const listHtml = data.slice(0, 10).map(n => `
-                <div class="notification-item ${!n.is_read ? 'bg-light' : ''}" style="padding: 10px; border-bottom: 1px solid #eee;">
-                    <strong>${n.title}</strong>
-                    <p style="margin: 5px 0; font-size: 13px;">${n.message}</p>
-                    <small class="text-muted">${n.created_at}</small>
-                </div>
-            `).join('');
-            document.getElementById('notificationList').innerHTML = listHtml || '<div class="text-muted p-3">No notifications</div>';
-        })
-        .catch(error => console.error('Error loading notifications:', error));
-}
-
-function toggleNotifications() {
-    const list = document.getElementById('notificationList');
-    if (list) {
-        list.style.display = list.style.display === 'none' ? 'block' : 'none';
-    }
-}
-
-function markAllRead() {
-    fetch('/mark_notifications_read', {method: 'POST'})
-        .then(response => response.json())
-        .then(() => loadNotifications());
-}
-
-function refreshNotifications() {
-    loadNotifications();
-}
-
-// Load notifications every 30 seconds
-setInterval(loadNotifications, 30000);
-loadNotifications();
-</script>
 {% endblock %}
