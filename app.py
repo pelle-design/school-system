@@ -3246,6 +3246,7 @@ def bursar_staff_add():
 def bursar_generate_payroll():
     if not check_permission(['bursar']):
         abort(403)
+    
     if request.method == 'POST':
         month_year = request.form['month_year']
         selected_staff = request.form.getlist('staff_ids')
@@ -3256,13 +3257,9 @@ def bursar_generate_payroll():
         db = get_db_dict()
         cur = db.cursor()
         
-        # FIX: Handle different return types from fetchone()
+        # Get rates from school settings
         cur.execute("SELECT nssf_employee_rate, paye_rate, paye_threshold FROM school_settings WHERE id=1")
         rates = cur.fetchone()
-        
-        # Debug: Log what we got
-        print(f"Rates type: {type(rates)}")
-        print(f"Rates content: {rates}")
         
         # Safe extraction - works for both tuple and dictionary
         if rates:
@@ -3270,7 +3267,7 @@ def bursar_generate_payroll():
                 nssf_rate = rates.get('nssf_employee_rate', 5.0)
                 paye_rate = rates.get('paye_rate', 10.0)
                 paye_threshold = rates.get('paye_threshold', 235000)
-            else:  # Assume tuple or list
+            else:
                 nssf_rate = rates[0] if len(rates) > 0 else 5.0
                 paye_rate = rates[1] if len(rates) > 1 else 10.0
                 paye_threshold = rates[2] if len(rates) > 2 else 235000
@@ -3279,13 +3276,19 @@ def bursar_generate_payroll():
             paye_rate = 10.0
             paye_threshold = 235000
         
+        # Get selected staff with bank details
         placeholders = ','.join(['?'] * len(selected_staff))
-        cur.execute(f"SELECT * FROM staff WHERE id IN ({placeholders})", selected_staff)
+        cur.execute(f"""
+            SELECT id, full_name, position, salary_basic, salary_allowances, 
+                   salary_deductions, bank_name, bank_account, phone 
+            FROM staff 
+            WHERE id IN ({placeholders})
+        """, selected_staff)
         staff_list = cur.fetchall()
         
         total_amount = 0
         for staff in staff_list:
-            gross = staff['salary_basic'] + (staff['salary_allowances'] or 0)
+            gross = (staff['salary_basic'] or 0) + (staff['salary_allowances'] or 0)
             nssf = (gross * nssf_rate) / 100
             taxable = max(0, gross - paye_threshold)
             paye = (taxable * paye_rate) / 100
@@ -3296,21 +3299,36 @@ def bursar_generate_payroll():
         approval_code = generate_approval_code()
         token, expires_at = generate_secure_token(2)
         
-        cur.execute("""INSERT INTO payroll (payroll_no, month_year, total_amount, approval_code, headteacher_access_token, token_expires_at, recorded_by)
-                       VALUES (?, ?, ?, ?, ?, ?, ?)""",
-                   (payroll_no, month_year, total_amount, approval_code, token, expires_at, session.get('username')))
+        # FIXED: Added approval_status column
+        cur.execute("""
+            INSERT INTO payroll (
+                payroll_no, month_year, total_amount, approval_code, 
+                headteacher_access_token, token_expires_at, recorded_by, approval_status
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """, (payroll_no, month_year, total_amount, approval_code, token, expires_at, 
+              session.get('username'), 'pending'))
         payroll_id = cur.lastrowid
         
         for staff in staff_list:
-            gross = staff['salary_basic'] + (staff['salary_allowances'] or 0)
+            gross = (staff['salary_basic'] or 0) + (staff['salary_allowances'] or 0)
             nssf = (gross * nssf_rate) / 100
             taxable = max(0, gross - paye_threshold)
             paye = (taxable * paye_rate) / 100
             net_salary = gross - nssf - paye - (staff['salary_deductions'] or 0)
-            cur.execute("""INSERT INTO salary_payments (staff_id, payroll_id, month_year, basic, allowances, deductions, gross_salary, nssf_employee, paye_tax, net_salary, approval_code, recorded_by)
-                           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                       (staff['id'], payroll_id, month_year, staff['salary_basic'], staff['salary_allowances'] or 0,
-                        staff['salary_deductions'] or 0, gross, nssf, paye, net_salary, approval_code, session.get('username')))
+            
+            cur.execute("""
+                INSERT INTO salary_payments (
+                    staff_id, payroll_id, month_year, basic, allowances, deductions, 
+                    gross_salary, nssf_employee, paye_tax, net_salary, approval_code, recorded_by
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                staff['id'], payroll_id, month_year, 
+                staff['salary_basic'] or 0, 
+                staff['salary_allowances'] or 0,
+                staff['salary_deductions'] or 0, 
+                gross, nssf, paye, net_salary, 
+                approval_code, session.get('username')
+            ))
         
         db.commit()
         cur.close()
@@ -3320,17 +3338,52 @@ def bursar_generate_payroll():
         cur.execute("SELECT phone FROM users WHERE role='headteacher' AND status=1 LIMIT 1")
         headteacher = cur.fetchone()
         cur.close()
+        
         if headteacher and headteacher[0]:
             send_sms(headteacher[0], f"PAYROLL APPROVAL NEEDED: {payroll_no} - UGX {total_amount:,.2f}. Code: {approval_code}. Link: {approval_link}")
+        
         add_notification('headteacher', f"Payroll {payroll_no} needs approval. Code: {approval_code}", f"/headteacher/approval/{token}")
         flash(f'Payroll {payroll_no} created. Approval link sent to Headteacher.', 'success')
         return redirect(url_for('bursar_payroll_list'))
     
-    cur = get_db().cursor()
-    cur.execute("SELECT * FROM staff WHERE status='active' ORDER BY full_name")
+    # GET request - FIXED: Get rates and bank details
+    db = get_db_dict()
+    cur = db.cursor()
+    
+    # Get rates from school settings to pass to template
+    cur.execute("SELECT nssf_employee_rate, paye_rate, paye_threshold FROM school_settings WHERE id=1")
+    rates = cur.fetchone()
+    
+    if rates:
+        if isinstance(rates, dict):
+            nssf_rate = rates.get('nssf_employee_rate', 5.0)
+            paye_rate = rates.get('paye_rate', 10.0)
+            paye_threshold = rates.get('paye_threshold', 235000)
+        else:
+            nssf_rate = rates[0] if len(rates) > 0 else 5.0
+            paye_rate = rates[1] if len(rates) > 1 else 10.0
+            paye_threshold = rates[2] if len(rates) > 2 else 235000
+    else:
+        nssf_rate = 5.0
+        paye_rate = 10.0
+        paye_threshold = 235000
+    
+    # Get staff list with bank details (not SELECT *)
+    cur.execute("""
+        SELECT id, full_name, position, salary_basic, salary_allowances, 
+               salary_deductions, bank_name, bank_account, phone 
+        FROM staff 
+        WHERE status='active' 
+        ORDER BY full_name
+    """)
     staff_list = cur.fetchall()
     cur.close()
-    return render_template('bursar/generate_payroll.html', staff_list=staff_list)
+    
+    return render_template('bursar/generate_payroll.html', 
+                         staff_list=staff_list,
+                         nssf_rate=nssf_rate,
+                         paye_rate=paye_rate,
+                         paye_threshold=paye_threshold)
 
 @app.route('/bursar/payroll/list')
 def bursar_payroll_list():
@@ -3736,12 +3789,32 @@ def headteacher_students():
     
     db = get_db_dict()
     cur = db.cursor()
-    cur.execute("SELECT DISTINCT class_name FROM students ORDER BY class_name")
-    rows = cur.fetchall()
-    classes = [row['class_name'] for row in rows if row['class_name']]
-    cur.close()
     
-    return render_template('headteacher/students.html', classes=classes)
+    # Use 'class' column (not 'class_name')
+    cur.execute("SELECT DISTINCT class FROM students WHERE class IS NOT NULL AND class != '' ORDER BY class")
+    rows = cur.fetchall()
+    
+    # Extract class names
+    classes = []
+    for row in rows:
+        if isinstance(row, dict):
+            classes.append(row['class'])
+        else:
+            classes.append(row[0])
+    
+    # Get students grouped by class
+    students_by_class = {}
+    for class_name in classes:
+        cur.execute("""
+            SELECT student_id, full_name, parent_phone, admission_status, fees_balance 
+            FROM students 
+            WHERE class = ? 
+            ORDER BY full_name
+        """, (class_name,))
+        students_by_class[class_name] = cur.fetchall()
+    
+    cur.close()
+    return render_template('headteacher/students.html', classes=classes, students_by_class=students_by_class)
 
 @app.route('/headteacher/update_comment', methods=['POST'])
 def headteacher_update_comment():
