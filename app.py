@@ -1009,13 +1009,16 @@ def get_user_assignments(user_id=None):
 def get_user_classes(user_id=None, assignment_type=None):
     if user_id is None:
         user_id = session.get('user_id')
-    cur = get_db().cursor()
+    db = get_db_dict()
+    cur = db.cursor()
     if assignment_type:
         cur.execute("SELECT DISTINCT class_name FROM teacher_class_assignments WHERE user_id = ? AND assignment_type = ? ORDER BY class_name", 
                     (user_id, assignment_type))
     else:
         cur.execute("SELECT DISTINCT class_name FROM teacher_class_assignments WHERE user_id = ? ORDER BY class_name", (user_id,))
-    classes = [row[0] for row in cur.fetchall()]
+    rows = cur.fetchall()
+    # Fix: Handle dictionary results
+    classes = [row['class_name'] if isinstance(row, dict) else row[0] for row in rows]
     cur.close()
     return classes
 
@@ -1408,16 +1411,26 @@ def add_user():
     phone = validate_and_format_phone(phone_raw) if phone_raw else None
     child_id = request.form.get('child_id', '').strip() or None
     
+    # Check if username already exists
+    db = get_db_dict()
+    cur = db.cursor()
+    cur.execute("SELECT id FROM users WHERE username = ?", (username,))
+    if cur.fetchone():
+        flash(f'Username "{username}" already exists! Please choose a different username.', 'danger')
+        cur.close()
+        return redirect(url_for('dashboard'))
+    
     # Check role limits
-    cur = get_db().cursor()
     cur.execute("SELECT max_count FROM role_limits WHERE role_name = ?", (role,))
     limit = cur.fetchone()
     
     if limit:
-        cur.execute("SELECT COUNT(*) FROM users WHERE role = ?", (role,))
-        count = cur.fetchone()[0]
-        if count >= limit[0]:
-            flash(f'Cannot add. Only {limit[0]} {role} allowed in the system.', 'danger')
+        limit_value = limit[0] if isinstance(limit, (list, tuple)) else limit.get('max_count', 0)
+        cur.execute("SELECT COUNT(*) as count FROM users WHERE role = ?", (role,))
+        count_result = cur.fetchone()
+        count = count_result[0] if isinstance(count_result, (list, tuple)) else count_result.get('count', 0)
+        if count >= limit_value:
+            flash(f'Cannot add. Only {limit_value} {role} allowed in the system.', 'danger')
             cur.close()
             return redirect(url_for('dashboard'))
     cur.close()
@@ -1930,8 +1943,6 @@ def dos_attendance():
     cur.close()
     return render_template('dos/attendance.html', classes=classes)
 
-
-
 @app.route('/dos/schedules', methods=['GET', 'POST'])
 def dos_schedules():
     if not check_permission(['dos']):
@@ -2256,7 +2267,7 @@ def dos_upload_teachers():
                         continue
                     
                     # Check if user exists, if not create
-                    cur.execute("SELECT id, full_name FROM users WHERE username=?", (username,))
+                    cur.execute("SELECT id, full_name, role FROM users WHERE username=?", (username,))
                     user = cur.fetchone()
                     
                     if not user:
@@ -2274,6 +2285,12 @@ def dos_upload_teachers():
                         # Update full_name if provided and different
                         if full_name and full_name != user['full_name']:
                             cur.execute("UPDATE users SET full_name=? WHERE id=?", (full_name, user_id))
+                        # Update role if needed (DOS uploads can't override admin roles)
+                        current_role = user['role'] if isinstance(user, dict) else user[2]
+                        if current_role not in ['admin', 'headteacher', 'bursar']:
+                            new_role = 'subject_teacher' if assignment_type == 'subject_teacher' else 'classteacher'
+                            if current_role != new_role:
+                                cur.execute("UPDATE users SET role=? WHERE id=?", (new_role, user_id))
                         success += 1
                     
                     # For class teacher, check if class already has one
