@@ -54,7 +54,7 @@
                                 <span class="badge bg-secondary status-badge">{{ p.approval_status }}</span>
                             {% endif %}
                         </td>
-                        <td>{{ p.created_at.strftime('%Y-%m-%d') if p.created_at else '-' }}</td>
+                        <td>{{ p.created_at|format_date }}</td>
                         <td>
                             <div class="btn-group btn-group-sm">
                                 <a href="{{ url_for('bursar_view_payroll', payroll_id=p.id) }}" class="btn btn-info" title="View Details">
