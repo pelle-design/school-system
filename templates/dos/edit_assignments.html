@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Edit Assignment{% endblock %}
+{% block content %}
+<div class="card shadow">
+    <div class="card-header bg-primary text-white">
+        <i class="fas fa-edit"></i> Edit Assignment
+    </div>
+    <div class="card-body">
+        <form method="POST">
+            <div class="mb-3">
+                <label>Teacher</label>
+                <input type="text" class="form-control" value="{{ assignment.full_name }}" disabled>
+            </div>
+            <div class="mb-3">
+                <label>Class Name</label>
+                <select name="class_name" class="form-control" required>
+                    {% for class in classes %}
+                    <option value="{{ class.class }}" {% if class.class == assignment.class_name %}selected{% endif %}>
+                        {{ class.class }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="mb-3">
+                <label>Subject (leave blank for Class Teacher)</label>
+                <input type="text" name="subject" class="form-control" value="{{ assignment.subject or '' }}">
+            </div>
+            <div class="mb-3">
+                <label>Assignment Type</label>
+                <select name="assignment_type" class="form-control" required>
+                    <option value="classteacher" {% if assignment.assignment_type == 'classteacher' %}selected{% endif %}>Class Teacher</option>
+                    <option value="subject_teacher" {% if assignment.assignment_type == 'subject_teacher' %}selected{% endif %}>Subject Teacher</option>
+                </select>
+            </div>
+            <button type="submit" class="btn btn-primary">Save Changes</button>
+            <a href="{{ url_for('dos_teacher_assignments') }}" class="btn btn-secondary">Cancel</a>
+        </form>
+    </div>
+</div>
+{% endblock %}
