@@ -1,21 +1,53 @@
-<!-- Notification Bar - Add to top of dos dashboard -->
-<div class="notification-bar no-print" style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 10px 15px; margin-bottom: 20px; border-radius: 5px;">
-    <div class="d-flex justify-content-between align-items-center">
-        <div>
-            <i class="fas fa-bell text-warning"></i>
-            <strong>Notifications:</strong>
-            <span id="notificationMessage">Loading...</span>
+
+{% extends "base.html" %}
+{% block title %}Teacher Assignments{% endblock %}
+
+{% block content %}
+<style>
+    .nav-tabs .nav-link {
+        color: #1a237e;
+        font-weight: bold;
+    }
+    .nav-tabs .nav-link.active {
+        background-color: #1a237e;
+        color: white;
+        border-color: #1a237e;
+    }
+    .multi-class-badge {
+        background-color: #ff9800;
+        color: white;
+        padding: 2px 6px;
+        border-radius: 10px;
+        font-size: 10px;
+        margin-left: 5px;
+    }
+    .teacher-card {
+        transition: transform 0.2s;
+    }
+    .teacher-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    }
+</style>
+
+        <!-- Notification Bar - Add to top of dos dashboard -->
+        <div class="notification-bar no-print" style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 10px 15px; margin-bottom: 20px; border-radius: 5px;">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <i class="fas fa-bell text-warning"></i>
+                    <strong>Notifications:</strong>
+                    <span id="notificationMessage">Loading...</span>
+                </div>
+                <div>
+                    <span class="badge bg-danger" id="notificationCount">0</span>
+                    <button onclick="markAllRead()" class="btn btn-sm btn-link">Mark all read</button>
+                    <button onclick="refreshNotifications()" class="btn btn-sm btn-link"><i class="fas fa-sync-alt"></i></button>
+                </div>
+            </div>
+            <div id="notificationList" style="max-height: 200px; overflow-y: auto; display: none; margin-top: 10px;">
+                <!-- Notifications will load here -->
+            </div>
         </div>
-        <div>
-            <span class="badge bg-danger" id="notificationCount">0</span>
-            <button onclick="markAllRead()" class="btn btn-sm btn-link">Mark all read</button>
-            <button onclick="refreshNotifications()" class="btn btn-sm btn-link"><i class="fas fa-sync-alt"></i></button>
-        </div>
-    </div>
-    <div id="notificationList" style="max-height: 200px; overflow-y: auto; display: none; margin-top: 10px;">
-        <!-- Notifications will load here -->
-    </div>
-</div>
 
 <script>
 function loadNotifications() {
@@ -54,3 +86,4 @@ function markAllRead() {
 setInterval(loadNotifications, 30000);
 loadNotifications();
 </script>
+{% endblock %}
