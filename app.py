@@ -864,7 +864,13 @@ def validate_and_format_phone(phone):
 def generate_unique_number(prefix, table_name, column_name, year_format=False):
     db = get_db_dict()
     cur = db.cursor()
-    cur.execute(f"SELECT {column_name} FROM {table_name} ORDER BY id DESC LIMIT 1")
+    
+    # Fix: Use the correct column for ordering based on table
+    if table_name == 'students':
+        cur.execute(f"SELECT {column_name} FROM {table_name} ORDER BY {column_name} DESC LIMIT 1")
+    else:
+        cur.execute(f"SELECT {column_name} FROM {table_name} ORDER BY id DESC LIMIT 1")
+    
     last = cur.fetchone()
     cur.close()
     
