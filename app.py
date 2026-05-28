@@ -3438,54 +3438,84 @@ def bursar_view_payroll(payroll_id):
     total_deductions = sum(s['deductions'] for s in staff_list) if staff_list else 0
     return render_template('bursar/view_payroll.html', payroll=payroll, staff_list=staff_list,
                           total_basic=total_basic, total_allowances=total_allowances, total_deductions=total_deductions)
-
+    
 @app.route('/bursar/print_payroll')
 def bursar_print_payroll():
     if not check_permission(['bursar']):
         abort(403)
-    staff_ids = request.args.get('staff_ids', '')
+    
     db = get_db_dict()
     cur = db.cursor()
-    if staff_ids:
-        ids = [int(x) for x in staff_ids.split(',') if x.isdigit()]
-        if ids:
-            placeholders = ','.join(['?'] * len(ids))
-            cur.execute(f"SELECT staff_no, full_name, position, salary_basic, salary_allowances, salary_deductions, salary_net FROM staff WHERE id IN ({placeholders}) ORDER BY full_name", ids)
-        else:
-            staff_list = []
-    else:
-        cur.execute("SELECT staff_no, full_name, position, salary_basic, salary_allowances, salary_deductions, salary_net FROM staff ORDER BY full_name")
-    staff_list = cur.fetchall()
+    
+    # Get tax rates
     cur.execute("SELECT nssf_employee_rate, paye_rate, paye_threshold FROM school_settings WHERE id=1")
     rates = cur.fetchone()
-    cur.close()
-    nssf_rate = rates[0] if rates else 5.0
-    paye_rate = rates[1] if rates else 10.0
-    paye_threshold = rates[2] if rates else 235000
     
-    total_basic = total_allowances = total_gross = total_nssf = total_paye = total_deductions = total_net = 0
-    for s in staff_list:
-        gross = s['salary_basic'] + s['salary_allowances']
+    if rates:
+        if isinstance(rates, dict):
+            nssf_rate = rates.get('nssf_employee_rate', 5.0)
+            paye_rate = rates.get('paye_rate', 10.0)
+            paye_threshold = rates.get('paye_threshold', 235000)
+        else:
+            nssf_rate = rates[0] if len(rates) > 0 else 5.0
+            paye_rate = rates[1] if len(rates) > 1 else 10.0
+            paye_threshold = rates[2] if len(rates) > 2 else 235000
+    else:
+        nssf_rate = 5.0
+        paye_rate = 10.0
+        paye_threshold = 235000
+    
+    # Get all staff
+    cur.execute("""
+        SELECT staff_no, full_name, position, salary_basic, salary_allowances, salary_deductions,
+               bank_name, bank_account, phone
+        FROM staff 
+        ORDER BY full_name
+    """)
+    staff_list = cur.fetchall()
+    cur.close()
+    
+    # Calculate all values for each staff member
+    total_basic = 0
+    total_allowances = 0
+    total_gross = 0
+    total_nssf = 0
+    total_paye = 0
+    total_deductions = 0
+    total_net = 0
+    
+    for staff in staff_list:
+        gross = (staff['salary_basic'] or 0) + (staff['salary_allowances'] or 0)
         nssf = (gross * nssf_rate) / 100
         taxable = max(0, gross - paye_threshold)
         paye = (taxable * paye_rate) / 100
-        net = gross - nssf - paye - s['salary_deductions']
-        s['gross'] = gross
-        s['nssf_employee'] = round(nssf, 2)
-        s['paye_tax'] = round(paye, 2)
-        s['net'] = net
-        total_basic += s['salary_basic']
-        total_allowances += s['salary_allowances']
+        net = gross - nssf - paye - (staff['salary_deductions'] or 0)
+        
+        staff['gross'] = gross
+        staff['nssf'] = round(nssf, 2)
+        staff['paye'] = round(paye, 2)
+        staff['net'] = round(net, 2)
+        
+        total_basic += (staff['salary_basic'] or 0)
+        total_allowances += (staff['salary_allowances'] or 0)
         total_gross += gross
         total_nssf += nssf
         total_paye += paye
-        total_deductions += s['salary_deductions']
+        total_deductions += (staff['salary_deductions'] or 0)
         total_net += net
     
-    return render_template('bursar/print_payroll.html', staff_list=staff_list, total_basic=total_basic,
-                          total_allowances=total_allowances, total_gross=total_gross, total_nssf=total_nssf,
-                          total_paye=total_paye, total_deductions=total_deductions, total_net=total_net,
-                          nssf_rate=nssf_rate, paye_rate=paye_rate, paye_threshold=paye_threshold)
+    return render_template('bursar/print_payroll.html', 
+                         staff_list=staff_list,
+                         total_basic=total_basic,
+                         total_allowances=total_allowances,
+                         total_gross=total_gross,
+                         total_nssf=total_nssf,
+                         total_paye=total_paye,
+                         total_deductions=total_deductions,
+                         total_net=total_net,
+                         nssf_rate=nssf_rate,
+                         paye_rate=paye_rate,
+                         paye_threshold=paye_threshold)
 
 @app.route('/bursar/print_fees_list')
 def bursar_print_fees_list():
