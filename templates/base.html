@@ -66,10 +66,10 @@
             </a>
 
             {% if session.role == 'admin' %}
-                <a href="#" data-bs-toggle="modal" data-bs-target="#addUserModal"><i class="fas fa-user-plus"></i> Add User</a>
-                <a href="{{ url_for('admin_teacher_assignments') }}"><i class="fas fa-chalkboard-teacher"></i> Teacher Assignments</a>
+                <a href="#" data-bs-toggle="modal" data-bs-target="#addUserModal">
+                    <i class="fas fa-user-plus"></i> Add User
+                </a>
                 <a href="{{ url_for('school_settings') }}"><i class="fas fa-cogs"></i> School Settings</a>
-                <a href="{{ url_for('admin_predefined_comments') }}"><i class="fas fa-comment-dots"></i> Predefined Comments</a>
                 <a href="{{ url_for('logout') }}"><i class="fas fa-sign-out-alt"></i> Logout</a>
 
             {% elif session.role == 'dos' %}
@@ -96,6 +96,7 @@
                         <a href="{{ url_for('teacher_upload_marks') }}">Upload Marks</a>
                     </div>
                 </div>
+                <!-- Teacher Management Dropdown -->
                 <div class="dropdown-menu-item">
                     <a href="#" onclick="toggleDropdown(this); return false;">
                         <i class="fas fa-chalkboard-teacher"></i> Teacher Management
@@ -103,7 +104,7 @@
                     </a>
                     <div class="dropdown-submenu">
                         <a href="{{ url_for('dos_teacher_assignments') }}">View Assignments</a>
-                        <a href="{{ url_for('dos_upload_subject_teachers') }}">Upload Subject Teachers</a>
+                        <a href="{{ url_for('dos_upload_teachers') }}">Upload Teachers</a>
                     </div>
                 </div>
                 <div class="dropdown-menu-item">
@@ -115,6 +116,7 @@
                         <a href="{{ url_for('dos_olevel_grading') }}">O-Level Grading</a>
                         <a href="{{ url_for('dos_alevel_grading') }}">A-Level Grading</a>
                         <a href="{{ url_for('dos_identifier_grading') }}">Identifier Grading</a>
+                        <a href="{{ url_for('dos_predefined_comments') }}">Predefined Comments</a>
                     </div>
                 </div>
                 <a href="{{ url_for('dos_schedules') }}"><i class="fas fa-clock"></i> Schedules</a>
@@ -196,21 +198,6 @@
                 <a href="{{ url_for('logout') }}"><i class="fas fa-sign-out-alt"></i> Logout</a>
             {% endif %}
 
-            <!-- Inventory Module (visible to multiple roles) -->
-            {% if session.role in [ 'bursar', 'dos'] %}
-            <div class="dropdown-menu-item">
-                <a href="#" onclick="toggleDropdown(this); return false;">
-                    <i class="fas fa-boxes"></i> Inventory
-                    <i class="fas fa-chevron-down chevron"></i>
-                </a>
-                <div class="dropdown-submenu">
-                    <a href="{{ url_for('inventory_items') }}">All Items</a>
-                    <a href="{{ url_for('inventory_transactions') }}">Transactions</a>
-                    <a href="{{ url_for('inventory_alerts') }}">Alerts</a>
-                    <a href="{{ url_for('inventory_reports') }}">Reports</a>
-                </div>
-            </div>
-            {% endif %}
         </div>
 
         <!-- MAIN CONTENT AREA -->
@@ -249,7 +236,6 @@
 </div>
 
 <!-- Add User Modal -->
-{% if session.role == 'admin' %}
 <div class="modal fade" id="addUserModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
@@ -259,6 +245,7 @@
             </div>
             <form method="POST" action="{{ url_for('add_user') }}">
                 <div class="modal-body">
+                    <input type="text" name="full_name" class="form-control mb-2" placeholder="Full Name" required>
                     <input type="text" name="username" class="form-control mb-2" placeholder="Username" required>
                     <input type="password" name="password" class="form-control mb-2" placeholder="Password" required>
                     <input type="text" name="phone" class="form-control mb-2" placeholder="Phone">
@@ -268,7 +255,6 @@
                         <option>student</option><option>bursar</option><option>management</option>
                         <option>stores_keeper</option>
                     </select>
-                    <input type="text" name="assigned_class" class="form-control mb-2" placeholder="Assigned Class">
                     <input type="text" name="child_id" class="form-control mb-2" placeholder="Child ID">
                 </div>
                 <div class="modal-footer">
@@ -278,7 +264,6 @@
         </div>
     </div>
 </div>
-{% endif %}
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
 <script>
@@ -331,3 +316,480 @@ fetchAlertCount();
 </script>
 </body>
 </html>
+ this is my base.html and this is my dashboard {% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+<!-- Common Notification Bar for All Users -->
+<div class="notification-bar no-print" style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 10px 15px; margin-bottom: 20px; border-radius: 5px;">
+    <div class="d-flex justify-content-between align-items-center">
+        <div>
+            <i class="fas fa-bell text-warning"></i>
+            <strong>Notifications:</strong>
+            <span id="notificationMessage">Loading...</span>
+        </div>
+        <div>
+            <span class="badge bg-danger" id="notificationCount">0</span>
+            <button onclick="toggleNotifications()" class="btn btn-sm btn-link">View All</button>
+            <button onclick="markAllRead()" class="btn btn-sm btn-link">Mark read</button>
+            <button onclick="refreshNotifications()" class="btn btn-sm btn-link"><i class="fas fa-sync-alt"></i></button>
+        </div>
+    </div>
+    <div id="notificationList" style="max-height: 200px; overflow-y: auto; display: none; margin-top: 10px; background: white; border-radius: 5px;">
+        <!-- Notifications will load here -->
+    </div>
+</div>
+
+<!-- Role-specific Dashboard Content -->
+{% if session.role == 'admin' %}
+    <!-- Admin Dashboard -->
+    <div class="card mb-4 p-3">
+        <form method="GET" class="row g-2">
+            <div class="col-md-8">
+                <input type="text" name="search" class="form-control" placeholder="Search username..." value="{{ search }}">
+            </div>
+            <div class="col-md-4">
+                <button type="submit" class="btn btn-primary w-100">Filter</button>
+            </div>
+        </form>
+    </div>
+    <div class="card">
+        <div class="card-header bg-primary text-white">User Management</div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>ID</th>
+                            <th>Photo</th>
+                            <th>Username</th>
+                            <th>Role</th>
+                            <th>Phone</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for u in data.users %}
+                        <tr>
+                            <td>{{ u[0] }}</td>
+                            <td><img src="{{ url_for('uploaded_file', filename=u[5]) }}" width="40" class="rounded-circle"></td>
+                            <td>{{ u[1] }}</td>
+                            <td>{{ u[2] }}</td>
+                            <td>{{ u[3] or '-' }}</td>
+                            <td>{% if u[4] == 1 %}<span class="badge bg-success">Active</span>{% else %}<span class="badge bg-secondary">Inactive</span>{% endif %}</td>
+                            <td>
+                                <a href="{{ url_for('edit_user', user_id=u[0]) }}" class="btn btn-sm btn-info">Edit</a>
+                                <a href="{{ url_for('toggle_user', user_id=u[0]) }}" class="btn btn-sm btn-warning">Toggle</a>
+                                <a href="{{ url_for('delete_user', user_id=u[0]) }}" class="btn btn-sm btn-danger" onclick="return confirm('Delete?')">Delete</a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% if data.total_pages > 1 %}
+    <nav class="mt-4">
+        <ul class="pagination justify-content-center">
+            {% for p in range(1, data.total_pages+1) %}
+            <li class="page-item {% if p == data.current_page %}active{% endif %}">
+                <a class="page-link" href="{{ url_for('dashboard', page=p, search=search) }}">{{ p }}</a>
+            </li>
+            {% endfor %}
+        </ul>
+    </nav>
+    {% endif %}
+
+{% elif session.role == 'bursar' %}
+    <!-- Bursar Dashboard -->
+    <div class="row">
+        <div class="col-md-12">
+            <div class="alert alert-info">
+                <i class="fas fa-coins"></i> 
+                <strong>Bursar Dashboard</strong><br>
+                Manage student fees, record payments, and send payment reminders to parents.
+            </div>
+        </div>
+    </div>
+    <!-- Bursar Stats Cards -->
+    <div class="row">
+        <div class="col-md-3">
+            <div class="card bg-primary text-white">
+                <div class="card-body">
+                    <h5>Total Fees Collected</h5>
+                    <h3>UGX {{ "{:,.2f}".format(total_fees|default(0)) }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-warning text-white">
+                <div class="card-body">
+                    <h5>Pending Payments</h5>
+                    <h3>{{ pending_payments|default(0) }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-success text-white">
+                <div class="card-body">
+                    <h5>Cleared Students</h5>
+                    <h3>{{ cleared_students|default(0) }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-info text-white">
+                <div class="card-body">
+                    <h5>Total Students</h5>
+                    <h3>{{ total_students|default(0) }}</h3>
+                </div>
+            </div>
+        </div>
+    </div>
+
+{% elif session.role == 'headteacher' %}
+    <!-- Headteacher Dashboard -->
+    <div class="row">
+        <div class="col-md-12">
+            <div class="alert alert-info">
+                <i class="fas fa-gavel"></i> 
+                <strong>Headteacher Dashboard</strong><br>
+                Review and approve payrolls, manage school settings.
+            </div>
+        </div>
+    </div>
+    <div class="row">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header bg-warning">Pending Approvals</div>
+                <div class="card-body">
+                    <h3>{{ pending_approvals|default(0) }}</h3>
+                    <a href="{{ url_for('headteacher_approvals') }}" class="btn btn-primary">Review</a>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header bg-success">Approved Payrolls</div>
+                <div class="card-body">
+                    <h3>{{ approved_payrolls|default(0) }}</h3>
+                    <a href="{{ url_for('bursar_payroll_list') }}" class="btn btn-secondary">View All</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+{% elif session.role == 'dos' %}
+    <!-- DOS Dashboard with Enhanced Features -->
+    <div class="row">
+        <div class="col-md-12">
+            <div class="alert alert-info">
+                <i class="fas fa-graduation-cap"></i> 
+                <strong>Director of Studies Dashboard</strong><br>
+                Manage student admissions, class lists, promotions, and grading systems.
+            </div>
+        </div>
+    </div>
+    
+    <!-- DOS Stats Cards -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card bg-primary text-white">
+                <div class="card-body">
+                    <h5>Total Students</h5>
+                    <h3>{{ total_students|default(0) }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-success text-white">
+                <div class="card-body">
+                    <h5>Total Teachers</h5>
+                    <h3>{{ total_teachers|default(0) }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-warning text-white">
+                <div class="card-body">
+                    <h5>Total Classes</h5>
+                    <h3>{{ total_classes|default(0) }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-info text-white">
+                <div class="card-body">
+                    <h5>Subjects</h5>
+                    <h3>{{ total_subjects|default(0) }}</h3>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- DOS Quick Actions -->
+    <div class="row">
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header bg-primary text-white">Quick Actions</div>
+                <div class="card-body">
+                    <a href="{{ url_for('dos_admit') }}" class="btn btn-primary w-100 mb-2">
+                        <i class="fas fa-user-plus"></i> Admit Student
+                    </a>
+                    <a href="{{ url_for('dos_upload_teachers') }}" class="btn btn-info w-100 mb-2">
+                        <i class="fas fa-upload"></i> Upload Teachers
+                    </a>
+                    <a href="{{ url_for('dos_teacher_assignments') }}" class="btn btn-warning w-100 mb-2">
+                        <i class="fas fa-chalkboard-teacher"></i> Teacher Assignments
+                    </a>
+                    <a href="{{ url_for('dos_grading_system') }}" class="btn btn-success w-100">
+                        <i class="fas fa-chart-line"></i> Manage Grading System
+                    </a>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header bg-primary text-white">Recent Activities</div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Activity</th>
+                                    <th>Date</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for activity in recent_activities|default([]) %}
+                                <tr>
+                                    <td>{{ activity.description }}</td
+                                    <td>{{ activity.created_at }}</td
+                                </tr>
+                                {% else %}
+                                <tr>
+                                    <td colspan="2">No recent activities</td
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+{% elif session.role == 'classteacher' %}
+    <!-- Class Teacher Dashboard -->
+    <div class="row">
+        <div class="col-md-12">
+            <div class="alert alert-info">
+                <i class="fas fa-chalkboard-teacher"></i> 
+                <strong>Class Teacher Dashboard</strong><br>
+                Manage your class, upload marks, and record attendance.
+            </div>
+        </div>
+    </div>
+    <div class="row">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header bg-primary text-white">My Class</div>
+                <div class="card-body">
+                    <h5>Class: {{ my_class|default('Not assigned') }}</h5>
+                    <p>Students: {{ class_students|default(0) }}</p>
+                    <a href="{{ url_for('teacher_students') }}" class="btn btn-primary">View Class</a>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header bg-success text-white">My Subjects</div>
+                <div class="card-body">
+                    <ul>
+                        {% for subject in my_subjects|default([]) %}
+                        <li>{{ subject }}</li>
+                        {% else %}
+                        <li>No subjects assigned</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+{% elif session.role == 'subject_teacher' %}
+    <!-- Subject Teacher Dashboard -->
+    <div class="row">
+        <div class="col-md-12">
+            <div class="alert alert-info">
+                <i class="fas fa-chalkboard-teacher"></i> 
+                <strong>Subject Teacher Dashboard</strong><br>
+                Upload marks and view student report cards.
+            </div>
+        </div>
+    </div>
+    <div class="row">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header bg-primary text-white">My Subjects & Classes</div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Subject</th>
+                                    <th>Class</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for assignment in my_assignments|default([]) %}
+                                <tr>
+                                    <td>{{ assignment.subject }}</td
+                                    <td>{{ assignment.class_name }}</td
+                                    <td>
+                                        <a href="{{ url_for('teacher_upload_marks', class_id=assignment.class_name, subject=assignment.subject) }}" class="btn btn-sm btn-primary">Upload Marks</a>
+                                        <a href="{{ url_for('teacher_view_marks', class_id=assignment.class_name, subject=assignment.subject) }}" class="btn btn-sm btn-info">View Marks</a>
+                                    </td
+                                </tr>
+                                {% else %}
+                                <tr>
+                                    <td colspan="3">No subjects assigned</td
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+{% elif session.role == 'parent' %}
+    <!-- Parent Dashboard -->
+    <div class="row">
+        <div class="col-md-12">
+            <div class="alert alert-info">
+                <i class="fas fa-child"></i> 
+                <strong>Parent Dashboard</strong><br>
+                View your children's progress and report cards.
+            </div>
+        </div>
+    </div>
+    <div class="row">
+        {% for child in children|default([]) %}
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header bg-primary text-white">{{ child.full_name }}</div>
+                <div class="card-body">
+                    <p><strong>Student ID:</strong> {{ child.student_id }}</p>
+                    <p><strong>Class:</strong> {{ child.class }}</p>
+                    <p><strong>Fees Balance:</strong> UGX {{ "{:,.2f}".format(child.fees_balance|default(0)) }}</p>
+                    <a href="{{ url_for('parent_report_card', student_id=child.student_id) }}" class="btn btn-primary">View Report Card</a>
+                </div>
+            </div>
+        </div>
+        {% else %}
+        <div class="col-md-12">
+            <div class="alert alert-warning">No children linked to your account.</div>
+        </div>
+        {% endfor %}
+    </div>
+
+{% elif session.role == 'stores_keeper' %}
+    <!-- Stores Keeper Dashboard -->
+    <div class="row">
+        <div class="col-md-12">
+            <div class="alert alert-info">
+                <i class="fas fa-boxes"></i> 
+                <strong>Stores Keeper Dashboard</strong><br>
+                Manage inventory, track stock levels, and process item requests.
+            </div>
+        </div>
+    </div>
+    <div class="row">
+        <div class="col-md-4">
+            <div class="card bg-primary text-white">
+                <div class="card-body">
+                    <h5>Low Stock Items</h5>
+                    <h3>{{ low_stock|default(0) }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card bg-warning text-white">
+                <div class="card-body">
+                    <h5>Pending Requests</h5>
+                    <h3>{{ pending_requests|default(0) }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card bg-success text-white">
+                <div class="card-body">
+                    <h5>Total Items</h5>
+                    <h3>{{ total_items|default(0) }}</h3>
+                </div>
+            </div>
+        </div>
+    </div>
+
+{% else %}
+    <!-- Default Dashboard -->
+    <div class="alert alert-info">
+        <i class="fas fa-info-circle"></i> 
+        <strong>Welcome to your Dashboard</strong><br>
+        Use the sidebar to navigate through the system.
+    </div>
+{% endif %}
+
+<!-- Common JavaScript for Notifications -->
+<script>
+function loadNotifications() {
+    fetch('/get_notifications')
+        .then(response => response.json())
+        .then(data => {
+            const unread = data.filter(n => !n.is_read);
+            document.getElementById('notificationCount').innerText = unread.length;
+            if (unread.length > 0) {
+                document.getElementById('notificationMessage').innerHTML = `You have ${unread.length} new notification(s)`;
+            } else {
+                document.getElementById('notificationMessage').innerHTML = 'No new notifications';
+            }
+            
+            const listHtml = data.slice(0, 10).map(n => `
+                <div class="notification-item ${!n.is_read ? 'bg-light' : ''}" style="padding: 10px; border-bottom: 1px solid #eee;">
+                    <strong>${n.title}</strong>
+                    <p style="margin: 5px 0; font-size: 13px;">${n.message}</p>
+                    <small class="text-muted">${n.created_at}</small>
+                </div>
+            `).join('');
+            document.getElementById('notificationList').innerHTML = listHtml || '<div class="text-muted p-3">No notifications</div>';
+        })
+        .catch(error => console.error('Error loading notifications:', error));
+}
+
+function toggleNotifications() {
+    const list = document.getElementById('notificationList');
+    if (list) {
+        list.style.display = list.style.display === 'none' ? 'block' : 'none';
+    }
+}
+
+function markAllRead() {
+    fetch('/mark_notifications_read', {method: 'POST'})
+        .then(response => response.json())
+        .then(() => loadNotifications());
+}
+
+function refreshNotifications() {
+    loadNotifications();
+}
+
+// Load notifications every 30 seconds
+setInterval(loadNotifications, 30000);
+loadNotifications();
+</script>
+{% endblock %} make neceassry changes
