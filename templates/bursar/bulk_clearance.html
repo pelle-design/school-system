@@ -1,65 +1,388 @@
 {% extends "base.html" %}
-{% block title %}Bulk Clearance Cards{% endblock %}
+{% block title %}Clearance Cards - {{ class_name }}{% endblock %}
+
 {% block content %}
 <style>
+    /* ========== PRINT STYLES - 6 CARDS PER PAGE ========== */
     @media print {
-        .no-print { display: none; }
-        .sidebar { display: none; }
-        .content-area { margin: 0; padding: 0; width: 100%; }
-        .clearance-card { page-break-inside: avoid; }
+        .no-print {
+            display: none !important;
+        }
+        .sidebar {
+            display: none !important;
+        }
+        .content-area {
+            margin: 0 !important;
+            padding: 0 !important;
+            width: 100% !important;
+        }
+        
+        /* Grid layout for 6 cards per page (2 columns x 3 rows) */
+        .clearance-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            grid-gap: 10px;
+            padding: 5mm;
+        }
+        
+        .clearance-card {
+            break-inside: avoid;
+            page-break-inside: avoid;
+            border: 1px solid #000;
+            border-radius: 5px;
+            margin: 0;
+            box-shadow: none;
+            max-width: 100%;
+        }
+        
+        /* Compact styles for printing */
+        .clearance-header {
+            padding: 5px !important;
+        }
+        .clearance-title {
+            font-size: 10px !important;
+            letter-spacing: 1px !important;
+        }
+        .school-name {
+            font-size: 8px !important;
+        }
+        .school-motto {
+            font-size: 6px !important;
+        }
+        .school-info {
+            font-size: 5px !important;
+            line-height: 1.2 !important;
+        }
+        .clearance-body {
+            padding: 8px !important;
+        }
+        .student-photo {
+            width: 40px !important;
+            height: 40px !important;
+            margin: -20px auto 5px auto !important;
+            border-width: 2px !important;
+        }
+        .info-row {
+            padding: 3px 0 !important;
+        }
+        .info-label, .info-value {
+            font-size: 6px !important;
+        }
+        .cleared-status {
+            margin: 8px 0 !important;
+            padding: 5px !important;
+        }
+        .cleared-text {
+            font-size: 8px !important;
+            letter-spacing: 1px !important;
+        }
+        .cleared-subtext {
+            font-size: 5px !important;
+        }
+        .signature-section {
+            margin-top: 8px !important;
+            padding-top: 5px !important;
+        }
+        .signature-line {
+            margin-top: 8px !important;
+        }
+        .signature-item span {
+            font-size: 5px !important;
+        }
+        .stamp-img {
+            max-width: 25px !important;
+        }
+        .clearance-footer {
+            padding: 3px !important;
+            font-size: 4px !important;
+        }
+        
+        /* Hide logo on print to save space */
+        .clearance-header img {
+            max-width: 20px !important;
+            margin-bottom: 2px !important;
+        }
     }
-    .clearance-grid {
-        display: grid;
-        grid-template-columns: repeat(2, 1fr);
-        gap: 15px;
+    
+    /* ========== SCREEN STYLES ========== */
+    @media screen {
+        .clearance-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 20px;
+            padding: 20px;
+        }
+        .print-btn-container {
+            position: sticky;
+            top: 10px;
+            z-index: 1000;
+            background: white;
+            padding: 10px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        .btn {
+            margin: 0 5px;
+        }
     }
+    
+    /* ========== BASE STYLES ========== */
     .clearance-card {
-        border: 1px solid #000;
-        padding: 12px;
-        border-radius: 8px;
-        page-break-inside: avoid;
-        font-size: 10px;
+        background: white;
+        border-radius: 10px;
+        overflow: hidden;
+        box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
     }
-    .clearance-header { text-align: center; border-bottom: 1px solid #000; padding-bottom: 5px; margin-bottom: 8px; }
-    .clearance-title { font-size: 11px; font-weight: bold; text-transform: uppercase; }
-    .student-photo-small { width: 50px; height: 50px; object-fit: cover; border-radius: 50%; display: block; margin: 0 auto 8px auto; border: 1px solid #ddd; }
-    .cleared-text { font-size: 11px; font-weight: bold; color: green; text-align: center; margin: 6px 0; text-transform: uppercase; }
-    .signature { margin-top: 8px; text-align: center; border-top: 1px solid #000; padding-top: 5px; font-size: 8px; }
-    .student-details p { margin: 2px 0; }
+    
+    /* ========== HEADER SECTION ========== */
+    .clearance-header {
+        background: linear-gradient(135deg, #1a237e 0%, #283593 100%);
+        color: white;
+        text-align: center;
+        padding: 12px;
+    }
+    .clearance-title {
+        font-size: 12px;
+        font-weight: bold;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        margin-bottom: 2px;
+    }
+    .school-name {
+        font-size: 10px;
+        font-weight: bold;
+    }
+    .school-motto {
+        font-size: 7px;
+        font-style: italic;
+        opacity: 0.9;
+    }
+    .school-info {
+        font-size: 6px;
+        opacity: 0.9;
+        line-height: 1.2;
+    }
+    .clearance-header img {
+        max-width: 25px;
+        margin-bottom: 3px;
+    }
+    
+    /* ========== BODY SECTION ========== */
+    .clearance-body {
+        padding: 10px;
+        flex: 1;
+    }
+    .student-photo {
+        width: 45px;
+        height: 45px;
+        object-fit: cover;
+        border-radius: 50%;
+        border: 2px solid #1a237e;
+        display: block;
+        margin: -22px auto 8px auto;
+        background: white;
+    }
+    
+    /* ========== INFO SECTION ========== */
+    .info-row {
+        display: flex;
+        justify-content: space-between;
+        padding: 4px 0;
+        border-bottom: 1px dashed #ddd;
+    }
+    .info-label {
+        font-weight: bold;
+        color: #1a237e;
+        font-size: 7px;
+        width: 40%;
+    }
+    .info-value {
+        color: #333;
+        font-size: 7px;
+        width: 60%;
+        text-align: right;
+    }
+    
+    /* ========== CLEARED STATUS ========== */
+    .cleared-status {
+        text-align: center;
+        margin: 8px 0;
+        padding: 6px;
+        background: linear-gradient(135deg, #2e7d32 0%, #388e3c 100%);
+        border-radius: 5px;
+        color: white;
+    }
+    .cleared-text {
+        font-size: 9px;
+        font-weight: bold;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
+    .cleared-subtext {
+        font-size: 5px;
+        opacity: 0.9;
+    }
+    
+    /* ========== SIGNATURE SECTION ========== */
+    .signature-section {
+        margin-top: 8px;
+        padding-top: 5px;
+        border-top: 1px solid #1a237e;
+        text-align: center;
+    }
+    .signature-line {
+        margin-top: 8px;
+        display: flex;
+        justify-content: space-between;
+    }
+    .signature-item {
+        text-align: center;
+    }
+    .signature-item span {
+        border-top: 1px solid #000;
+        padding-top: 2px;
+        font-size: 6px;
+    }
+    .stamp-area {
+        text-align: center;
+        margin-top: 5px;
+    }
+    .stamp-img {
+        max-width: 30px;
+    }
+    
+    /* ========== FOOTER ========== */
+    .clearance-footer {
+        background: #f5f5f5;
+        text-align: center;
+        padding: 4px;
+        font-size: 5px;
+        color: #666;
+        border-top: 1px solid #ddd;
+    }
 </style>
 
-<div class="no-print text-center mb-3">
-    <button onclick="window.print()" class="btn btn-primary">Print All Clearance Cards</button>
-    <a href="{{ url_for('bursar_students') }}" class="btn btn-secondary">Back</a>
+<!-- Print Button -->
+<div class="print-btn-container no-print">
+    <button onclick="window.print()" class="btn btn-primary btn-lg">
+        <i class="fas fa-print"></i> Print All Clearance Cards (6 per page)
+    </button>
+    <a href="{{ url_for('bursar_class_list') }}" class="btn btn-secondary btn-lg">
+        <i class="fas fa-arrow-left"></i> Back to Classes
+    </a>
 </div>
 
+<!-- Clearance Cards Grid -->
 <div class="clearance-grid">
-    {% for s in students %}
+    {% for student in students %}
     <div class="clearance-card">
+        <!-- Header with ALL School Settings -->
         <div class="clearance-header">
-            <div class="clearance-title">FEE CLEARANCE CARD</div>
-            <div><strong>{{ school_name|default('YOUR SCHOOL NAME') }}</strong></div>
+            {% if school_logo_url %}
+            <img src="{{ school_logo_url }}" alt="Logo">
+            {% endif %}
+            <div class="clearance-title">FEE CLEARANCE</div>
+            <div class="school-name">{{ school_name|default('SCHOOL') }}</div>
+            <div class="school-motto">{{ school_motto|default('Excellence') }}</div>
+            <div class="school-info">
+                {{ school_address|default('P.O. Box 123, Kampala') }}<br>
+                {{ school_phone|default('+256 712 345678') }}
+            </div>
         </div>
         
-        <div class="text-center">
-            <img src="{{ s.photo_url }}" class="student-photo-small" alt="Photo">
+        <!-- Body -->
+        <div class="clearance-body">
+            <!-- Student Photo -->
+            <div class="text-center">
+                <img src="{{ student.photo_url or url_for('static', filename='images/default_avatar.png') }}" class="student-photo" alt="Photo">
+            </div>
+            
+            <!-- Student Information -->
+            <div class="info-row">
+                <div class="info-label">ID:</div>
+                <div class="info-value">{{ student.student_id }}</div>
+            </div>
+            <div class="info-row">
+                <div class="info-label">Name:</div>
+                <div class="info-value">{{ student.full_name[:20] }}{% if student.full_name|length > 20 %}...{% endif %}</div>
+            </div>
+            <div class="info-row">
+                <div class="info-label">Class:</div>
+                <div class="info-value">{{ student.class }}</div>
+            </div>
+            <div class="info-row">
+                <div class="info-label">Parent Phone:</div>
+                <div class="info-value">{{ student.parent_phone or 'N/A' }}</div>
+            </div>
+            
+            <!-- Fees Summary -->
+            <div class="info-row" style="background: #f9f9f9; margin-top: 5px;">
+                <div class="info-label">Total:</div>
+                <div class="info-value">UGX {{ "{:,.0f}".format(student.fees_total or 0) }}</div>
+            </div>
+            <div class="info-row" style="background: #f9f9f9;">
+                <div class="info-label">Paid:</div>
+                <div class="info-value" style="color: #2e7d32;">UGX {{ "{:,.0f}".format(student.fees_paid or 0) }}</div>
+            </div>
+            <div class="info-row" style="background: #f9f9f9;">
+                <div class="info-label">Balance:</div>
+                <div class="info-value" style="color: {% if (student.fees_total|float - student.fees_paid|float) > 0 %}#c62828{% else %}#2e7d32{% endif %};">
+                    UGX {{ "{:,.0f}".format((student.fees_total or 0) - (student.fees_paid or 0)) }}
+                </div>
+            </div>
+            
+            <!-- Cleared Status -->
+            <div class="cleared-status">
+                <div class="cleared-text">✓ CLEARED ✓</div>
+                <div class="cleared-subtext">No outstanding fees</div>
+            </div>
+            
+            <!-- Signature Section -->
+            <div class="signature-section">
+                <div class="signature-line">
+                    <div class="signature-item"><span>Student</span></div>
+                    <div class="signature-item"><span>Bursar</span></div>
+                    <div class="signature-item"><span>Headteacher</span></div>
+                </div>
+                <div class="stamp-area">
+                    {% if stamp_url %}
+                    <img src="{{ stamp_url }}" class="stamp-img" alt="Stamp">
+                    {% else %}
+                    <div style="border: 1px dashed #999; padding: 2px; width: 25px; margin: 0 auto; font-size: 4px; color: #999;">
+                        Stamp
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
         </div>
         
-        <div class="student-details">
-            <p><strong>ID:</strong> {{ s.student_id }}</p>
-            <p><strong>Name:</strong> {{ s.full_name[:20] }}{% if s.full_name|length > 20 %}...{% endif %}</p>
-            <p><strong>Class:</strong> {{ s.class }}</p>
-        </div>
-        
-        <div class="cleared-text">✓ FULLY CLEARED ✓</div>
-        
-        <div class="signature">
-            <p>Authorized Signature & Stamp</p>
-            <p>{{ datetime.now().strftime('%d/%m/%Y') }}</p>
+        <!-- Footer -->
+        <div class="clearance-footer">
+            {{ datetime.now().strftime('%d/%m/%Y') }}
         </div>
     </div>
-    {% else %}
-    <div class="clearance-card">No students with zero balance found.</div>
     {% endfor %}
 </div>
+
+<!-- Fill remaining slots to make exactly 6 per page -->
+{% if students|length % 6 != 0 %}
+    {% for i in range(6 - (students|length % 6)) %}
+    <div class="clearance-card" style="visibility: hidden; height: 0; padding: 0; margin: 0; overflow: hidden;">
+        <!-- Hidden placeholder to maintain grid layout -->
+    </div>
+    {% endfor %}
+{% endif %}
+
+<script>
+    // Auto-print when page loads (optional)
+    // window.onload = function() {
+    //     window.print();
+    // }
+</script>
 {% endblock %}
