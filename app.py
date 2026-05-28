@@ -3377,8 +3377,10 @@ def bursar_generate_payroll():
         headteacher = cur.fetchone()
         cur.close()
         
-        if headteacher and headteacher[0]:
-            send_sms(headteacher[0], f"PAYROLL APPROVAL NEEDED: {payroll_no} - UGX {total_amount:,.2f}. Code: {approval_code}. Link: {approval_link}")
+        if headteacher:
+            phone = headteacher[0] if isinstance(headteacher, (tuple, list)) else headteacher.get('phone')
+            if phone:
+                send_sms(phone, ...)
         
         add_notification('headteacher', f"Payroll {payroll_no} needs approval. Code: {approval_code}", f"/headteacher/approval/{token}")
         flash(f'Payroll {payroll_no} created. Approval link sent to Headteacher.', 'success')
