@@ -2,7 +2,6 @@
 {% block title %}Dashboard{% endblock %}
 
 {% block content %}
-<!-- Role-specific Dashboard Content -->
 {% if session.role == 'admin' %}
     <!-- Admin Dashboard -->
     <div class="card mb-4 p-3">
@@ -48,7 +47,7 @@
                         </tr>
                         {% endfor %}
                     </tbody>
-                <table>
+                </table>
             </div>
         </div>
     </div>
@@ -66,15 +65,6 @@
 
 {% elif session.role == 'bursar' %}
     <!-- Bursar Dashboard -->
-    <div class="row">
-        <div class="col-md-12">
-            <div class="alert alert-info">
-                <i class="fas fa-coins"></i> 
-                <strong>Bursar Dashboard</strong><br>
-                Manage student fees, record payments, and send payment reminders to parents.
-            </div>
-        </div>
-    </div>
     <div class="row">
         <div class="col-md-3">
             <div class="card bg-primary text-white">
@@ -113,15 +103,6 @@
 {% elif session.role == 'headteacher' %}
     <!-- Headteacher Dashboard -->
     <div class="row">
-        <div class="col-md-12">
-            <div class="alert alert-info">
-                <i class="fas fa-gavel"></i> 
-                <strong>Headteacher Dashboard</strong><br>
-                Review and approve payrolls, manage school settings.
-            </div>
-        </div>
-    </div>
-    <div class="row">
         <div class="col-md-6">
             <div class="card">
                 <div class="card-header bg-warning">Pending Approvals</div>
@@ -143,16 +124,7 @@
     </div>
 
 {% elif session.role == 'dos' %}
-    <!-- DOS Dashboard -->
-    <div class="row">
-        <div class="col-md-12">
-            <div class="alert alert-info">
-                <i class="fas fa-graduation-cap"></i> 
-                <strong>Director of Studies Dashboard</strong><br>
-                Manage student admissions, class lists, promotions, and grading systems.
-            </div>
-        </div>
-    </div>
+    <!-- DOS Dashboard - Minimal Stats Only -->
     <div class="row mb-4">
         <div class="col-md-3">
             <div class="card bg-primary text-white">
@@ -187,68 +159,9 @@
             </div>
         </div>
     </div>
-    <div class="row">
-        <div class="col-md-4">
-            <div class="card">
-                <div class="card-header bg-primary text-white">Quick Actions</div>
-                <div class="card-body">
-                    <a href="{{ url_for('dos_admit') }}" class="btn btn-primary w-100 mb-2">
-                        <i class="fas fa-user-plus"></i> Admit Student
-                    </a>
-                    <a href="{{ url_for('dos_upload_teachers') }}" class="btn btn-info w-100 mb-2">
-                        <i class="fas fa-upload"></i> Upload Teachers
-                    </a>
-                    <a href="{{ url_for('dos_teacher_assignments') }}" class="btn btn-warning w-100 mb-2">
-                        <i class="fas fa-chalkboard-teacher"></i> Teacher Assignments
-                    </a>
-                    <a href="{{ url_for('dos_grading_system') }}" class="btn btn-success w-100">
-                        <i class="fas fa-chart-line"></i> Manage Grading System
-                    </a>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-8">
-            <div class="card">
-                <div class="card-header bg-primary text-white">Recent Activities</div>
-                <div class="card-body">
-                    <div class="table-responsive">
-                        <table class="table">
-                            <thead>
-                                <tr>
-                                    <th>Activity</th>
-                                    <th>Date</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for activity in recent_activities|default([]) %}
-                                <tr>
-                                    <td>{{ activity.description }}</td
-                                    <td>{{ activity.created_at }}</td
-                                </tr>
-                                {% else %}
-                                <tr>
-                                    <td colspan="2" class="text-center">No recent activities</td>
-                                </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
 
 {% elif session.role == 'classteacher' %}
     <!-- Class Teacher Dashboard -->
-    <div class="row">
-        <div class="col-md-12">
-            <div class="alert alert-info">
-                <i class="fas fa-chalkboard-teacher"></i> 
-                <strong>Class Teacher Dashboard</strong><br>
-                Manage your class, upload marks, and record attendance.
-            </div>
-        </div>
-    </div>
     <div class="row">
         <div class="col-md-6">
             <div class="card">
@@ -278,63 +191,41 @@
 
 {% elif session.role == 'subject_teacher' %}
     <!-- Subject Teacher Dashboard -->
-    <div class="row">
-        <div class="col-md-12">
-            <div class="alert alert-info">
-                <i class="fas fa-chalkboard-teacher"></i> 
-                <strong>Subject Teacher Dashboard</strong><br>
-                Upload marks and view student report cards.
-            </div>
-        </div>
-    </div>
-    <div class="row">
-        <div class="col-md-12">
-            <div class="card">
-                <div class="card-header bg-primary text-white">My Subjects & Classes</div>
-                <div class="card-body">
-                    <div class="table-responsive">
-                        <table class="table">
-                            <thead>
-                                <tr>
-                                    <th>Subject</th>
-                                    <th>Class</th>
-                                    <th>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for assignment in my_assignments|default([]) %}
-                                <tr>
-                                    <td>{{ assignment.subject }}</td
-                                    <td>{{ assignment.class_name }}</td
-                                    <td>
-                                        <a href="{{ url_for('teacher_upload_marks', class_id=assignment.class_name, subject=assignment.subject) }}" class="btn btn-sm btn-primary">Upload Marks</a>
-                                        <a href="{{ url_for('teacher_view_marks', class_id=assignment.class_name, subject=assignment.subject) }}" class="btn btn-sm btn-info">View Marks</a>
-                                    </td
-                                </tr>
-                                {% else %}
-                                <tr>
-                                    <td colspan="3" class="text-center">No subjects assigned</td>
-                                </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
+    <div class="card">
+        <div class="card-header bg-primary text-white">My Subjects & Classes</div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Subject</th>
+                            <th>Class</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for assignment in my_assignments|default([]) %}
+                        <tr>
+                            <td>{{ assignment.subject }}</td
+                            <td>{{ assignment.class_name }}</td
+                            <td>
+                                <a href="{{ url_for('teacher_upload_marks', class_id=assignment.class_name, subject=assignment.subject) }}" class="btn btn-sm btn-primary">Upload Marks</a>
+                                <a href="{{ url_for('teacher_view_marks', class_id=assignment.class_name, subject=assignment.subject) }}" class="btn btn-sm btn-info">View Marks</a>
+                            </td
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="3" class="text-center">No subjects assigned</td
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
             </div>
         </div>
     </div>
 
 {% elif session.role == 'parent' %}
     <!-- Parent Dashboard -->
-    <div class="row">
-        <div class="col-md-12">
-            <div class="alert alert-info">
-                <i class="fas fa-child"></i> 
-                <strong>Parent Dashboard</strong><br>
-                View your children's progress and report cards.
-            </div>
-        </div>
-    </div>
     <div class="row">
         {% for child in children|default([]) %}
         <div class="col-md-6">
@@ -357,15 +248,6 @@
 
 {% elif session.role == 'stores_keeper' %}
     <!-- Stores Keeper Dashboard -->
-    <div class="row">
-        <div class="col-md-12">
-            <div class="alert alert-info">
-                <i class="fas fa-boxes"></i> 
-                <strong>Stores Keeper Dashboard</strong><br>
-                Manage inventory, track stock levels, and process item requests.
-            </div>
-        </div>
-    </div>
     <div class="row">
         <div class="col-md-4">
             <div class="card bg-primary text-white">
