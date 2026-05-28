@@ -3721,9 +3721,9 @@ def headteacher_approval_access(token):
         flash('Invalid approval link.', 'danger')
         return redirect(url_for('headteacher_approvals'))
     
-    # Get staff list for this payroll
+    # FIXED: Get columns from salary_payments, not staff
     cur.execute("""
-        SELECT sp.*, s.full_name, s.position, s.gross_salary, s.nssf_employee, s.paye_tax, s.deductions, s.net_salary
+        SELECT sp.*, s.full_name, s.position
         FROM salary_payments sp
         JOIN staff s ON sp.staff_id = s.id
         WHERE sp.payroll_id = ?
@@ -3762,8 +3762,9 @@ def headteacher_approval_access(token):
             cur.execute("SELECT phone FROM users WHERE role='management' AND status=1")
             management_users = cur.fetchall()
             for mgmt in management_users:
-                if mgmt['phone']:
-                    send_sms(mgmt['phone'], f"BANK AUTHORIZATION NEEDED: Payroll {payroll['payroll_no']} - UGX {payroll['total_amount']:,.2f}. Code: {mgmt_code}. Expires: {expires_str}. Link: {management_link}")
+                phone = mgmt['phone'] if isinstance(mgmt, dict) else mgmt[0]
+                if phone:
+                    send_sms(phone, f"BANK AUTHORIZATION NEEDED: Payroll {payroll['payroll_no']} - UGX {payroll['total_amount']:,.2f}. Code: {mgmt_code}. Expires: {expires_str}. Link: {management_link}")
             add_notification('management', f"Payroll {payroll['payroll_no']} needs bank authorization. Code: {mgmt_code}", f"/management/authorization/{mgmt_token}")
             flash('Payroll approved. Management notified for bank authorization.', 'success')
             
