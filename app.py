@@ -2400,6 +2400,21 @@ def dos_teacher_assignments():
     
     return render_template('dos/teacher_assignments.html', assignments=assignments)
 
+@app.route('/dos/delete_assignment/<int:assignment_id>', methods=['POST'])
+def dos_delete_assignment(assignment_id):
+    if not check_permission(['dos']):
+        return jsonify({'success': False, 'error': 'Permission denied'})
+    
+    try:
+        db = get_db_dict()
+        cur = db.cursor()
+        cur.execute("DELETE FROM teacher_class_assignments WHERE id = ?", (assignment_id,))
+        db.commit()
+        cur.close()
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
 @app.route('/dos/report_card/<student_id>')
 def dos_report_card(student_id):
     if not check_permission(['dos']):
