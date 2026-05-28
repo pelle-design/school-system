@@ -1777,6 +1777,39 @@ def admission_submitted():
 
 # ==================== DOS MODULE ====================
 SCHOOL_ABBR = "SMS"
+@app.route('/dos/get_notifications')
+def dos_get_notifications():
+    if not check_permission(['dos']):
+        return jsonify([])
+    
+    db = get_db_dict()
+    cur = db.cursor()
+    cur.execute("""
+        SELECT id, title, message, is_read, created_at 
+        FROM notifications 
+        WHERE user_role = 'dos' OR user_id = ?
+        ORDER BY created_at DESC LIMIT 20
+    """, (session.get('user_id'),))
+    notifications = cur.fetchall()
+    cur.close()
+    return jsonify(notifications)
+
+@app.route('/dos/mark_notifications_read', methods=['POST'])
+def dos_mark_notifications_read():
+    if not check_permission(['dos']):
+        return jsonify({'error': 'Permission denied'})
+    
+    db = get_db_dict()
+    cur = db.cursor()
+    cur.execute("""
+        UPDATE notifications 
+        SET is_read = 1 
+        WHERE (user_role = 'dos' OR user_id = ?) AND is_read = 0
+    """, (session.get('user_id'),))
+    db.commit()
+    cur.close()
+    return jsonify({'success': True})
+
 
 def generate_student_id():
     return generate_unique_number(SCHOOL_ABBR, 'students', 'student_id', year_format=True)
@@ -2421,16 +2454,78 @@ def dos_teacher_assignments():
     
     db = get_db_dict()
     cur = db.cursor()
+    
+    # Get ALL assignments with teacher details
     cur.execute("""
-        SELECT u.username, u.full_name, u.role, tca.class_name, tca.subject, tca.assignment_type, tca.assigned_by, tca.assigned_at 
-        FROM teacher_class_assignments tca 
-        JOIN users u ON tca.user_id = u.id 
-        ORDER BY tca.class_name, tca.assignment_type, u.full_name
+        SELECT tca.*, u.username, u.full_name, u.phone
+        FROM teacher_class_assignments tca
+        JOIN users u ON tca.user_id = u.id
+        ORDER BY u.username, tca.assignment_type
     """)
-    assignments = cur.fetchall()
+    all_assignments = cur.fetchall()
     cur.close()
     
-    return render_template('dos/teacher_assignments.html', assignments=assignments)
+    # Organize data by teacher
+    teachers_data = {}
+    for a in all_assignments:
+        teacher_id = a['user_id']
+        if teacher_id not in teachers_data:
+            teachers_data[teacher_id] = {
+                'id': a['id'],
+                'user_id': teacher_id,
+                'username': a['username'],
+                'full_name': a['full_name'],
+                'phone': a.get('phone', ''),
+                'class_teacher_class': None,
+                'subject_teacher_classes': [],
+                'subjects': []
+            }
+        
+        if a['assignment_type'] == 'classteacher':
+            teachers_data[teacher_id]['class_teacher_class'] = a['class_name']
+        else:
+            teachers_data[teacher_id]['subject_teacher_classes'].append(a['class_name'])
+            teachers_data[teacher_id]['subjects'].append(a.get('subject', 'General'))
+    
+    # Separate into categories
+    class_teachers = []
+    subject_teachers = []
+    both_roles = []
+    
+    for teacher_id, data in teachers_data.items():
+        has_class = data['class_teacher_class'] is not None
+        has_subject = len(data['subject_teacher_classes']) > 0
+        
+        if has_class and has_subject:
+            # Teacher is BOTH
+            data['classteacher_class'] = data['class_teacher_class']
+            data['subjects'] = list(set(data['subjects']))
+            data['class_count'] = 1 + len(data['subject_teacher_classes'])
+            both_roles.append(data)
+        elif has_class:
+            # Only Class Teacher
+            data['class_name'] = data['class_teacher_class']
+            data['class_count'] = 1
+            class_teachers.append(data)
+        elif has_subject:
+            # Only Subject Teacher - show each subject separately
+            for i, cls in enumerate(data['subject_teacher_classes']):
+                subject_teachers.append({
+                    'id': data['id'],
+                    'user_id': data['user_id'],
+                    'username': data['username'],
+                    'full_name': data['full_name'],
+                    'phone': data['phone'],
+                    'class_name': cls,
+                    'subject': data['subjects'][i] if i < len(data['subjects']) else 'General',
+                    'class_count': len(data['subject_teacher_classes']),
+                    'subject_count': len(set(data['subjects']))
+                })
+    
+    return render_template('dos/teacher_assignments.html', 
+                         class_teachers=class_teachers,
+                         subject_teachers=subject_teachers,
+                         both_roles=both_roles)
 
 @app.route('/dos/delete_assignment/<int:assignment_id>', methods=['POST'])
 def dos_delete_assignment(assignment_id):
