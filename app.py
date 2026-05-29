@@ -921,9 +921,8 @@ def calculate_age(birth_date):
     today = datetime.now().date()
     return today.year - birth_date.year - ((today.month, today.day) < (birth_date.month, birth_date.day))
 
-
-
 # ==================== NOTIFICATION FUNCTIONS ====================
+
 def add_notification(user_role, message, link=None, title=None):
     """Add a notification for a specific user role"""
     if title is None:
@@ -934,31 +933,140 @@ def add_notification(user_role, message, link=None, title=None):
         VALUES (?, ?, ?, ?, 0, ?)
     """, (user_role, title, message, link, datetime.now()))
 
-def add_notification(user_role, message, link=None):
-    execute_db("INSERT INTO notifications (user_role, message, link, is_read, created_at) VALUES (?, ?, ?, 0, ?)",
-               (user_role, message, link, datetime.now()))
-
-def get_notifications(user_role, limit=10):
-    db = get_db_dict()
-    cur = db.cursor()
-    cur.execute("SELECT * FROM notifications WHERE user_role = ? AND is_read = 0 ORDER BY created_at DESC LIMIT ?", (user_role, limit))
-    notifications = cur.fetchall()
-    cur.close()
-    return notifications
-
 def get_notification_count(user_role):
-    cur = get_db().cursor()
+    """Get count of unread notifications for a user role"""
+    db = get_db()
+    cur = db.cursor()
     cur.execute("SELECT COUNT(*) FROM notifications WHERE user_role = ? AND is_read = 0", (user_role,))
-    count = cur.fetchone()[0]
+    result = cur.fetchone()
     cur.close()
-    return count
-
-def mark_notification_read(notification_id):
-    execute_db("UPDATE notifications SET is_read = 1 WHERE id = ?", (notification_id,))
+    return result[0] if result else 0
 
 def mark_all_notifications_read(user_role):
+    """Mark all notifications as read for a user role"""
     execute_db("UPDATE notifications SET is_read = 1 WHERE user_role = ?", (user_role,))
 
+
+# ==================== NOTIFICATION API ENDPOINTS (Works for ALL ROLES) ====================
+
+@app.route('/get_notifications')
+def get_notifications():
+    """Generic endpoint for all roles to get notifications"""
+    if not session.get('user_id'):
+        return jsonify([])
+    
+    user_role = session.get('role')
+    
+    db = get_db_dict()
+    cur = db.cursor()
+    cur.execute("""
+        SELECT id, title, message, link, is_read, created_at 
+        FROM notifications 
+        WHERE user_role = ?
+        ORDER BY created_at DESC 
+        LIMIT 30
+    """, (user_role,))
+    
+    notifications = cur.fetchall()
+    cur.close()
+    
+    result = []
+    for n in notifications:
+        result.append({
+            'id': n['id'],
+            'title': n.get('title', 'Notification'),
+            'message': n['message'],
+            'link': n.get('link', ''),
+            'is_read': n['is_read'],
+            'created_at': n['created_at'][:19] if n['created_at'] else ''
+        })
+    
+    return jsonify(result)
+
+
+@app.route('/mark_notifications_read', methods=['POST'])
+def mark_notifications_read():
+    """Generic endpoint for all roles to mark notifications as read"""
+    if not session.get('user_id'):
+        return jsonify({'error': 'Not logged in'})
+    
+    user_role = session.get('role')
+    
+    try:
+        execute_db("UPDATE notifications SET is_read = 1 WHERE user_role = ?", (user_role,))
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+
+# ==================== DOS SPECIFIC ENDPOINTS (Keep for backward compatibility) ====================
+
+@app.route('/dos/get_notifications')
+def dos_get_notifications():
+    """DOS specific endpoint - redirects to generic"""
+    return get_notifications()
+
+
+@app.route('/dos/mark_notifications_read', methods=['POST'])
+def dos_mark_notifications_read():
+    """DOS specific endpoint - redirects to generic"""
+    return mark_notifications_read()
+
+
+# ==================== HEADTEACHER SPECIFIC ENDPOINTS ====================
+
+@app.route('/headteacher/get_notifications')
+def headteacher_get_notifications():
+    """Headteacher specific endpoint"""
+    return get_notifications()
+
+
+@app.route('/headteacher/mark_notifications_read', methods=['POST'])
+def headteacher_mark_notifications_read():
+    """Headteacher specific endpoint"""
+    return mark_notifications_read()
+
+
+# ==================== BURSAR SPECIFIC ENDPOINTS ====================
+
+@app.route('/bursar/get_notifications')
+def bursar_get_notifications():
+    """Bursar specific endpoint"""
+    return get_notifications()
+
+
+@app.route('/bursar/mark_notifications_read', methods=['POST'])
+def bursar_mark_notifications_read():
+    """Bursar specific endpoint"""
+    return mark_notifications_read()
+
+
+# ==================== MANAGEMENT SPECIFIC ENDPOINTS ====================
+
+@app.route('/management/get_notifications')
+def management_get_notifications():
+    """Management specific endpoint"""
+    return get_notifications()
+
+
+@app.route('/management/mark_notifications_read', methods=['POST'])
+def management_mark_notifications_read():
+    """Management specific endpoint"""
+    return mark_notifications_read()
+
+
+# ==================== STORES KEEPER SPECIFIC ENDPOINTS ====================
+
+@app.route('/stores/get_notifications')
+def stores_get_notifications():
+    """Stores Keeper specific endpoint"""
+    return get_notifications()
+
+
+@app.route('/stores/mark_notifications_read', methods=['POST'])
+def stores_mark_notifications_read():
+    """Stores Keeper specific endpoint"""
+    return mark_notifications_read()
 # ==================== GRADING HELPERS ====================
 def get_grade_and_descriptor(score):
     cur = get_db().cursor()
@@ -1777,40 +1885,6 @@ def admission_submitted():
 
 # ==================== DOS MODULE ====================
 SCHOOL_ABBR = "SMS"
-@app.route('/dos/get_notifications')
-def dos_get_notifications():
-    if not check_permission(['dos']):
-        return jsonify([])
-    
-    db = get_db_dict()
-    cur = db.cursor()
-    cur.execute("""
-        SELECT id, title, message, is_read, created_at 
-        FROM notifications 
-        WHERE user_role = 'dos' OR user_id = ?
-        ORDER BY created_at DESC LIMIT 20
-    """, (session.get('user_id'),))
-    notifications = cur.fetchall()
-    cur.close()
-    return jsonify(notifications)
-
-@app.route('/dos/mark_notifications_read', methods=['POST'])
-def dos_mark_notifications_read():
-    if not check_permission(['dos']):
-        return jsonify({'error': 'Permission denied'})
-    
-    db = get_db_dict()
-    cur = db.cursor()
-    cur.execute("""
-        UPDATE notifications 
-        SET is_read = 1 
-        WHERE (user_role = 'dos' OR user_id = ?) AND is_read = 0
-    """, (session.get('user_id'),))
-    db.commit()
-    cur.close()
-    return jsonify({'success': True})
-
-
 def generate_student_id():
     return generate_unique_number(SCHOOL_ABBR, 'students', 'student_id', year_format=True)
 
