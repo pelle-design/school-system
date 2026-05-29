@@ -211,6 +211,7 @@ def init_db():
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (staff_id) REFERENCES staff(id),
             FOREIGN KEY (payroll_id) REFERENCES payroll(id)
+            UNIQUE(student_id, subject, term, year)
         )
     ''')
     
@@ -3063,6 +3064,90 @@ def teacher_remove_student(student_id):
     flash('Student removed.', 'success')
     return redirect(url_for('teacher_students'))
 
+@app.route('/teacher/upload_students', methods=['GET', 'POST'])
+def teacher_upload_students():
+    if not check_permission(['classteacher']):
+        abort(403)
+    
+    if request.method == 'POST':
+        file = request.files.get('excel_file')
+        if not file or not file.filename:
+            flash('Please upload an Excel or CSV file.', 'danger')
+            return redirect(url_for('teacher_upload_students'))
+        
+        try:
+            from openpyxl import load_workbook
+            import pandas as pd
+            
+            # Get teacher's assigned class
+            db = get_db_dict()
+            cur = db.cursor()
+            cur.execute("""
+                SELECT class_name FROM teacher_class_assignments 
+                WHERE user_id = ? AND assignment_type = 'classteacher'
+            """, (session.get('user_id'),))
+            result = cur.fetchone()
+            
+            if not result:
+                flash('You are not assigned as a class teacher.', 'danger')
+                return redirect(url_for('teacher_upload_students'))
+            
+            assigned_class = result['class_name'] if isinstance(result, dict) else result[0]
+            
+            # Read file
+            if file.filename.endswith('.csv'):
+                df = pd.read_csv(file)
+            else:
+                df = pd.read_excel(file)
+            
+            success_count = 0
+            error_count = 0
+            errors = []
+            
+            for index, row in df.iterrows():
+                try:
+                    full_name = str(row.get('full_name', '')).strip()
+                    parent_phone = str(row.get('parent_phone', '')).strip()
+                    
+                    if not full_name:
+                        errors.append(f"Row {index+2}: Missing full_name")
+                        error_count += 1
+                        continue
+                    
+                    # Generate unique student ID
+                    student_id = generate_student_id()
+                    
+                    # Insert student
+                    cur.execute("""
+                        INSERT INTO students (student_id, full_name, class, parent_phone, admission_status, fees_total, fees_paid, fees_balance)
+                        VALUES (?, ?, ?, ?, 'approved', 0, 0, 0)
+                    """, (student_id, full_name, assigned_class, parent_phone))
+                    
+                    success_count += 1
+                    
+                except Exception as e:
+                    errors.append(f"Row {index+2}: {str(e)}")
+                    error_count += 1
+            
+            db.commit()
+            cur.close()
+            
+            # Add notification for DOS
+            add_notification('dos', f'Class teacher uploaded {success_count} students to class {assigned_class}', '/dos/class_lists')
+            
+            flash(f'Uploaded {success_count} students to class {assigned_class}. Errors: {error_count}', 
+                  'success' if success_count > 0 else 'danger')
+            if errors:
+                for e in errors[:5]:
+                    flash(e, 'warning')
+                    
+        except Exception as e:
+            flash(f'Error: {str(e)}', 'danger')
+        
+        return redirect(url_for('teacher_students'))
+    
+    return render_template('teacher/upload_students.html')
+
 @app.route('/teacher/print_all_report_cards')
 def teacher_print_all_report_cards():
     if not check_permission(['classteacher']):
@@ -3218,12 +3303,16 @@ def bursar_dashboard():
 def bursar_students():
     if not check_permission(['bursar']):
         abort(403)
+    
     search = request.args.get('search', '').strip()
     class_filter = request.args.get('class', '').strip()
+    
     db = get_db_dict()
     cur = db.cursor()
+    
     query = "SELECT student_id, full_name, class, parent_phone, fees_total, fees_paid, fees_balance FROM students WHERE 1=1"
     params = []
+    
     if search:
         query += " AND (student_id LIKE ? OR full_name LIKE ?)"
         pattern = f"%{search}%"
@@ -3231,11 +3320,21 @@ def bursar_students():
     if class_filter:
         query += " AND class = ?"
         params.append(class_filter)
+    
     query += " ORDER BY full_name"
     cur.execute(query, params)
     students = cur.fetchall()
+    
+    # Get distinct classes - FIXED
     cur.execute("SELECT DISTINCT class FROM students WHERE class IS NOT NULL AND class != '' ORDER BY class")
-    classes = [row[0] for row in cur.fetchall()]
+    rows = cur.fetchall()
+    classes = []
+    for row in rows:
+        if isinstance(row, dict):
+            classes.append(row.get('class'))
+        else:
+            classes.append(row[0])
+    
     cur.close()
     return render_template('bursar/students.html', students=students, classes=classes, search=search, class_filter=class_filter)
 
@@ -4100,7 +4199,6 @@ def headteacher_view_payroll(payroll_id):
     staff_list = cur.fetchall()
     cur.close()
     return render_template('headteacher/view_payroll.html', payroll=payroll, staff_list=staff_list)
-
 @app.route('/headteacher/students')
 def headteacher_students():
     if not check_permission(['headteacher']):
@@ -4109,31 +4207,27 @@ def headteacher_students():
     db = get_db_dict()
     cur = db.cursor()
     
-    # Use 'class' column (not 'class_name')
+    # Get all students with their details
+    cur.execute("""
+        SELECT student_id, full_name, class, parent_phone, admission_status, fees_balance 
+        FROM students 
+        WHERE admission_status = 'approved'
+        ORDER BY class, full_name
+    """)
+    students = cur.fetchall()
+    
+    # Get distinct classes for filtering
     cur.execute("SELECT DISTINCT class FROM students WHERE class IS NOT NULL AND class != '' ORDER BY class")
     rows = cur.fetchall()
-    
-    # Extract class names
     classes = []
     for row in rows:
         if isinstance(row, dict):
-            classes.append(row['class'])
+            classes.append(row.get('class'))
         else:
             classes.append(row[0])
     
-    # Get students grouped by class
-    students_by_class = {}
-    for class_name in classes:
-        cur.execute("""
-            SELECT student_id, full_name, parent_phone, admission_status, fees_balance 
-            FROM students 
-            WHERE class = ? 
-            ORDER BY full_name
-        """, (class_name,))
-        students_by_class[class_name] = cur.fetchall()
-    
     cur.close()
-    return render_template('headteacher/students.html', classes=classes, students_by_class=students_by_class)
+    return render_template('headteacher/students.html', students=students, classes=classes)
 
 @app.route('/headteacher/update_comment', methods=['POST'])
 def headteacher_update_comment():
