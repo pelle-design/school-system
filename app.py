@@ -3079,7 +3079,8 @@ def teacher_upload_students():
         
         try:
             from openpyxl import load_workbook
-            import pandas as pd
+            import csv
+            import io
             
             # Get teacher's assigned class
             db = get_db_dict()
@@ -3096,23 +3097,44 @@ def teacher_upload_students():
             
             assigned_class = result['class_name'] if isinstance(result, dict) else result[0]
             
-            # Read file
-            if file.filename.endswith('.csv'):
-                df = pd.read_csv(file)
-            else:
-                df = pd.read_excel(file)
-            
             success_count = 0
             error_count = 0
             errors = []
+            row_index = 2
             
-            for index, row in df.iterrows():
-                try:
-                    full_name = str(row.get('full_name', '')).strip()
-                    parent_phone = str(row.get('parent_phone', '')).strip()
+            # Handle Excel file
+            if file.filename.endswith('.xlsx') or file.filename.endswith('.xls'):
+                wb = load_workbook(file, data_only=True)
+                sheet = wb.active
+                
+                # Get headers to find correct columns
+                headers = []
+                for cell in sheet[1]:
+                    headers.append(str(cell.value).strip().lower() if cell.value else '')
+                
+                # Find column indices
+                full_name_col = None
+                parent_phone_col = None
+                
+                for idx, h in enumerate(headers):
+                    if h in ['full_name', 'name', 'student_name']:
+                        full_name_col = idx
+                    elif h in ['parent_phone', 'phone', 'parent_contact']:
+                        parent_phone_col = idx
+                
+                # Default to first two columns if not found
+                if full_name_col is None:
+                    full_name_col = 0
+                if parent_phone_col is None:
+                    parent_phone_col = 1
+                
+                # Iterate through rows
+                for row_idx in range(2, sheet.max_row + 1):
+                    full_name = str(sheet.cell(row=row_idx, column=full_name_col + 1).value or '').strip()
+                    parent_phone = str(sheet.cell(row=row_idx, column=parent_phone_col + 1).value or '').strip()
                     
                     if not full_name:
-                        errors.append(f"Row {index+2}: Missing full_name")
+                        errors.append(f"Row {row_idx}: Missing full_name")
                         error_count += 1
                         continue
                     
@@ -3126,10 +3148,56 @@ def teacher_upload_students():
                     """, (student_id, full_name, assigned_class, parent_phone))
                     
                     success_count += 1
+                    row_index = row_idx
+            
+            # Handle CSV file
+            elif file.filename.endswith('.csv'):
+                content = file.read().decode('utf-8')
+                csv_reader = csv.reader(io.StringIO(content))
+                headers = next(csv_reader)  # Skip header row
+                
+                # Find column indices
+                full_name_col = None
+                parent_phone_col = None
+                
+                for idx, h in enumerate(headers):
+                    h_lower = h.strip().lower()
+                    if h_lower in ['full_name', 'name', 'student_name']:
+                        full_name_col = idx
+                    elif h_lower in ['parent_phone', 'phone', 'parent_contact']:
+                        parent_phone_col = idx
+                
+                if full_name_col is None:
+                    full_name_col = 0
+                if parent_phone_col is None:
+                    parent_phone_col = 1
+                
+                for row_idx, row in enumerate(csv_reader, start=2):
+                    if len(row) <= max(full_name_col, parent_phone_col):
+                        continue
                     
-                except Exception as e:
-                    errors.append(f"Row {index+2}: {str(e)}")
-                    error_count += 1
+                    full_name = row[full_name_col].strip() if full_name_col < len(row) else ''
+                    parent_phone = row[parent_phone_col].strip() if parent_phone_col < len(row) else ''
+                    
+                    if not full_name:
+                        errors.append(f"Row {row_idx}: Missing full_name")
+                        error_count += 1
+                        continue
+                    
+                    # Generate unique student ID
+                    student_id = generate_student_id()
+                    
+                    # Insert student
+                    cur.execute("""
+                        INSERT INTO students (student_id, full_name, class, parent_phone, admission_status, fees_total, fees_paid, fees_balance)
+                        VALUES (?, ?, ?, ?, 'approved', 0, 0, 0)
+                    """, (student_id, full_name, assigned_class, parent_phone))
+                    
+                    success_count += 1
+            
+            else:
+                flash('Unsupported file format. Please upload .xlsx, .xls, or .csv', 'danger')
+                return redirect(url_for('teacher_upload_students'))
             
             db.commit()
             cur.close()
@@ -4106,8 +4174,10 @@ def headteacher_approval_access(token):
         from datetime import datetime
         expires_value = payroll['token_expires_at']
         
-        # Handle both string and datetime
         if isinstance(expires_value, str):
+            # Handle milliseconds by splitting at the dot
+            if '.' in expires_value:
+                expires_value = expires_value.split('.')[0]
             expires_dt = datetime.strptime(expires_value, '%Y-%m-%d %H:%M:%S')
         else:
             expires_dt = expires_value
@@ -4159,8 +4229,14 @@ def headteacher_approval_access(token):
     remaining_minutes = None
     if payroll.get('token_expires_at'):
         from datetime import datetime
-        remaining = datetime.strptime(payroll['token_expires_at'], '%Y-%m-%d %H:%M:%S') - datetime.now()
-        remaining_minutes = int(remaining.total_seconds() / 60)
+        expires_value = payroll['token_expires_at']
+        if '.' in expires_value:
+            expires_value = expires_value.split('.')[0]
+        try:
+            remaining = datetime.strptime(expires_value, '%Y-%m-%d %H:%M:%S') - datetime.now()
+            remaining_minutes = int(remaining.total_seconds() / 60)
+        except:
+            remaining_minutes = None
     
     cur.close()
     return render_template('headteacher/approve_payroll_secure.html', 
