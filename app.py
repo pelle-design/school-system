@@ -2411,8 +2411,8 @@ def dos_upload_teachers():
                         default_password = 'password123'
                         hashed = generate_password_hash(default_password)
                         cur.execute("""
-                            INSERT INTO users (username, full_name, password, role, status) 
-                            VALUES (?, ?, ?, ?, 1)
+                            INSERT INTO users (username, full_name, password, role, status, must_change_password) 
+                            VALUES (?, ?, ?, ?, 1, 1)
                         """, (username, full_name or username, hashed, 
                               'subject_teacher' if assignment_type == 'subject_teacher' else 'classteacher'))
                         user_id = cur.lastrowid
