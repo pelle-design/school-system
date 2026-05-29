@@ -3441,39 +3441,58 @@ def bursar_bulk_reminder():
     flash(f'{sent} reminders sent.', 'success')
     return redirect(url_for('bursar_students'))
 
-@app.route('/bursar/bulk_clearance')
-def bursar_bulk_clearance():
-    if not check_permission(['bursar']):
-        abort(403)
-    class_filter = request.args.get('class', '')
-    db = get_db_dict()
-    cur = db.cursor()
-    query = "SELECT student_id, full_name, class, parent_phone, fees_balance, photo_path FROM students WHERE fees_balance <= 0"
-    if class_filter:
-        query += " AND class = ?"
-        cur.execute(query, (class_filter,))
-    else:
-        cur.execute(query)
-    students = cur.fetchall()
-    for s in students:
-        s['photo_url'] = get_photo_url(s.get('photo_path'))
-    cur.close()
-    return render_template('bursar/bulk_clearance.html', students=students)
-
 @app.route('/bursar/clearance/<student_id>')
 def bursar_clearance(student_id):
     if not check_permission(['bursar']):
         abort(403)
+    
     db = get_db_dict()
     cur = db.cursor()
-    cur.execute("SELECT student_id, full_name, class, parent_phone, fees_balance, photo_path FROM students WHERE student_id=?", (student_id,))
+    cur.execute("SELECT student_id, full_name, class, parent_phone, fees_balance, fees_total, fees_paid, photo_path FROM students WHERE student_id=?", (student_id,))
     student = cur.fetchone()
+    cur.close()
+    
     if not student:
         flash('Student not found', 'danger')
         return redirect(url_for('bursar_students'))
+    
+    # Add default values for missing fields
+    student['fees_total'] = student.get('fees_total') or 0
+    student['fees_paid'] = student.get('fees_paid') or 0
+    student['fees_balance'] = student.get('fees_balance') or 0
     student['photo_url'] = get_photo_url(student.get('photo_path'))
-    cur.close()
+    
     return render_template('bursar/clearance.html', student=student)
+
+@app.route('/bursar/bulk_clearance')
+def bursar_bulk_clearance():
+    if not check_permission(['bursar']):
+        abort(403)
+    
+    class_filter = request.args.get('class', '')
+    db = get_db_dict()
+    cur = db.cursor()
+    
+    query = "SELECT student_id, full_name, class, parent_phone, fees_balance, fees_total, fees_paid, photo_path FROM students WHERE fees_balance <= 0"
+    params = []
+    
+    if class_filter:
+        query += " AND class = ?"
+        params.append(class_filter)
+        cur.execute(query, params)
+    else:
+        cur.execute(query)
+    
+    students = cur.fetchall()
+    cur.close()
+    
+    for s in students:
+        s['fees_total'] = s.get('fees_total') or 0
+        s['fees_paid'] = s.get('fees_paid') or 0
+        s['fees_balance'] = s.get('fees_balance') or 0
+        s['photo_url'] = get_photo_url(s.get('photo_path'))
+    
+    return render_template('bursar/bulk_clearance.html', students=students)
 
 @app.route('/bursar/webhook/process')
 def bursar_process_webhooks():
@@ -4083,7 +4102,17 @@ def headteacher_approval_access(token):
         flash(f'This payroll has already been {payroll["approval_status"]}.', 'warning')
         return redirect(url_for('headteacher_approvals'))
     
-    if payroll.get('token_expires_at') and payroll['token_expires_at'] <= datetime.now():
+   if payroll.get('token_expires_at'):
+    from datetime import datetime
+    expires_value = payroll['token_expires_at']
+    
+    # Handle both string and datetime
+    if isinstance(expires_value, str):
+        expires_dt = datetime.strptime(expires_value, '%Y-%m-%d %H:%M:%S')
+    else:
+        expires_dt = expires_value
+    
+    if expires_dt <= datetime.now():
         flash('This approval link has expired. Please request a new link.', 'danger')
         return redirect(url_for('headteacher_approvals'))
     
