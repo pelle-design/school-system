@@ -133,6 +133,7 @@ def init_db():
             payment_status TEXT DEFAULT 'pending',
             payment_transaction_id TEXT,
             payment_date TIMESTAMP
+            UNIQUE(student_id, subject, term, year)
         )
     ''')
     
@@ -211,7 +212,7 @@ def init_db():
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (staff_id) REFERENCES staff(id),
             FOREIGN KEY (payroll_id) REFERENCES payroll(id)
-            UNIQUE(student_id, subject, term, year)
+            
         )
     ''')
     
