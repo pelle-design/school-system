@@ -73,7 +73,6 @@
                 <a href="{{ url_for('logout') }}"><i class="fas fa-sign-out-alt"></i> Logout</a>
 
             {% elif session.role == 'dos' %}
-                <!-- Student Management Dropdown -->
                 <div class="dropdown-menu-item">
                     <a href="#" onclick="toggleDropdown(this); return false;">
                         <i class="fas fa-users"></i> Student Management
@@ -96,7 +95,6 @@
                         <a href="{{ url_for('teacher_upload_marks') }}">Upload Marks</a>
                     </div>
                 </div>
-                <!-- Teacher Management Dropdown -->
                 <div class="dropdown-menu-item">
                     <a href="#" onclick="toggleDropdown(this); return false;">
                         <i class="fas fa-chalkboard-teacher"></i> Teacher Management
@@ -211,22 +209,24 @@
 
             <h2 class="mb-4 no-print">Welcome, {{ session.username }} <span class="badge bg-secondary">{{ session.role }}</span></h2>
 
-            <!-- Notification Bar -->
-            {% if notification_count > 0 %}
-            <div class="alert alert-info alert-dismissible fade show notification-bar" role="alert">
+            <!-- Enhanced Real-time Notification Bar -->
+            <div class="notification-bar no-print" style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 10px 15px; margin-bottom: 20px; border-radius: 5px;">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
-                        <i class="fas fa-bell"></i>
-                        <strong>You have {{ notification_count }} unread notification(s)</strong>
+                        <i class="fas fa-bell text-warning"></i>
+                        <strong>Notifications:</strong>
+                        <span id="notificationMessage">Loading...</span>
                     </div>
                     <div>
-                        <a href="{{ url_for('view_all_notifications') }}" class="btn btn-sm btn-outline-primary me-2">View All</a>
-                        <a href="{{ url_for('mark_all_notifications_read_route') }}" class="btn btn-sm btn-outline-secondary">Mark All Read</a>
-                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                        <span class="badge bg-danger" id="notificationCount">0</span>
+                        <button onclick="toggleNotifications()" class="btn btn-sm btn-link">View All</button>
+                        <button onclick="markAllRead()" class="btn btn-sm btn-link">Mark all read</button>
+                        <button onclick="refreshNotifications()" class="btn btn-sm btn-link"><i class="fas fa-sync-alt"></i></button>
                     </div>
                 </div>
+                <div id="notificationList" style="max-height: 250px; overflow-y: auto; display: none; margin-top: 10px; background: white; border-radius: 5px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
+                </div>
             </div>
-            {% endif %}
 
             {% block content %}{% endblock %}
         </div>
@@ -285,6 +285,66 @@ document.addEventListener('click', function(e) {
     }
 });
 
+// ========== NOTIFICATION FUNCTIONS ==========
+function loadNotifications() {
+    fetch('/get_notifications')
+        .then(response => response.json())
+        .then(data => {
+            const unread = data.filter(n => !n.is_read);
+            const countSpan = document.getElementById('notificationCount');
+            const msgSpan = document.getElementById('notificationMessage');
+            const listDiv = document.getElementById('notificationList');
+            
+            if (countSpan) countSpan.innerText = unread.length;
+            if (msgSpan) {
+                msgSpan.innerHTML = unread.length > 0 ? `You have ${unread.length} new notification(s)` : 'No new notifications';
+            }
+            
+            if (listDiv) {
+                if (data.length === 0) {
+                    listDiv.innerHTML = '<div class="text-muted p-3 text-center">No notifications</div>';
+                } else {
+                    const listHtml = data.map(n => `
+                        <div class="notification-item ${!n.is_read ? 'bg-light' : ''}" style="padding: 12px; border-bottom: 1px solid #eee;">
+                            <strong>${escapeHtml(n.title || 'Notification')}</strong>
+                            <p style="margin: 5px 0; font-size: 12px;">${escapeHtml(n.message)}</p>
+                            <small class="text-muted">${n.created_at || ''}</small>
+                        </div>
+                    `).join('');
+                    listDiv.innerHTML = listHtml;
+                }
+            }
+        })
+        .catch(error => console.error('Error loading notifications:', error));
+}
+
+function escapeHtml(text) {
+    if (!text) return '';
+    return text.replace(/[&<>]/g, function(m) {
+        if (m === '&') return '&amp;';
+        if (m === '<') return '&lt;';
+        if (m === '>') return '&gt;';
+        return m;
+    });
+}
+
+function toggleNotifications() {
+    const list = document.getElementById('notificationList');
+    if (list) {
+        list.style.display = list.style.display === 'none' ? 'block' : 'none';
+    }
+}
+
+function markAllRead() {
+    fetch('/mark_notifications_read', {method: 'POST'})
+        .then(response => response.json())
+        .then(() => loadNotifications());
+}
+
+function refreshNotifications() {
+    loadNotifications();
+}
+
 // Service Worker Registration
 if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/static/sw.js')
@@ -309,7 +369,10 @@ function fetchAlertCount() {
             .catch(error => console.error('Error fetching alerts:', error));
     }
 }
-setInterval(fetchAlertCount, 30000);
+
+// Load notifications every 30 seconds
+setInterval(loadNotifications, 30000);
+loadNotifications();
 fetchAlertCount();
 </script>
 </body>
