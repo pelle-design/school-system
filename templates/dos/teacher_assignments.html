@@ -2,50 +2,6 @@
 {% block title %}Teacher Assignments{% endblock %}
 
 {% block content %}
-<style>
-    .nav-tabs .nav-link {
-        color: #1a237e;
-        font-weight: bold;
-    }
-    .nav-tabs .nav-link.active {
-        background-color: #1a237e;
-        color: white;
-        border-color: #1a237e;
-    }
-    .multi-class-badge {
-        background-color: #ff9800;
-        color: white;
-        padding: 2px 6px;
-        border-radius: 10px;
-        font-size: 10px;
-        margin-left: 5px;
-    }
-    .teacher-card {
-        transition: transform 0.2s;
-    }
-    .teacher-card:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-    }
-</style>
-
-<!-- Notification Bar -->
-<div class="notification-bar no-print" style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 10px 15px; margin-bottom: 20px; border-radius: 5px;">
-    <div class="d-flex justify-content-between align-items-center">
-        <div>
-            <i class="fas fa-bell text-warning"></i>
-            <strong>Notifications:</strong>
-            <span id="notificationMessage">Loading...</span>
-        </div>
-        <div>
-            <span class="badge bg-danger" id="notificationCount">0</span>
-            <button onclick="toggleNotifications()" class="btn btn-sm btn-link">View All</button>
-            <button onclick="markAllRead()" class="btn btn-sm btn-link">Mark read</button>
-        </div>
-    </div>
-    <div id="notificationList" style="max-height: 200px; overflow-y: auto; display: none; margin-top: 10px;"></div>
-</div>
-
 <div class="card shadow">
     <div class="card-header bg-primary text-white d-flex justify-content-between">
         <span><i class="fas fa-chalkboard-teacher"></i> Teacher Assignments</span>
@@ -54,235 +10,44 @@
         </a>
     </div>
     <div class="card-body">
-        
-        <!-- Tab Navigation -->
-        <ul class="nav nav-tabs mb-3" id="teacherTabs" role="tablist">
-            <li class="nav-item" role="presentation">
-                <button class="nav-link active" id="classteacher-tab" data-bs-toggle="tab" data-bs-target="#classteacher" type="button" role="tab">
-                    <i class="fas fa-users"></i> Class Teachers 
-                    <span class="badge bg-secondary">{{ class_teachers|length }}</span>
-                </button>
-            </li>
-            <li class="nav-item" role="presentation">
-                <button class="nav-link" id="subjectteacher-tab" data-bs-toggle="tab" data-bs-target="#subjectteacher" type="button" role="tab">
-                    <i class="fas fa-book"></i> Subject Teachers 
-                    <span class="badge bg-secondary">{{ subject_teachers|length }}</span>
-                </button>
-            </li>
-            <li class="nav-item" role="presentation">
-                <button class="nav-link" id="both-tab" data-bs-toggle="tab" data-bs-target="#both" type="button" role="tab">
-                    <i class="fas fa-star"></i> Both Roles 
-                    <span class="badge bg-warning">{{ both_roles|length }}</span>
-                </button>
-            </li>
-        </ul>
-        
-        <!-- Tab Content -->
-        <div class="tab-content">
-            <!-- Class Teachers Tab -->
-            <div class="tab-pane fade show active" id="classteacher" role="tabpanel">
-                <div class="table-responsive">
-                    <table class="table table-hover">
-                        <thead>
-                            <tr>
-                                <th>Teacher</th>
-                                <th>Full Name</th>
-                                <th>Class</th>
-                                <th>Phone</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for teacher in class_teachers %}
-                            <tr class="teacher-card">
-                                <td>{{ teacher.username }}</td
-                                <td>{{ teacher.full_name or '-' }}</td
-                                <td>
-                                    <strong>{{ teacher.class_name }}</strong>
-                                    {% if teacher.class_count > 1 %}
-                                    <span class="multi-class-badge" title="Teaches {{ teacher.class_count }} classes">
-                                        +{{ teacher.class_count - 1 }} more
-                                    </span>
-                                    {% endif %}
-                                </td
-                                <td>{{ teacher.phone or 'N/A' }}</td
-                                <td>
-                                    <button class="btn btn-sm btn-warning" onclick="editAssignment({{ teacher.id }})">
-                                        <i class="fas fa-edit"></i>
-                                    </button>
-                                    <button class="btn btn-sm btn-danger" onclick="deleteAssignment({{ teacher.id }})">
-                                        <i class="fas fa-trash"></i>
-                                    </button>
-                                </td
-                            </tr
+        <div class="table-responsive">
+            <table class="table table-bordered table-hover">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Username</th>
+                        <th>Teacher Name</th>
+                        <th>Class</th>
+                        <th>Subject</th>
+                        <th>Assignment Type</th>
+                        <th>Assigned By</th>
+                        <th>Assigned Date</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for a in assignments %}
+                    <tr>
+                        <td>{{ a.username or '-' }}</td
+                        <td>{{ a.full_name or '-' }}</td
+                        <td>{{ a.class_name }}</td
+                        <td>{{ a.subject or 'All' }}</td
+                        <td>
+                            {% if a.assignment_type == 'classteacher' %}
+                                <span class="badge bg-primary">Class Teacher</span>
                             {% else %}
-                            <tr
-                                <td colspan="5" class="text-center">No class teachers found.</td
-                            </tr
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-            
-            <!-- Subject Teachers Tab -->
-            <div class="tab-pane fade" id="subjectteacher" role="tabpanel">
-                <div class="table-responsive">
-                    <table class="table table-hover">
-                        <thead>
-                            <tr>
-                                <th>Teacher</th>
-                                <th>Full Name</th>
-                                <th>Class</th>
-                                <th>Subject</th>
-                                <th>Phone</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for teacher in subject_teachers %}
-                            <tr class="teacher-card">
-                                <td>{{ teacher.username }}</td
-                                <td>{{ teacher.full_name or '-' }}</td
-                                <td>
-                                    <strong>{{ teacher.class_name }}</strong>
-                                    {% if teacher.class_count > 1 %}
-                                    <span class="multi-class-badge" title="Teaches {{ teacher.class_count }} classes">
-                                        +{{ teacher.class_count - 1 }}
-                                    </span>
-                                    {% endif %}
-                                </td
-                                <td>
-                                    {{ teacher.subject }}
-                                    {% if teacher.subject_count > 1 %}
-                                    <span class="multi-class-badge" title="Teaches {{ teacher.subject_count }} subjects">
-                                        +{{ teacher.subject_count - 1 }}
-                                    </span>
-                                    {% endif %}
-                                </td
-                                <td>{{ teacher.phone or 'N/A' }}</td
-                                <td>
-                                    <button class="btn btn-sm btn-warning" onclick="editAssignment({{ teacher.id }})">
-                                        <i class="fas fa-edit"></i>
-                                    </button>
-                                    <button class="btn btn-sm btn-danger" onclick="deleteAssignment({{ teacher.id }})">
-                                        <i class="fas fa-trash"></i>
-                                    </button>
-                                </td
-                            </tr
-                            {% else %}
-                            <tr
-                                <td colspan="6" class="text-center">No subject teachers found.</td
-                            </tr
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-            
-            <!-- Both Roles Tab (Teachers who are both Class Teacher and Subject Teacher) -->
-            <div class="tab-pane fade" id="both" role="tabpanel">
-                <div class="table-responsive">
-                    <table class="table table-hover">
-                        <thead>
-                            <tr>
-                                <th>Teacher</th>
-                                <th>Full Name</th>
-                                <th>Class (as Class Teacher)</th>
-                                <th>Subjects (as Subject Teacher)</th>
-                                <th>Phone</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for teacher in both_roles %}
-                            <tr class="teacher-card">
-                                <td>{{ teacher.username }}</td
-                                <td>{{ teacher.full_name or '-' }}</td
-                                <td>
-                                    <strong>{{ teacher.classteacher_class }}</strong>
-                                </td
-                                <td>
-                                    {% for subj in teacher.subjects[:3] %}
-                                    <span class="badge bg-info">{{ subj }}</span>
-                                    {% endfor %}
-                                    {% if teacher.subjects|length > 3 %}
-                                    <span class="badge bg-secondary">+{{ teacher.subjects|length - 3 }}</span>
-                                    {% endif %}
-                                </td
-                                <td>{{ teacher.phone or 'N/A' }}</td
-                                <td>
-                                    <button class="btn btn-sm btn-warning" onclick="editAssignment({{ teacher.id }})">
-                                        <i class="fas fa-edit"></i>
-                                    </button>
-                                    <button class="btn btn-sm btn-danger" onclick="deleteAssignment({{ teacher.id }})">
-                                        <i class="fas fa-trash"></i>
-                                    </button>
-                                </td
-                            </tr
-                            {% else %}
-                            <tr
-                                <td colspan="6" class="text-center">No teachers with both roles found.</td
-                            </tr
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
+                                <span class="badge bg-success">Subject Teacher</span>
+                            {% endif %}
+                        </td
+                        <td>{{ a.assigned_by or 'DOS' }}</td
+                        <td>{{ a.assigned_at[:16] if a.assigned_at else '-' }}</td
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="7" class="text-center">No assignments found.</td
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
         </div>
     </div>
 </div>
-
-<script>
-function loadNotifications() {
-    fetch('/dos/get_notifications')
-        .then(response => response.json())
-        .then(data => {
-            const unread = data.filter(n => !n.is_read);
-            document.getElementById('notificationCount').innerText = unread.length;
-            document.getElementById('notificationMessage').innerHTML = unread.length > 0 ? 
-                `You have ${unread.length} new notification(s)` : 'No new notifications';
-            
-            const listHtml = data.slice(0, 10).map(n => `
-                <div class="notification-item ${!n.is_read ? 'bg-light' : ''}" style="padding: 8px; border-bottom: 1px solid #eee;">
-                    <strong>${n.title}</strong>
-                    <p style="margin: 0; font-size: 12px;">${n.message}</p>
-                    <small>${n.created_at}</small>
-                </div>
-            `).join('');
-            document.getElementById('notificationList').innerHTML = listHtml || '<div class="text-muted p-2">No notifications</div>';
-        });
-}
-
-function toggleNotifications() {
-    const list = document.getElementById('notificationList');
-    list.style.display = list.style.display === 'none' ? 'block' : 'none';
-}
-
-function markAllRead() {
-    fetch('/dos/mark_notifications_read', {method: 'POST'})
-        .then(() => loadNotifications());
-}
-
-function editAssignment(id) {
-    window.location.href = `/dos/edit_assignment/${id}`;
-}
-
-function deleteAssignment(id) {
-    if(confirm('Are you sure you want to delete this assignment?')) {
-        fetch(`/dos/delete_assignment/${id}`, {method: 'POST'})
-        .then(response => response.json())
-        .then(data => {
-            if(data.success) {
-                location.reload();
-            } else {
-                alert('Error deleting assignment');
-            }
-        });
-    }
-}
-
-setInterval(loadNotifications, 30000);
-loadNotifications();
-</script>
 {% endblock %}
