@@ -1069,14 +1069,21 @@ def stores_mark_notifications_read():
     """Stores Keeper specific endpoint"""
     return mark_notifications_read()
 # ==================== GRADING HELPERS ====================
-def get_grade_and_descriptor(score):
-    cur = get_db().cursor()
-    cur.execute("SELECT grade, descriptor FROM grading_system WHERE ? BETWEEN min_score AND max_score LIMIT 1", (score,))
+def get_grade_and_descriptor(percentage):
+    db = get_db_dict()
+    cur = db.cursor()
+    cur.execute("SELECT grade, descriptor FROM grading_system WHERE ? BETWEEN min_score AND max_score", (percentage,))
     result = cur.fetchone()
     cur.close()
+    
     if result:
-        return result[0], result[1]
-    return 'N/A', 'No grade defined'
+        # Handle both dict and tuple
+        if isinstance(result, dict):
+            return result.get('grade', 'O'), result.get('descriptor', 'Fail')
+        else:
+            return result[0], result[1]
+    
+    return 'O', 'Fail'
 
 def get_descriptor_by_identifier(identifier):
     cur = get_db().cursor()
@@ -1084,7 +1091,10 @@ def get_descriptor_by_identifier(identifier):
     result = cur.fetchone()
     cur.close()
     if result:
-        return result[0]
+        if isinstance(result, dict):
+            return result.get('descriptor', 'No descriptor defined')
+        else:
+            return result[0]
     return 'No descriptor defined'
 
 def get_alevel_grade_and_points(score, is_subsidiary=False):
@@ -1148,6 +1158,14 @@ def process_marks_upload(file, subject, term, year, assigned_class, teacher_id, 
         flash(f'Error reading Excel file: {str(e)}', 'danger')
         return 0
     
+    # Helper function to get value from fetchone result
+    def get_class_from_result(res):
+        if not res:
+            return None
+        if isinstance(res, dict):
+            return res.get('class')
+        return res[0]
+    
     # Get headers from first row
     headers = []
     for cell in sheet[1]:
@@ -1204,7 +1222,9 @@ def process_marks_upload(file, subject, term, year, assigned_class, teacher_id, 
             cur.execute("SELECT class FROM students WHERE student_id=?", (student_id,))
             res = cur.fetchone()
             cur.close()
-            if not res or res[0] != assigned_class:
+            
+            student_class = get_class_from_result(res)
+            if not student_class or student_class != assigned_class:
                 continue
             
             paper1_val = sheet.cell(row=row_idx, column=paper1_col + 1).value
@@ -1245,7 +1265,9 @@ def process_marks_upload(file, subject, term, year, assigned_class, teacher_id, 
             cur.execute("SELECT class FROM students WHERE student_id=?", (student_id,))
             res = cur.fetchone()
             cur.close()
-            if not res or res[0] != assigned_class:
+            
+            student_class = get_class_from_result(res)
+            if not student_class or student_class != assigned_class:
                 continue
             
             # Collect AI scores
