@@ -337,6 +337,7 @@ def init_db():
             user_role TEXT,
             message TEXT,
             link TEXT,
+            title TEXT DEFAULT 'Notification',
             is_read INTEGER DEFAULT 0,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
