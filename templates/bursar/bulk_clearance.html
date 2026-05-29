@@ -306,34 +306,34 @@
             <!-- Student Information -->
             <div class="info-row">
                 <div class="info-label">ID:</div>
-                <div class="info-value">{{ student.student_id }}</div>
+                <div class="info-value">{{ student['student_id'] }}</div>
             </div>
             <div class="info-row">
                 <div class="info-label">Name:</div>
-                <div class="info-value">{{ student.full_name[:20] }}{% if student.full_name|length > 20 %}...{% endif %}</div>
+                <div class="info-value">{{ student['full_name'][:20] }}{% if student['full_name']|length > 20 %}...{% endif %}</div>
             </div>
             <div class="info-row">
                 <div class="info-label">Class:</div>
-                <div class="info-value">{{ student.class }}</div>
+                <div class="info-value">{{ student['class'] }}</div>
             </div>
             <div class="info-row">
                 <div class="info-label">Parent Phone:</div>
-                <div class="info-value">{{ student.parent_phone or 'N/A' }}</div>
+                <div class="info-value">{{ student['parent_phone'] or 'N/A' }}</div>
             </div>
             
             <!-- Fees Summary -->
             <div class="info-row" style="background: #f9f9f9; margin-top: 5px;">
                 <div class="info-label">Total:</div>
-                <div class="info-value">UGX {{ "{:,.0f}".format(student.fees_total or 0) }}</div>
+                <div class="info-value">UGX {{ "{:,.0f}".format(student['fees_total'] or 0) }}</div>
             </div>
             <div class="info-row" style="background: #f9f9f9;">
                 <div class="info-label">Paid:</div>
-                <div class="info-value" style="color: #2e7d32;">UGX {{ "{:,.0f}".format(student.fees_paid or 0) }}</div>
+                <div class="info-value" style="color: #2e7d32;">UGX {{ "{:,.0f}".format(student['fees_paid'] or 0) }}</div>
             </div>
             <div class="info-row" style="background: #f9f9f9;">
                 <div class="info-label">Balance:</div>
                 <div class="info-value" style="color: {% if (student.fees_total|float - student.fees_paid|float) > 0 %}#c62828{% else %}#2e7d32{% endif %};">
-                    UGX {{ "{:,.0f}".format((student.fees_total or 0) - (student.fees_paid or 0)) }}
+                    UGX {{ "{:,.0f}".format((student['fees_total'] or 0) - (student['fees_paid'] or 0)) }}
                 </div>
             </div>
             
