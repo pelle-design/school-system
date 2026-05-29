@@ -123,7 +123,6 @@
                 <a href="{{ url_for('logout') }}"><i class="fas fa-sign-out-alt"></i> Logout</a>
 
             {% elif session.role == 'bursar' %}
-                <a href="{{ url_for('bursar_dashboard') }}"><i class="fas fa-chart-line"></i> Dashboard</a>
                 <a href="{{ url_for('bursar_students') }}"><i class="fas fa-users"></i> Fee Management</a>
                 <div class="dropdown-menu-item">
                     <a href="#" onclick="toggleDropdown(this); return false;">
