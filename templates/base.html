@@ -159,6 +159,7 @@
 
             {% elif session.role == 'classteacher' %}
                 <a href="{{ url_for('teacher_students') }}"><i class="fas fa-users"></i> My Students</a>
+                <a href="{{ url_for('teacher_upload_students') }}"><i class="fas fa-upload"></i> Upload Students</a>
                 <a href="{{ url_for('teacher_upload_marks') }}"><i class="fas fa-upload"></i> Upload Marks</a>
                 <a href="{{ url_for('teacher_attendance') }}"><i class="fas fa-check-circle"></i> Mark Attendance</a>
                 <a href="{{ url_for('logout') }}"><i class="fas fa-sign-out-alt"></i> Logout</a>
