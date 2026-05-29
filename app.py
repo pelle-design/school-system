@@ -1590,33 +1590,42 @@ def add_user():
 @admin_required
 def edit_user(user_id):
     if request.method == 'POST':
-        full_name = sanitize_input(request.form['full_name'].strip())
-        username = request.form['username'].strip()
-        role = request.form['role'].strip()
+        full_name = sanitize_input(request.form.get('full_name', '').strip())
+        username = request.form.get('username', '').strip()
+        role = request.form.get('role', '').strip()
         phone = request.form.get('phone', '').strip()
         child_id = request.form.get('child_id', '').strip() or None
         file = request.files.get('profile_pic')
+        
         profile_pic = None
         if file and file.filename and allowed_file(file.filename, ALLOWED_IMAGE_EXTENSIONS):
-            filename = secure_filename(f"user_{user_id}_{file.filename}")
+            ext = file.filename.rsplit('.', 1)[1].lower()
+            filename = f"user_{user_id}.{ext}"
             file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
             profile_pic = filename
+        
         try:
             if profile_pic:
-                execute_db("UPDATE users SET username=?, role=?, phone=?, child_id=?, profile_pic=? WHERE id=?", 
-                           (username, role, phone, child_id, profile_pic, user_id))
+                execute_db("UPDATE users SET username=?, full_name=?, role=?, phone=?, child_id=?, profile_pic=? WHERE id=?", 
+                           (username, full_name, role, phone, child_id, profile_pic, user_id))
             else:
-                execute_db("UPDATE users SET username=?, role=?, phone=?, child_id=? WHERE id=?", 
-                           (username, role, phone, child_id, user_id))
-            flash('User updated.', 'success')
+                execute_db("UPDATE users SET username=?, full_name=?, role=?, phone=?, child_id=? WHERE id=?", 
+                           (username, full_name, role, phone, child_id, user_id))
+            flash('User updated successfully.', 'success')
         except Exception as e:
             flash(f'Error: {str(e)}', 'danger')
         return redirect(url_for('dashboard'))
     
-    cur = get_db().cursor()
-    cur.execute("SELECT id, username, role, phone, child_id, profile_pic FROM users WHERE id=?", (user_id,))
+    db = get_db_dict()
+    cur = db.cursor()
+    cur.execute("SELECT id, username, full_name, role, phone, child_id, profile_pic FROM users WHERE id=?", (user_id,))
     user = cur.fetchone()
     cur.close()
+    
+    if not user:
+        flash('User not found.', 'danger')
+        return redirect(url_for('dashboard'))
+    
     return render_template('edit_user.html', user=user)
 
 @app.route('/admin/toggle_user/<int:user_id>')
@@ -1966,8 +1975,7 @@ def dos_admit():
     return render_template('dos/admit_student.html', houses=houses, sports=sports)
 
 @app.route('/dos/admission_settings', methods=['GET', 'POST'])
-@admin_required
-def dos_admission_settings():
+def dos_admission_settings():  # Remove @admin_required
     if not check_permission(['dos']):
         abort(403)
     
@@ -1985,13 +1993,12 @@ def dos_admission_settings():
         flash('Admission settings updated successfully.', 'success')
         return redirect(url_for('dos_admission_settings'))
     
-    cur = get_db().cursor()
+    db = get_db_dict()
+    cur = db.cursor()
     cur.execute("SELECT is_open, deadline, closing_reason, fee_amount FROM admission_settings WHERE id=1")
     settings = cur.fetchone()
-    cur.close()
     
     # Get pending online applications
-    cur = get_db().cursor()
     cur.execute("SELECT student_id, full_name, lin, application_date FROM students WHERE admission_source='online' AND admission_status='pending' ORDER BY application_date DESC")
     pending = cur.fetchall()
     cur.close()
@@ -1999,10 +2006,10 @@ def dos_admission_settings():
     return render_template('dos/admission_settings.html', 
                           settings=settings, 
                           pending=pending,
-                          is_open=settings[0] if settings else 1,
-                          deadline=settings[1] if settings else '',
-                          closing_reason=settings[2] if settings else '',
-                          fee_amount=settings[3] if settings else 50000)
+                          is_open=settings['is_open'] if settings else 1,
+                          deadline=settings['deadline'] if settings else '',
+                          closing_reason=settings['closing_reason'] if settings else '',
+                          fee_amount=settings['fee_amount'] if settings else 50000)
 
 @app.route('/dos/class_lists')
 def dos_class_lists():
