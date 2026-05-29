@@ -4102,19 +4102,19 @@ def headteacher_approval_access(token):
         flash(f'This payroll has already been {payroll["approval_status"]}.', 'warning')
         return redirect(url_for('headteacher_approvals'))
     
-   if payroll.get('token_expires_at'):
-    from datetime import datetime
-    expires_value = payroll['token_expires_at']
-    
-    # Handle both string and datetime
-    if isinstance(expires_value, str):
-        expires_dt = datetime.strptime(expires_value, '%Y-%m-%d %H:%M:%S')
-    else:
-        expires_dt = expires_value
-    
-    if expires_dt <= datetime.now():
-        flash('This approval link has expired. Please request a new link.', 'danger')
-        return redirect(url_for('headteacher_approvals'))
+    if payroll.get('token_expires_at'):
+        from datetime import datetime
+        expires_value = payroll['token_expires_at']
+        
+        # Handle both string and datetime
+        if isinstance(expires_value, str):
+            expires_dt = datetime.strptime(expires_value, '%Y-%m-%d %H:%M:%S')
+        else:
+            expires_dt = expires_value
+        
+        if expires_dt <= datetime.now():
+            flash('This approval link has expired. Please request a new link.', 'danger')
+            return redirect(url_for('headteacher_approvals'))
     
     if request.method == 'POST':
         approval_code = request.form.get('approval_code')
@@ -4158,7 +4158,8 @@ def headteacher_approval_access(token):
     
     remaining_minutes = None
     if payroll.get('token_expires_at'):
-        remaining = payroll['token_expires_at'] - datetime.now()
+        from datetime import datetime
+        remaining = datetime.strptime(payroll['token_expires_at'], '%Y-%m-%d %H:%M:%S') - datetime.now()
         remaining_minutes = int(remaining.total_seconds() / 60)
     
     cur.close()
