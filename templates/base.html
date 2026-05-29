@@ -185,7 +185,6 @@
                 <a href="{{ url_for('logout') }}"><i class="fas fa-sign-out-alt"></i> Logout</a>
 
             {% elif session.role == 'stores_keeper' %}
-                <a href="{{ url_for('inventory_dashboard') }}"><i class="fas fa-tachometer-alt"></i> Dashboard</a>
                 <a href="{{ url_for('inventory_items') }}"><i class="fas fa-boxes"></i> All Items</a>
                 <a href="{{ url_for('inventory_transactions') }}"><i class="fas fa-history"></i> Transactions</a>
                 <a href="{{ url_for('inventory_alerts') }}"><i class="fas fa-bell"></i> Alerts</a>
