@@ -133,7 +133,7 @@ def init_db():
             payment_status TEXT DEFAULT 'pending',
             payment_transaction_id TEXT,
             payment_date TIMESTAMP, 
-            UNIQUE(student_id, subject, term, year)
+            
         )
     ''')
     
@@ -242,7 +242,8 @@ def init_db():
             paper1 REAL,
             paper2 REAL,
             points INTEGER,
-            FOREIGN KEY (student_id) REFERENCES students(student_id)
+            FOREIGN KEY (student_id) REFERENCES students(student_id),
+            UNIQUE(student_id, subject, term, year)
         )
     ''')
     
