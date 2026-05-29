@@ -132,7 +132,7 @@ def init_db():
             application_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             payment_status TEXT DEFAULT 'pending',
             payment_transaction_id TEXT,
-            payment_date TIMESTAMP
+            payment_date TIMESTAMP, 
             UNIQUE(student_id, subject, term, year)
         )
     ''')
