@@ -3043,27 +3043,116 @@ def teacher_save_comment():
 
 @app.route('/teacher/edit_student/<student_id>', methods=['GET', 'POST'])
 def teacher_edit_student(student_id):
-    if not check_permission(['classteacher', 'dos']):
+    if not check_permission(['classteacher']):
         abort(403)
-    if request.method == 'POST':
-        full_name = request.form['full_name'].strip()
-        class_name = request.form['class'].strip()
-        parent_phone = validate_and_format_phone(request.form.get('parent_phone', ''))
-        execute_db("UPDATE students SET full_name=?, class=?, parent_phone=? WHERE student_id=?", (full_name, class_name, parent_phone, student_id))
-        flash('Student updated.', 'success')
-        return redirect(url_for('teacher_students'))
-    cur = get_db().cursor()
-    cur.execute("SELECT student_id, full_name, class, parent_phone FROM students WHERE student_id=?", (student_id,))
+    
+    db = get_db_dict()
+    cur = db.cursor()
+    
+    # Get student details
+    cur.execute("SELECT * FROM students WHERE student_id = ?", (student_id,))
     student = cur.fetchone()
+    
+    if not student:
+        flash('Student not found.', 'danger')
+        return redirect(url_for('teacher_students'))
+    
+    # Get teacher's assigned class
+    cur.execute("""
+        SELECT class_name FROM teacher_class_assignments 
+        WHERE user_id = ? AND assignment_type = 'classteacher'
+    """, (session.get('user_id'),))
+    result = cur.fetchone()
+    assigned_class = result['class_name'] if isinstance(result, dict) else result[0] if result else None
+    
+    if request.method == 'POST':
+        full_name = request.form.get('full_name', '').strip()
+        parent_phone = request.form.get('parent_phone', '').strip()
+        class_name = request.form.get('class', '').strip()
+        admission_date = request.form.get('admission_date', '')
+        date_of_birth = request.form.get('date_of_birth', '')
+        sex = request.form.get('sex', '')
+        preferred_house = request.form.get('preferred_house', '')
+        disability = request.form.get('disability', '')
+        parent_email = request.form.get('parent_email', '')
+        address = request.form.get('address', '')
+        
+        # Calculate age from date of birth
+        age = None
+        if date_of_birth:
+            try:
+                birth_date = datetime.strptime(date_of_birth, '%Y-%m-%d').date()
+                today = datetime.now().date()
+                age = today.year - birth_date.year - ((today.month, today.day) < (birth_date.month, birth_date.day))
+            except:
+                age = None
+        
+        # Handle photo upload
+        photo_path = student.get('photo_path', 'default_avatar.png')
+        photo = request.files.get('photo')
+        if photo and photo.filename and allowed_file(photo.filename, ALLOWED_IMAGE_EXTENSIONS):
+            ext = photo.filename.rsplit('.', 1)[1].lower()
+            photo_filename = f"{student_id}.{ext}"
+            photo.save(os.path.join(app.config['UPLOAD_FOLDER'], photo_filename))
+            photo_path = photo_filename
+        
+        # Update student record
+        cur.execute("""
+            UPDATE students 
+            SET full_name = ?, parent_phone = ?, class = ?, admission_date = ?, 
+                date_of_birth = ?, age = ?, sex = ?, preferred_house = ?, 
+                disability = ?, parent_email = ?, address = ?, photo_path = ?
+            WHERE student_id = ?
+        """, (full_name, parent_phone, class_name, admission_date, date_of_birth, age, 
+              sex, preferred_house, disability, parent_email, address, photo_path, student_id))
+        
+        db.commit()
+        cur.close()
+        
+        flash(f'Student {full_name} updated successfully!', 'success')
+        return redirect(url_for('teacher_students'))
+    
     cur.close()
-    return render_template('teacher/edit_student.html', student=student)
+    return render_template('teacher/edit_student.html', student=student, assigned_class=assigned_class)
 
 @app.route('/teacher/remove_student/<student_id>', methods=['POST'])
 def teacher_remove_student(student_id):
     if not check_permission(['classteacher', 'dos']):
         abort(403)
-    execute_db("DELETE FROM students WHERE student_id=?", (student_id,))
-    flash('Student removed.', 'success')
+    
+    db = get_db_dict()
+    cur = db.cursor()
+    
+    # First check if student exists
+    cur.execute("SELECT full_name, class FROM students WHERE student_id = ?", (student_id,))
+    student = cur.fetchone()
+    
+    if not student:
+        flash('Student not found.', 'danger')
+        return redirect(url_for('teacher_students'))
+    
+    # For class teacher, verify student is in their class
+    if session.get('role') == 'classteacher':
+        cur.execute("""
+            SELECT class_name FROM teacher_class_assignments 
+            WHERE user_id = ? AND assignment_type = 'classteacher'
+        """, (session.get('user_id'),))
+        result = cur.fetchone()
+        assigned_class = result['class_name'] if isinstance(result, dict) else result[0] if result else None
+        
+        student_class = student['class'] if isinstance(student, dict) else student[1]
+        
+        if assigned_class != student_class:
+            flash('You can only remove students from your own class.', 'danger')
+            cur.close()
+            return redirect(url_for('teacher_students'))
+    
+    # Delete the student
+    cur.execute("DELETE FROM students WHERE student_id = ?", (student_id,))
+    db.commit()
+    cur.close()
+    
+    flash(f'Student {student["full_name"] if isinstance(student, dict) else student[0]} removed successfully.', 'success')
     return redirect(url_for('teacher_students'))
 
 @app.route('/teacher/upload_students', methods=['GET', 'POST'])
