@@ -92,12 +92,12 @@
                 <tbody>
                     {% for s in students %}
                     <tr class="{% if loop.index is even %}table-secondary{% endif %}">
-                        <td>{{ s.student_id }}</td
+                        <td>{{ s.student_id }}</td>
                         <td class="text-center">
                             <img src="{{ s.photo_url }}" class="student-photo" alt="Photo">
-                         </td
-                        <td class="fw-semibold">{{ s.full_name }} </td
-                        <td>{{ s.parent_phone or '-' }} </td
+                        </td>
+                        <td class="fw-semibold">{{ s.full_name }} </td>
+                        <td>{{ s.parent_phone or '-' }} </td>
                         <td class="action-column">
                             <a href="{{ url_for('teacher_report_card', student_id=s.student_id) }}" class="btn btn-sm btn-info no-print">
                                 <i class="fas fa-eye"></i> Report Card
@@ -112,17 +112,17 @@
                                 </button>
                             </form>
                             {% endif %}
-                         </td
-                     </tr
+                        </td>
+                             </tr>
                     {% else %}
                      <tr
                         <td colspan="5" class="text-center text-muted py-4">
                             <i class="fas fa-folder-open fa-2x mb-2 d-block"></i>No students found.
-                         </td
-                     </tr
+            </td>
+            </tr>
                     {% endfor %}
                 </tbody>
-            </table
+            </table>
         </div>
     </div>
 </div>
