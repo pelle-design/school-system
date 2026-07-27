@@ -6,9 +6,6 @@
                 <th>AI1</th>
                 <th>AI2</th>
                 <th>AI3</th>
-                <th>AI4</th>
-                <th>AI5</th>
-                <th>AI6</th>
                 <th>Avg</th>
                 <th>AI(20%)</th>
                 <th>EOT(80%)</th>
@@ -26,9 +23,6 @@
                 <td>{{ m.ai1 if m.ai1 else '-' }}</td>
                 <td>{{ m.ai2 if m.ai2 else '-' }}</td>
                 <td>{{ m.ai3 if m.ai3 else '-' }}</td>
-                <td>{{ m.ai4 if m.ai4 else '-' }}</td>
-                <td>{{ m.ai5 if m.ai5 else '-' }}</td>
-                <td>{{ m.ai6 if m.ai6 else '-' }}</td>
                 <td>{{ m.ai_average|round(1) if m.ai_average else '-' }}</td>
                 <td>{{ m.ai_contribution|round(1) if m.ai_contribution else '-' }}</td>
                 <td>{{ m.eot_score|round(1) if m.eot_score else '-' }}</td>
