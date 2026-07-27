@@ -227,9 +227,6 @@ def init_db():
             ai1 REAL,
             ai2 REAL,
             ai3 REAL,
-            ai4 REAL,
-            ai5 REAL,
-            ai6 REAL,
             ai_average REAL,
             ai_contribution REAL,
             eot_score REAL,
@@ -601,7 +598,7 @@ def init_db():
     
     cursor.execute("SELECT COUNT(*) FROM houses")
     if cursor.fetchone()[0] == 0:
-        houses = [('House of Excellence', ''), ('House of Integrity', ''), ('House of Wisdom', ''), ('House of Courage', '')]
+        houses = [('AFRICA HOUSE', ''), ('EUROPE HOUSE', ''), ('NORTH AMERICA HOUSE', ''), ('SOUTH AMERICA HOUSE', ''),('ASIA HOUSE',''),('AUSTRALIA','')]
         cursor.executemany("INSERT INTO houses (name, description) VALUES (?, ?)", houses)
     
     cursor.execute("SELECT COUNT(*) FROM sports_activities")
@@ -1317,14 +1314,14 @@ def process_marks_upload(file, subject, term, year, assigned_class, teacher_id, 
                 if i < len(ai_scores):
                     ai_values[i] = ai_scores[i]
             
-            execute_db("""INSERT INTO marks (student_id, subject, term, year, ai1, ai2, ai3, ai4, ai5, ai6, ai_average, ai_contribution, eot_score, total_score, grade, identifier, descriptor, teacher_initials, teacher_id)
-                           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            execute_db("""INSERT INTO marks (student_id, subject, term, year, ai1, ai2, ai3, ai_average, ai_contribution, eot_score, total_score, grade, identifier, descriptor, teacher_initials, teacher_id)
+                           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                            ON CONFLICT(student_id, subject, term, year) DO UPDATE SET 
-                           ai1=excluded.ai1, ai2=excluded.ai2, ai3=excluded.ai3, ai4=excluded.ai4, ai5=excluded.ai5, ai6=excluded.ai6,
+                           ai1=excluded.ai1, ai2=excluded.ai2, ai3=excluded.ai3, 
                            ai_average=excluded.ai_average, ai_contribution=excluded.ai_contribution, eot_score=excluded.eot_score,
                            total_score=excluded.total_score, grade=excluded.grade, identifier=excluded.identifier,
                            descriptor=excluded.descriptor, teacher_initials=excluded.teacher_initials""",
-                        (student_id, subject, term, year, ai_values[0], ai_values[1], ai_values[2], ai_values[3], ai_values[4], ai_values[5],
+                        (student_id, subject, term, year, ai_values[0], ai_values[1], ai_values[2],
                          ai_average, ai_contribution, eot, total_score, grade, identifier, descriptor, teacher_init, teacher_id))
             count += 1
     
@@ -1919,7 +1916,7 @@ def admission_submitted():
     return render_template('admissions/submitted.html', data=admission_data)
 
 # ==================== DOS MODULE ====================
-SCHOOL_ABBR = "SMS"
+SCHOOL_ABBR = "TSS"
 def generate_student_id():
     return generate_unique_number(SCHOOL_ABBR, 'students', 'student_id', year_format=True)
 
