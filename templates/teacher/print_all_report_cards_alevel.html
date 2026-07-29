@@ -176,16 +176,16 @@
             <tbody>
                 {% for m in report.marks %}
                 <tr>
-                    <td>{{ m.subject }}</td
-                    <td>{{ m.paper1 if m.paper1 else '-' }}</td
-                    <td>{{ m.paper2 if m.paper2 else '-' }}</td
-                    <td>{{ m.total_score|round(1) if m.total_score else '-' }}</td
-                    <td class="grade-{{ m.grade }}">{{ m.grade or '-' }}</td
-                    <td>{{ m.teacher_initials or '-' }}</td
+                    <td>{{ m.subject }}</td>
+                    <td>{{ m.paper1 if m.paper1 else '-' }}</td>
+                    <td>{{ m.paper2 if m.paper2 else '-' }}</td>
+                    <td>{{ m.total_score|round(1) if m.total_score else '-' }}</td>
+                    <td class="grade-{{ m.grade }}">{{ m.grade or '-' }}</td>
+                    <td>{{ m.teacher_initials or '-' }}</td>
                 </tr>
                 {% else %}
                 <tr>
-                    <td colspan="6" style="text-align: center;">No marks recorded.</td
+                    <td colspan="6" style="text-align: center;">No marks recorded.</td>
                 </tr>
                 {% endfor %}
             </tbody>
