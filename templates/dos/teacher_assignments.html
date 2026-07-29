@@ -1,38 +1,22 @@
 {% extends "base.html" %}
-{% block title %}Teacher Assignments{% endblock %}
+
+{% block title %}
+Teacher Assignments
+{% endblock %}
+
 
 {% block content %}
 
+
 <div class="card shadow">
 
-<div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
 
-<span>
+<div class="card-header bg-primary text-white">
+
+<h5>
 <i class="fas fa-chalkboard-teacher"></i>
-Teacher Assignments
-</span>
-
-
-<div>
-
-<a href="{{ url_for('dos_add_teacher_assignment') }}"
-class="btn btn-success btn-sm">
-
-<i class="fas fa-plus"></i>
-Add Teacher Assignment
-
-</a>
-
-
-<a href="{{ url_for('dos_upload_teachers') }}"
-class="btn btn-light btn-sm">
-
-<i class="fas fa-upload"></i>
-Upload Teachers
-
-</a>
-
-</div>
+Teacher Assignment Management
+</h5>
 
 </div>
 
@@ -41,21 +25,177 @@ Upload Teachers
 <div class="card-body">
 
 
-<!-- Explanation -->
+<!-- ADD ASSIGNMENT FORM -->
 
-<div class="alert alert-info">
+<div class="card mb-4">
 
-<i class="fas fa-info-circle"></i>
 
-A teacher can have multiple roles.
-Example:
-A teacher can be a Class Teacher for Senior 1 and also teach Mathematics and Physics in different classes.
+<div class="card-header bg-success text-white">
+
+Add Teacher Assignment
 
 </div>
 
 
 
-<div class="table-responsive">
+<div class="card-body">
+
+
+<form method="POST">
+
+
+
+<div class="row">
+
+
+<div class="col-md-3">
+
+<label>
+Teacher
+</label>
+
+
+<select name="teacher_id"
+class="form-control"
+required>
+
+
+{% for t in teachers %}
+
+<option value="{{t.id}}">
+
+{{t.full_name}}
+
+</option>
+
+
+{% endfor %}
+
+
+</select>
+
+</div>
+
+
+
+
+<div class="col-md-3">
+
+<label>
+Role
+</label>
+
+
+<select name="assignment_type"
+class="form-control"
+id="role"
+onchange="showSubject()">
+
+
+<option value="classteacher">
+Class Teacher
+</option>
+
+
+<option value="subject_teacher">
+Subject Teacher
+</option>
+
+
+</select>
+
+</div>
+
+
+
+
+<div class="col-md-3">
+
+<label>
+Class
+</label>
+
+
+<select name="class_name"
+class="form-control"
+required>
+
+
+{% for c in classes %}
+
+<option>
+{{c.class}}
+</option>
+
+
+{% endfor %}
+
+
+</select>
+
+
+</div>
+
+
+
+
+<div class="col-md-3"
+id="subjectDiv">
+
+
+<label>
+Subject
+</label>
+
+
+<input type="text"
+name="subject"
+class="form-control"
+placeholder="Mathematics">
+
+
+</div>
+
+
+</div>
+
+
+<br>
+
+
+<button class="btn btn-success">
+
+<i class="fas fa-save"></i>
+
+Save Assignment
+
+</button>
+
+
+
+<a href="{{url_for('dos_upload_teachers')}}"
+class="btn btn-secondary">
+
+<i class="fas fa-upload"></i>
+
+Upload Teachers
+
+</a>
+
+
+
+</form>
+
+
+</div>
+
+</div>
+
+
+
+
+
+<!-- ASSIGNMENT LIST -->
 
 
 <table class="table table-bordered table-hover">
@@ -63,11 +203,10 @@ A teacher can be a Class Teacher for Senior 1 and also teach Mathematics and Phy
 
 <thead class="table-dark">
 
+
 <tr>
 
-<th>Username</th>
-
-<th>Teacher Name</th>
+<th>Teacher</th>
 
 <th>Class</th>
 
@@ -79,10 +218,8 @@ A teacher can be a Class Teacher for Senior 1 and also teach Mathematics and Phy
 
 <th>Date</th>
 
-<th>Actions</th>
-
-
 </tr>
+
 
 </thead>
 
@@ -91,33 +228,39 @@ A teacher can be a Class Teacher for Senior 1 and also teach Mathematics and Phy
 <tbody>
 
 
-{% for teacher in all_assignments %}
+{% for a in all_assignments %}
 
 
 <tr>
 
 
 <td>
-{{teacher.username}}
-</td>
 
+{{a.full_name}}
 
-<td>
-{{teacher.full_name}}
-</td>
+<br>
 
+<small>
+{{a.username}}
+</small>
 
-<td>
-{{teacher.class_name}}
 </td>
 
 
 
 <td>
 
-{% if teacher.subject %}
+{{a.class_name}}
 
-{{teacher.subject}}
+</td>
+
+
+
+<td>
+
+{% if a.subject %}
+
+{{a.subject}}
 
 {% else %}
 
@@ -125,6 +268,7 @@ A teacher can be a Class Teacher for Senior 1 and also teach Mathematics and Phy
 
 {% endif %}
 
+
 </td>
 
 
@@ -132,10 +276,13 @@ A teacher can be a Class Teacher for Senior 1 and also teach Mathematics and Phy
 <td>
 
 
-{% if teacher.assignment_type == 'classteacher' %}
+{% if a.assignment_type=="classteacher" %}
+
 
 <span class="badge bg-primary">
+
 Class Teacher
+
 </span>
 
 
@@ -143,20 +290,15 @@ Class Teacher
 
 
 <span class="badge bg-success">
+
 Subject Teacher
+
 </span>
 
 
 {% endif %}
 
 
-</td>
-
-
-
-<td>
-
-{{teacher.assigned_by or 'System'}}
 
 </td>
 
@@ -164,50 +306,14 @@ Subject Teacher
 
 <td>
 
-{{teacher.assigned_at}}
+{{a.assigned_by}}
 
 </td>
 
 
-
 <td>
 
-
-<a href="{{url_for('dos_edit_assignment',
-assignment_id=teacher.id)}}"
-
-class="btn btn-warning btn-sm">
-
-<i class="fas fa-edit"></i>
-
-</a>
-
-
-
-
-<form method="POST"
-
-action="{{url_for('dos_delete_assignment',
-assignment_id=teacher.id)}}"
-
-style="display:inline;">
-
-
-<button type="submit"
-
-class="btn btn-danger btn-sm"
-
-onclick="return confirm('Remove this assignment?')">
-
-
-<i class="fas fa-trash"></i>
-
-
-</button>
-
-
-</form>
-
+{{a.assigned_at}}
 
 </td>
 
@@ -222,11 +328,10 @@ onclick="return confirm('Remove this assignment?')">
 
 <tr>
 
-<td colspan="8"
+<td colspan="6"
+class="text-center">
 
-class="text-center text-muted">
-
-No teacher assignments found
+No assignments yet
 
 </td>
 
@@ -234,7 +339,6 @@ No teacher assignments found
 
 
 {% endfor %}
-
 
 
 </tbody>
@@ -246,10 +350,43 @@ No teacher assignments found
 </div>
 
 
-
 </div>
 
-</div>
+
+
+
+<script>
+
+
+function showSubject(){
+
+
+let role=document.getElementById("role").value;
+
+
+let box=document.getElementById("subjectDiv");
+
+
+if(role=="classteacher"){
+
+box.style.display="none";
+
+}
+
+else{
+
+box.style.display="block";
+
+}
+
+
+}
+
+showSubject();
+
+
+</script>
+
 
 
 {% endblock %}
