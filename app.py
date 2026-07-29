@@ -2049,8 +2049,8 @@ def dos_class_lists():
     cur.close()
     return render_template('dos/class_lists.html', classes=classes, students=students, selected_class=class_filter, search=search, term=term)
 
-@app.route('/dos/add_teacher_assignment', methods=['GET', 'POST'])
-def dos_add_teacher_assignment():
+@app.route('/dos/teacher_assignment', methods=['GET', 'POST'])
+def dos_teacher_assignment():
     if not check_permission(['dos']):
         abort(403)
 
@@ -2083,7 +2083,7 @@ def dos_add_teacher_assignment():
 
         if exists:
             flash("This assignment already exists.", "warning")
-            return redirect(url_for('dos_teacher_assignments'))
+            return redirect(url_for('teacher_assignments'))
 
 
         # If class teacher, check only one class teacher per class
@@ -2100,7 +2100,7 @@ def dos_add_teacher_assignment():
                 f"{class_name} already has a class teacher.",
                 "danger"
                 )
-                return redirect(url_for('dos_teacher_assignments'))
+                return redirect(url_for('teacher_assignments'))
 
 
         cur.execute("""
@@ -2130,7 +2130,7 @@ def dos_add_teacher_assignment():
         "success"
         )
 
-        return redirect(url_for('dos_teacher_assignments'))
+        return redirect(url_for('teacher_assignments'))
 
 
 
@@ -2160,10 +2160,9 @@ def dos_add_teacher_assignment():
 
 
     return render_template(
-        "dos/add_teacher_assignment.html",
-        teachers=teachers,
-        classes=classes
-    )
+    'dos/teacher_assignments.html',
+    all_assignments=all_assignments
+)
 
 @app.route('/dos/remove_student/<student_id>', methods=['POST'])
 def dos_remove_student(student_id):
