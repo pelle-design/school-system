@@ -2864,6 +2864,28 @@ def teacher_attendance():
     cur.close()
     return render_template('teacher/attendance.html', records=records, selected_date=selected_date, assigned_class=selected_class)
 
+@app.route("/save_manual_marks", methods=["POST"])
+def save_manual_marks():
+
+    student_ids = request.form.getlist("student_id[]")
+    paper1 = request.form.getlist("paper1[]")
+    paper2 = request.form.getlist("paper2[]")
+    initials = request.form.getlist("teacher_initials[]")
+
+    for sid, p1, p2, init in zip(student_ids, paper1, paper2, initials):
+
+        # Insert or update database
+        cursor.execute("""
+            INSERT INTO alevel_marks
+            (student_id, paper1, paper2, teacher_initials)
+            VALUES (?, ?, ?, ?)
+        """, (sid, p1, p2, init))
+
+    db.commit()
+
+    flash("Marks saved successfully.")
+    return redirect(url_for("upload_marks"))
+    
 @app.route('/teacher/upload_marks', methods=['GET', 'POST'])
 def teacher_upload_marks():
     if not check_permission(['classteacher', 'subject_teacher', 'dos']):
@@ -2895,6 +2917,32 @@ def teacher_upload_marks():
         return redirect(url_for('teacher_upload_marks', class_name=selected_class))
     return render_template(f'teacher/upload_marks_{level}.html', assigned_class=selected_class, current_year=current_year, 
                           teacher_classes=[{'class_name': c} for c in available_classes], selected_class=selected_class)
+
+@app.route("/save_olevel_marks", methods=["POST"])
+def save_olevel_marks():
+
+    student_ids = request.form.getlist("student_id[]")
+    ai1 = request.form.getlist("ai1[]")
+    ai2 = request.form.getlist("ai2[]")
+    ai3 = request.form.getlist("ai3[]")
+    eot = request.form.getlist("eot_score[]")
+    initials = request.form.getlist("teacher_initials[]")
+
+    for sid, a1, a2, a3, e, init in zip(
+        student_ids, ai1, ai2, ai3, eot, initials
+    ):
+
+        cursor.execute("""
+            INSERT INTO olevel_marks
+            (student_id, ai1, ai2, ai3, ai4, ai5, ai6,
+             eot_score, teacher_initials)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (sid, a1, a2, a3, e, init))
+
+    db.commit()
+
+    flash("Marks saved successfully.", "success")
+    return redirect(url_for("upload_olevel_marks"))
 
 @app.route('/teacher/report_card/<student_id>')
 def teacher_report_card(student_id):
