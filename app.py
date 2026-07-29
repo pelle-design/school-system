@@ -316,27 +316,19 @@ def init_db():
     ''')
     
     # Teacher class assignments
-cursor.execute('''
-    CREATE TABLE IF NOT EXISTS teacher_class_assignments (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-
-        user_id INTEGER NOT NULL,
-
-        class_name TEXT NOT NULL,
-
-        subject TEXT,
-
-        assignment_type TEXT NOT NULL,
-
-        assigned_by TEXT,
-
-        assigned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-
-        FOREIGN KEY (user_id) REFERENCES users(id),
-
-        UNIQUE(user_id, class_name, subject, assignment_type)
-    )
-''')
+      cursor.execute('''
+          CREATE TABLE IF NOT EXISTS teacher_class_assignments (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              user_id INTEGER NOT NULL,
+              class_name TEXT NOT NULL,
+              subject TEXT,
+              assignment_type TEXT NOT NULL,
+              assigned_by TEXT,
+              assigned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+              FOREIGN KEY (user_id) REFERENCES users(id),
+              UNIQUE(user_id, class_name, subject, assignment_type)
+       )
+   ''')
     
     # Notifications
     cursor.execute('''
