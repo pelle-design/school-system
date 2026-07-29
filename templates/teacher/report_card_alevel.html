@@ -174,16 +174,16 @@
                     <tbody>
                         {% for m in marks %}
                         <tr>
-                            <td>{{ m[0] }}</td
-                            <td>{% if m[1] is not none %}{{ m[1] }}{% else %}-{% endif %}</td
-                            <td>{% if m[2] is not none %}{{ m[2] }}{% else %}-{% endif %}</td
-                            <td>{{ m[3] }}</td
-                            <td class="grade-{{ m[4] }}">{{ m[4] }}</td
-                            <td>{{ m[6] }}</td
+                            <td>{{ m[0] }}</td>
+                            <td>{% if m[1] is not none %}{{ m[1] }}{% else %}-{% endif %}</td>
+                            <td>{% if m[2] is not none %}{{ m[2] }}{% else %}-{% endif %}</td>
+                            <td>{{ m[3] }}</td>
+                            <td class="grade-{{ m[4] }}">{{ m[4] }}</td>
+                            <td>{{ m[6] }}</td>
                         </tr>
                         {% else %}
                         <tr>
-                            <td colspan="6" style="text-align: center;">No marks recorded.</td
+                            <td colspan="6" style="text-align: center;">No marks recorded.</td>
                         </tr>
                         {% endfor %}
                     </tbody>
