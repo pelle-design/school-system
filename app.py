@@ -316,19 +316,27 @@ def init_db():
     ''')
     
     # Teacher class assignments
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS teacher_class_assignments (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER,
-            class_name TEXT,
-            subject TEXT,
-            assignment_type TEXT,
-            assigned_by TEXT,
-            assigned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (user_id) REFERENCES users(id),
-            UNIQUE(user_id, class_name, assignment_type)
-        )
-    ''')
+cursor.execute('''
+    CREATE TABLE IF NOT EXISTS teacher_class_assignments (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+        user_id INTEGER NOT NULL,
+
+        class_name TEXT NOT NULL,
+
+        subject TEXT,
+
+        assignment_type TEXT NOT NULL,
+
+        assigned_by TEXT,
+
+        assigned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+        FOREIGN KEY (user_id) REFERENCES users(id),
+
+        UNIQUE(user_id, class_name, subject, assignment_type)
+    )
+''')
     
     # Notifications
     cursor.execute('''
@@ -2041,6 +2049,122 @@ def dos_class_lists():
     cur.close()
     return render_template('dos/class_lists.html', classes=classes, students=students, selected_class=class_filter, search=search, term=term)
 
+@app.route('/dos/add_teacher_assignment', methods=['GET', 'POST'])
+def dos_add_teacher_assignment():
+    if not check_permission(['dos']):
+        abort(403)
+
+    db = get_db_dict()
+    cur = db.cursor()
+
+    if request.method == 'POST':
+
+        teacher_id = request.form['teacher_id']
+        assignment_type = request.form['assignment_type']
+        class_name = request.form['class_name']
+        subject = request.form.get('subject')
+
+        # Prevent duplicate assignment
+        cur.execute("""
+            SELECT id FROM teacher_class_assignments
+            WHERE user_id=? 
+            AND class_name=?
+            AND assignment_type=?
+            AND (subject=? OR subject IS NULL)
+        """,
+        (
+            teacher_id,
+            class_name,
+            assignment_type,
+            subject
+        ))
+
+        exists = cur.fetchone()
+
+        if exists:
+            flash("This assignment already exists.", "warning")
+            return redirect(url_for('dos_teacher_assignments'))
+
+
+        # If class teacher, check only one class teacher per class
+        if assignment_type == "classteacher":
+
+            cur.execute("""
+                SELECT id FROM teacher_class_assignments
+                WHERE class_name=?
+                AND assignment_type='classteacher'
+            """,(class_name,))
+
+            if cur.fetchone():
+                flash(
+                f"{class_name} already has a class teacher.",
+                "danger"
+                )
+                return redirect(url_for('dos_teacher_assignments'))
+
+
+        cur.execute("""
+            INSERT INTO teacher_class_assignments
+            (
+            user_id,
+            class_name,
+            subject,
+            assignment_type,
+            assigned_by
+            )
+            VALUES (?,?,?,?,?)
+        """,
+        (
+            teacher_id,
+            class_name,
+            subject if assignment_type=="subject_teacher" else None,
+            assignment_type,
+            session.get('username')
+        ))
+
+
+        db.commit()
+
+        flash(
+        "Teacher role assigned successfully.",
+        "success"
+        )
+
+        return redirect(url_for('dos_teacher_assignments'))
+
+
+
+    # GET DATA
+
+    cur.execute("""
+        SELECT id, username, full_name
+        FROM users
+        WHERE role IN 
+        ('subject_teacher','classteacher')
+        ORDER BY full_name
+    """)
+
+    teachers = cur.fetchall()
+
+
+    cur.execute("""
+        SELECT DISTINCT class
+        FROM students
+        ORDER BY class
+    """)
+
+    classes = cur.fetchall()
+
+
+    cur.close()
+
+
+    return render_template(
+        "dos/add_teacher_assignment.html",
+        teachers=teachers,
+        classes=classes
+    )
+
 @app.route('/dos/remove_student/<student_id>', methods=['POST'])
 def dos_remove_student(student_id):
     if not check_permission(['dos']):
@@ -2728,7 +2852,7 @@ def dos_report_card(student_id):
     headteacher_comment = comments['headteacher_comment'] if comments else ''
     
     class_upper = class_name.upper()
-    is_alevel = class_upper in ['S5', 'S6', 'A-LEVEL', 'A LEVEL'] or (class_upper.startswith('S') and len(class_upper) >= 2 and class_upper[1] in ['5', '6'])
+    is_alevel = class_upper in ['S5', 'S6', 'A-LEVEL', 'A LEVEL', 'S.5', 'S.6'] or (class_upper.startswith('S') and len(class_upper) >= 2 and class_upper[1] in ['5', '6'])
     
     if is_alevel:
         cur.execute("SELECT subject, paper1, paper2, total_score, grade, points, teacher_initials FROM marks WHERE student_id=? AND term=? AND year=? ORDER BY subject", 
@@ -2744,7 +2868,7 @@ def dos_report_card(student_id):
             school_name=school_name, school_address=school_address, school_phone=school_phone,
             school_email=school_email, school_logo_url=school_logo_url, can_edit_comments=False)
     else:
-        cur.execute("""SELECT subject, ai1, ai2, ai3, ai4, ai5, ai6, ai_average, ai_contribution, eot_score, total_score, grade, identifier, descriptor, teacher_initials
+        cur.execute("""SELECT subject, ai1, ai2, ai3, ai_average, ai_contribution, eot_score, total_score, grade, identifier, descriptor, teacher_initials
                        FROM marks WHERE student_id=? AND term=? AND year=? ORDER BY subject""", (student_id, term, year))
         marks = cur.fetchall()
         total_final = sum(m['total_score'] for m in marks) if marks else 0
@@ -2901,7 +3025,7 @@ def teacher_upload_marks():
     if selected_class not in available_classes:
         selected_class = available_classes[0]
     class_upper = selected_class.upper()
-    level = 'alevel' if class_upper in ['S5', 'S6', 'A-LEVEL', 'A LEVEL'] or (class_upper.startswith('S') and len(class_upper) >= 2 and class_upper[1] in ['5', '6']) else 'olevel'
+    level = 'alevel' if class_upper in ['S5', 'S6', 'A-LEVEL', 'A LEVEL','S.5', 'S.6'] or (class_upper.startswith('S') and len(class_upper) >= 2 and class_upper[1] in ['5', '6']) else 'olevel'
     current_year = datetime.now().year
     if request.method == 'POST':
         subject = request.form['subject'].strip()
@@ -2934,7 +3058,7 @@ def save_olevel_marks():
 
         cursor.execute("""
             INSERT INTO olevel_marks
-            (student_id, ai1, ai2, ai3, ai4, ai5, ai6,
+            (student_id, ai1, ai2, ai3,
              eot_score, teacher_initials)
             VALUES (?, ?, ?, ?, ?, ?)
         """, (sid, a1, a2, a3, e, init))
@@ -3026,7 +3150,7 @@ def teacher_report_card(student_id):
     predefined_head_comments = get_predefined_comments('headteacher')
     
     class_upper = class_name.upper()
-    is_alevel = class_upper in ['S5', 'S6', 'A-LEVEL', 'A LEVEL'] or (class_upper.startswith('S') and len(class_upper) >= 2 and class_upper[1] in ['5', '6'])
+    is_alevel = class_upper in ['S5', 'S6', 'A-LEVEL', 'A LEVEL', 'S.5', 'S.6'] or (class_upper.startswith('S') and len(class_upper) >= 2 and class_upper[1] in ['5', '6'])
     
     if is_alevel:
         cur.execute("SELECT subject, paper1, paper2, total_score, grade, points, teacher_initials FROM marks WHERE student_id=? AND term=? AND year=? ORDER BY subject", 
@@ -3046,7 +3170,7 @@ def teacher_report_card(student_id):
             predefined_class_comments=predefined_class_comments,
             predefined_head_comments=predefined_head_comments)
     else:
-        cur.execute("""SELECT subject, ai1, ai2, ai3, ai4, ai5, ai6, ai_average, ai_contribution, eot_score, total_score, grade, identifier, descriptor, teacher_initials
+        cur.execute("""SELECT subject, ai1, ai2, ai3, ai_average, ai_contribution, eot_score, total_score, grade, identifier, descriptor, teacher_initials
                        FROM marks WHERE student_id=? AND term=? AND year=? ORDER BY subject""", (student_id, term, year))
         marks = cur.fetchall()
         total_final = sum(m['total_score'] for m in marks) if marks else 0
@@ -3406,7 +3530,7 @@ def teacher_print_all_report_cards():
     stamp_url = url_for('static', filename='uploads/' + settings['headteacher_stamp']) if settings and settings['headteacher_stamp'] else None
     
     class_upper = selected_class.upper()
-    is_alevel = class_upper in ['S5', 'S6', 'A-LEVEL', 'A LEVEL'] or (class_upper.startswith('S') and len(class_upper) >= 2 and class_upper[1] in ['5', '6'])
+    is_alevel = class_upper in ['S5', 'S6', 'A-LEVEL', 'A LEVEL', 'S.5', 'S.6'] or (class_upper.startswith('S') and len(class_upper) >= 2 and class_upper[1] in ['5', '6'])
     
     all_reports = []
     for student in students_data:
@@ -3428,7 +3552,7 @@ def teacher_print_all_report_cards():
             all_reports.append({'student_id': student_id, 'full_name': full_name, 'photo_url': photo_url, 'marks': marks,
                                 'total_points': total_points, 'teacher_comment': teacher_comment, 'headteacher_comment': headteacher_comment})
         else:
-            cur.execute("""SELECT subject, ai1, ai2, ai3, ai4, ai5, ai6, ai_average, ai_contribution, eot_score, total_score, grade, identifier, descriptor, teacher_initials
+            cur.execute("""SELECT subject, ai1, ai2, ai3, ai_average, ai_contribution, eot_score, total_score, grade, identifier, descriptor, teacher_initials
                            FROM marks WHERE student_id=? AND term=? AND year=? ORDER BY subject""", (student_id, term, year))
             marks = cur.fetchall()
             total_final = sum(m['total_score'] for m in marks) if marks else 0
