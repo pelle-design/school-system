@@ -2049,120 +2049,207 @@ def dos_class_lists():
     cur.close()
     return render_template('dos/class_lists.html', classes=classes, students=students, selected_class=class_filter, search=search, term=term)
 
-@app.route('/dos/teacher_assignment', methods=['GET', 'POST'])
-def dos_teacher_assignment():
+@app.route('/dos/teacher_assignments', methods=['GET', 'POST'])
+def dos_teacher_assignments():
+
     if not check_permission(['dos']):
         abort(403)
 
     db = get_db_dict()
     cur = db.cursor()
 
+
+    # ==========================
+    # ADD MANUAL ASSIGNMENT
+    # ==========================
     if request.method == 'POST':
 
-        teacher_id = request.form['teacher_id']
-        assignment_type = request.form['assignment_type']
-        class_name = request.form['class_name']
+        teacher_id = request.form.get('teacher_id')
+        assignment_type = request.form.get('assignment_type')
+        class_name = request.form.get('class_name')
         subject = request.form.get('subject')
 
-        # Prevent duplicate assignment
+
+        if assignment_type == "classteacher":
+            subject = None
+
+
+        # Check duplicate
         cur.execute("""
-            SELECT id FROM teacher_class_assignments
-            WHERE user_id=? 
+            SELECT id
+            FROM teacher_class_assignments
+            WHERE user_id=?
             AND class_name=?
+            AND subject IS ?
             AND assignment_type=?
-            AND (subject=? OR subject IS NULL)
         """,
         (
             teacher_id,
-            class_name,
-            assignment_type,
-            subject
-        ))
-
-        exists = cur.fetchone()
-
-        if exists:
-            flash("This assignment already exists.", "warning")
-            return redirect(url_for('teacher_assignments'))
-
-
-        # If class teacher, check only one class teacher per class
-        if assignment_type == "classteacher":
-
-            cur.execute("""
-                SELECT id FROM teacher_class_assignments
-                WHERE class_name=?
-                AND assignment_type='classteacher'
-            """,(class_name,))
-
-            if cur.fetchone():
-                flash(
-                f"{class_name} already has a class teacher.",
-                "danger"
-                )
-                return redirect(url_for('teacher_assignments'))
-
-
-        cur.execute("""
-            INSERT INTO teacher_class_assignments
-            (
-            user_id,
             class_name,
             subject,
-            assignment_type,
-            assigned_by
-            )
-            VALUES (?,?,?,?,?)
-        """,
-        (
-            teacher_id,
-            class_name,
-            subject if assignment_type=="subject_teacher" else None,
-            assignment_type,
-            session.get('username')
+            assignment_type
         ))
 
+        existing = cur.fetchone()
 
-        db.commit()
 
-        flash(
-        "Teacher role assigned successfully.",
-        "success"
+        if existing:
+
+            flash(
+                "This teacher assignment already exists.",
+                "warning"
+            )
+
+        else:
+
+
+            # Only one class teacher per class
+            if assignment_type == "classteacher":
+
+                cur.execute("""
+                    SELECT id
+                    FROM teacher_class_assignments
+                    WHERE class_name=?
+                    AND assignment_type='classteacher'
+                """,
+                (class_name,))
+
+
+                if cur.fetchone():
+
+                    flash(
+                    f"{class_name} already has a class teacher.",
+                    "danger"
+                    )
+
+                    return redirect(
+                    url_for('dos_teacher_assignments')
+                    )
+
+
+
+            cur.execute("""
+                INSERT INTO teacher_class_assignments
+                (
+                user_id,
+                class_name,
+                subject,
+                assignment_type,
+                assigned_by
+                )
+
+                VALUES (?,?,?,?,?)
+            """,
+            (
+                teacher_id,
+                class_name,
+                subject,
+                assignment_type,
+                session.get('username')
+            ))
+
+
+            db.commit()
+
+
+            flash(
+            "Teacher assignment added successfully.",
+            "success"
+            )
+
+
+
+        return redirect(
+            url_for('dos_teacher_assignments')
         )
 
-        return redirect(url_for('teacher_assignments'))
 
 
-
-    # GET DATA
+    # ==========================
+    # LOAD TEACHERS
+    # ==========================
 
     cur.execute("""
         SELECT id, username, full_name
         FROM users
         WHERE role IN 
-        ('subject_teacher','classteacher')
+        (
+        'teacher',
+        'subject_teacher',
+        'classteacher'
+        )
+
         ORDER BY full_name
     """)
 
     teachers = cur.fetchall()
 
 
+
+    # ==========================
+    # LOAD CLASSES
+    # ==========================
+
     cur.execute("""
         SELECT DISTINCT class
         FROM students
+        WHERE class IS NOT NULL
         ORDER BY class
     """)
 
     classes = cur.fetchall()
 
 
+
+    # ==========================
+    # LOAD ASSIGNMENTS
+    # ==========================
+
+    cur.execute("""
+        SELECT
+
+        tca.id,
+        tca.class_name,
+        tca.subject,
+        tca.assignment_type,
+        tca.assigned_by,
+        tca.assigned_at,
+
+        u.username,
+        u.full_name
+
+
+        FROM teacher_class_assignments tca
+
+
+        JOIN users u
+
+        ON tca.user_id=u.id
+
+
+        ORDER BY u.full_name
+
+    """)
+
+
+    all_assignments = cur.fetchall()
+
+
     cur.close()
 
 
+
     return render_template(
-    'dos/teacher_assignments.html',
-    all_assignments=all_assignments
-)
+
+        'dos/teacher_assignments.html',
+
+        teachers=teachers,
+
+        classes=classes,
+
+        all_assignments=all_assignments
+
+    )
 
 @app.route('/dos/remove_student/<student_id>', methods=['POST'])
 def dos_remove_student(student_id):
