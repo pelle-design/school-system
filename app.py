@@ -1682,70 +1682,228 @@ def admin_role_counts():
     return render_template('admin/role_counts.html',counts=counts)
 
 
-@app.route('/admin/school_settings',methods=['GET','POST'])
+@app.route('/admin/school_settings', methods=['GET', 'POST'])
 def school_settings():
 
-    if not check_permission(['admin','headteacher']):
+    if not check_permission(['admin', 'headteacher']):
         abort(403)
 
-    if request.method=='POST':
+    if request.method == 'POST':
 
-        begins=request.form['next_term_begins']
-        ends=request.form['next_term_ends']
+        try:
 
-        stamp_file=request.files.get('stamp')
-        stamp_filename=None
+            begins = request.form.get('next_term_begins')
+            ends = request.form.get('next_term_ends')
 
-        if stamp_file and stamp_file.filename and allowed_file(stamp_file.filename,ALLOWED_IMAGE_EXTENSIONS):
-            stamp_filename=f"stamp_{int(datetime.now().timestamp())}.{stamp_file.filename.rsplit('.',1)[1].lower()}"
-            stamp_file.save(os.path.join(app.config['UPLOAD_FOLDER'],stamp_filename))
+            school_name = request.form.get(
+                'school_name',
+                'YOUR SCHOOL NAME'
+            )
 
-        school_name=request.form.get('school_name','YOUR SCHOOL NAME')
-        school_address=request.form.get('school_address','P.O. Box 123, Kampala, Uganda')
-        school_phone=request.form.get('school_phone','Tel: +256 712 345678')
-        school_email=request.form.get('school_email','Email: info@school.com')
+            school_address = request.form.get(
+                'school_address',
+                'P.O. Box 123, Kampala, Uganda'
+            )
 
-        logo_file=request.files.get('logo')
-        logo_filename=None
+            school_phone = request.form.get(
+                'school_phone',
+                'Tel: +256 712 345678'
+            )
 
-        if logo_file and logo_file.filename and allowed_file(logo_file.filename,ALLOWED_IMAGE_EXTENSIONS):
-            logo_filename=f"logo_{int(datetime.now().timestamp())}.{logo_file.filename.rsplit('.',1)[1].lower()}"
-            logo_file.save(os.path.join(app.config['UPLOAD_FOLDER'],logo_filename))
+            school_email = request.form.get(
+                'school_email',
+                'Email: info@school.com'
+            )
 
-        nssf_employee_rate=float(request.form.get('nssf_employee_rate',5.0))
-        paye_rate=float(request.form.get('paye_rate',10.0))
-        paye_threshold=float(request.form.get('paye_threshold',235000))
 
-        execute_db("""
-            UPDATE school_settings
-            SET next_term_begins=%s,next_term_ends=%s,school_name=%s,
-            school_address=%s,school_phone=%s,school_email=%s,
-            nssf_employee_rate=%s,paye_rate=%s,paye_threshold=%s
-            WHERE id=1
-        """,(begins,ends,school_name,school_address,school_phone,school_email,nssf_employee_rate,paye_rate,paye_threshold))
+            # ================= LOGO UPLOAD =================
+
+            logo_filename = None
+
+            logo_file = request.files.get('logo')
+
+            if (
+                logo_file 
+                and logo_file.filename
+                and allowed_file(
+                    logo_file.filename,
+                    ALLOWED_IMAGE_EXTENSIONS
+                )
+            ):
+
+                ext = logo_file.filename.rsplit('.',1)[1].lower()
+
+                logo_filename = (
+                    f"logo_{int(datetime.now().timestamp())}.{ext}"
+                )
+
+                logo_file.save(
+                    os.path.join(
+                        app.config['UPLOAD_FOLDER'],
+                        logo_filename
+                    )
+                )
+
+
+            # ================= STAMP UPLOAD =================
+
+            stamp_filename = None
+
+            stamp_file = request.files.get('stamp')
+
+            if (
+                stamp_file 
+                and stamp_file.filename
+                and allowed_file(
+                    stamp_file.filename,
+                    ALLOWED_IMAGE_EXTENSIONS
+                )
+            ):
+
+                ext = stamp_file.filename.rsplit('.',1)[1].lower()
+
+                stamp_filename = (
+                    f"stamp_{int(datetime.now().timestamp())}.{ext}"
+                )
+
+                stamp_file.save(
+                    os.path.join(
+                        app.config['UPLOAD_FOLDER'],
+                        stamp_filename
+                    )
+                )
+
+
+            # ================= RATES =================
+
+            nssf_employee_rate = float(
+                request.form.get(
+                    'nssf_employee_rate',
+                    5.0
+                )
+            )
+
+            paye_rate = float(
+                request.form.get(
+                    'paye_rate',
+                    10.0
+                )
+            )
+
+            paye_threshold = float(
+                request.form.get(
+                    'paye_threshold',
+                    235000
+                )
+            )
+
+
+            # ================= UPDATE SETTINGS =================
+
+            execute_db(
+                """
+                UPDATE school_settings
+                SET
+                    next_term_begins=%s,
+                    next_term_ends=%s,
+                    school_name=%s,
+                    school_address=%s,
+                    school_phone=%s,
+                    school_email=%s,
+                    nssf_employee_rate=%s,
+                    paye_rate=%s,
+                    paye_threshold=%s
+                WHERE id=1
+                """,
+                (
+                    begins,
+                    ends,
+                    school_name,
+                    school_address,
+                    school_phone,
+                    school_email,
+                    nssf_employee_rate,
+                    paye_rate,
+                    paye_threshold
+                )
+            )
+
+
+            # ================= UPDATE LOGO =================
+
+            if logo_filename:
+
+                execute_db(
+                    """
+                    UPDATE school_settings
+                    SET logo_url=%s
+                    WHERE id=1
+                    """,
+                    (logo_filename,)
+                )
+
+
+            # ================= UPDATE STAMP =================
+
+            if stamp_filename:
+
+                execute_db(
+                    """
+                    UPDATE school_settings
+                    SET headteacher_stamp=%s
+                    WHERE id=1
+                    """,
+                    (stamp_filename,)
+                )
+
+
+            flash(
+                'School settings updated successfully.',
+                'success'
+            )
+
+
         except Exception as e:
-           print("SETTINGS ERROR:", e)
-           flash(f"Error saving settings: {e}", "danger")
 
-        if stamp_filename:
-            execute_db("UPDATE school_settings SET headteacher_stamp=%s WHERE id=1",(stamp_filename,))
+            print(
+                "SETTINGS ERROR:",
+                str(e)
+            )
 
-        if logo_filename:
-            execute_db("UPDATE school_settings SET logo_url=%s WHERE id=1",(logo_filename,))
+            flash(
+                f"Error saving settings: {str(e)}",
+                "danger"
+            )
 
-        flash('School settings updated successfully.','success')
 
-    cur=get_db().cursor()
+    # ================= LOAD SETTINGS =================
 
-    cur.execute("""
-        SELECT next_term_begins,next_term_ends,headteacher_stamp,
-        school_name,school_address,school_phone,school_email,
-        logo_url,nssf_employee_rate,paye_rate,paye_threshold
-        FROM school_settings WHERE id=1
-    """)
+    cur = get_db().cursor()
 
-    settings=cur.fetchone()
+    cur.execute(
+        """
+        SELECT
+            next_term_begins,
+            next_term_ends,
+            headteacher_stamp,
+            school_name,
+            school_address,
+            school_phone,
+            school_email,
+            logo_url,
+            nssf_employee_rate,
+            paye_rate,
+            paye_threshold
+        FROM school_settings
+        WHERE id=1
+        """
+    )
+
+
+    settings = cur.fetchone()
+
     cur.close()
+
 
     return render_template(
         'admin/school_settings.html',
@@ -1754,7 +1912,6 @@ def school_settings():
         paye_rate=settings['paye_rate'] if settings else 10.0,
         paye_threshold=settings['paye_threshold'] if settings else 235000
     )
-
 
 @app.route('/admin/nssf_paye_settings',methods=['GET','POST'])
 def nssf_paye_settings():
