@@ -30,50 +30,49 @@ ALLOWED_IMAGE_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
 
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
-# ==================== SQLITE DATABASE SETUP ====================
-DATABASE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'school_system.db')
+# ==================== POSTGRESQL DATABASE SETUP ====================
+
+import os
+import psycopg2
+import psycopg2.extras
+
+
+DATABASE_URL = os.environ.get("DATABASE_URL")
+
 
 def get_db():
-    """Get database connection"""
+    """Get PostgreSQL database connection"""
     db = getattr(g, '_database', None)
+
     if db is None:
-        db = g._database = sqlite3.connect(DATABASE)
-        db.row_factory = sqlite3.Row
+        db = g._database = psycopg2.connect(
+            DATABASE_URL,
+            cursor_factory=psycopg2.extras.RealDictCursor
+        )
+
     return db
 
-@app.template_filter('format_date')
-def format_date(value):
-    if not value:
-        return '-'
-    if hasattr(value, 'strftime'):
-        return value.strftime('%Y-%m-%d')
-    return str(value)[:10] if len(str(value)) >= 10 else str(value)
-
-@app.template_filter('format_datetime')
-def format_datetime(value):
-    if not value:
-        return '-'
-    if hasattr(value, 'strftime'):
-        return value.strftime('%Y-%m-%d %H:%M')
-    return str(value)[:16] if len(str(value)) >= 16 else str(value)
 
 @app.teardown_appcontext
 def close_connection(exception):
     db = getattr(g, '_database', None)
+
     if db is not None:
         db.close()
 
+
 def init_db():
-    """Initialize database with all tables"""
+    """Initialize PostgreSQL database with all tables"""
+
     db = get_db()
     cursor = db.cursor()
-    
-    # Create tables one by one (avoiding complex SQLite issues)
-    
-    # Users table
-    cursor.execute('''
+
+
+    # ==================== USERS TABLE ====================
+
+    cursor.execute("""
         CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             username TEXT UNIQUE NOT NULL,
             password TEXT NOT NULL,
             full_name TEXT DEFAULT '',
@@ -84,40 +83,46 @@ def init_db():
             profile_pic TEXT DEFAULT 'default_avatar.png',
             must_change_password INTEGER DEFAULT 0
         )
-    ''')
-    
-    # Role limits table
-    cursor.execute('''
+    """)
+
+
+    # ==================== ROLE LIMITS TABLE ====================
+
+    cursor.execute("""
         CREATE TABLE IF NOT EXISTS role_limits (
             role_name TEXT PRIMARY KEY,
             max_count INTEGER DEFAULT 1
         )
-    ''')
-    
-    # Admission settings
-    cursor.execute('''
+    """)
+
+
+    # ==================== ADMISSION SETTINGS ====================
+
+    cursor.execute("""
         CREATE TABLE IF NOT EXISTS admission_settings (
             id INTEGER PRIMARY KEY DEFAULT 1,
             is_open INTEGER DEFAULT 1,
             deadline DATE,
             closing_reason TEXT,
-            fee_amount REAL DEFAULT 50000,
+            fee_amount NUMERIC DEFAULT 50000,
             payment_gateway TEXT DEFAULT 'MTN',
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
-    ''')
-    
-    # Students table
-    cursor.execute('''
+    """)
+
+
+    # ==================== STUDENTS TABLE ====================
+
+    cursor.execute("""
         CREATE TABLE IF NOT EXISTS students (
             student_id TEXT PRIMARY KEY,
             full_name TEXT NOT NULL,
             class TEXT NOT NULL,
             photo_path TEXT DEFAULT 'default_avatar.png',
-            fees_paid REAL DEFAULT 0,
-            fees_balance REAL DEFAULT 0,
-            fees_total REAL DEFAULT 0,
+            fees_paid NUMERIC DEFAULT 0,
+            fees_balance NUMERIC DEFAULT 0,
+            fees_total NUMERIC DEFAULT 0,
             admission_date DATE,
             parent_phone TEXT,
             date_of_birth DATE,
@@ -133,14 +138,15 @@ def init_db():
             payment_status TEXT DEFAULT 'pending',
             payment_transaction_id TEXT,
             payment_date TIMESTAMP
-            
         )
-    ''')
-    
-    # Staff table (without GENERATED column)
-    cursor.execute('''
+    """)
+
+
+    # ==================== STAFF TABLE ====================
+
+    cursor.execute("""
         CREATE TABLE IF NOT EXISTS staff (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             staff_no TEXT UNIQUE,
             full_name TEXT NOT NULL,
             position TEXT NOT NULL,
@@ -151,159 +157,221 @@ def init_db():
             tin_number TEXT,
             bank_account TEXT,
             bank_name TEXT,
-            salary_basic REAL DEFAULT 0,
-            salary_allowances REAL DEFAULT 0,
-            salary_deductions REAL DEFAULT 0,
+            salary_basic NUMERIC DEFAULT 0,
+            salary_allowances NUMERIC DEFAULT 0,
+            salary_deductions NUMERIC DEFAULT 0,
             status TEXT DEFAULT 'active',
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
-    ''')
-    
-    # Payroll table
-    cursor.execute('''
+    """)
+
+
+    # ==================== PAYROLL TABLE ====================
+
+    cursor.execute("""
         CREATE TABLE IF NOT EXISTS payroll (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             payroll_no TEXT UNIQUE,
             month_year DATE,
-            total_amount REAL DEFAULT 0,
+            total_amount NUMERIC DEFAULT 0,
             approval_code TEXT,
             approval_status TEXT DEFAULT 'pending',
             approved_by TEXT,
             approved_at TIMESTAMP,
             recorded_by TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
             headteacher_access_token TEXT,
             token_expires_at TIMESTAMP,
+
             management_approval_code TEXT,
             management_access_token TEXT,
             management_token_expires_at TIMESTAMP,
+
             management_approval_status TEXT DEFAULT 'pending',
             management_approved_by TEXT,
             management_approved_at TIMESTAMP,
+
             bank_authorization_token TEXT,
             bank_transaction_ref TEXT,
             bank_payment_status TEXT DEFAULT 'pending',
             bank_payment_response TEXT,
+
             token_resend_count INTEGER DEFAULT 0,
             last_resend_at TIMESTAMP
         )
-    ''')
-    
-    # Salary payments table
-    cursor.execute('''
+    """)
+
+
+    # ==================== SALARY PAYMENTS ====================
+
+    cursor.execute("""
         CREATE TABLE IF NOT EXISTS salary_payments (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
+
             staff_id INTEGER,
             payroll_id INTEGER,
+
             month_year DATE,
-            basic REAL,
-            allowances REAL,
-            deductions REAL,
-            gross_salary REAL,
-            nssf_employee REAL,
-            paye_tax REAL,
-            net_salary REAL,
+
+            basic NUMERIC,
+            allowances NUMERIC,
+            deductions NUMERIC,
+
+            gross_salary NUMERIC,
+
+            nssf_employee NUMERIC,
+            paye_tax NUMERIC,
+
+            net_salary NUMERIC,
+
             payment_date DATE,
             payment_method TEXT,
+
             approval_code TEXT,
             approval_status TEXT DEFAULT 'pending',
+
             transaction_ref TEXT,
+
             recorded_by TEXT,
+
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (staff_id) REFERENCES staff(id),
-            FOREIGN KEY (payroll_id) REFERENCES payroll(id)
-            
+
+            FOREIGN KEY(staff_id)
+                REFERENCES staff(id),
+
+            FOREIGN KEY(payroll_id)
+                REFERENCES payroll(id)
         )
-    ''')
-    
-    # Marks table
-    cursor.execute('''
+    """)
+
+
+    # ==================== MARKS TABLE ====================
+
+    cursor.execute("""
         CREATE TABLE IF NOT EXISTS marks (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+            id SERIAL PRIMARY KEY,
+
             student_id TEXT,
+
             subject TEXT,
+
             term TEXT,
+
             year INTEGER,
-            ai1 REAL,
-            ai2 REAL,
-            ai3 REAL,
-            ai_average REAL,
-            ai_contribution REAL,
-            eot_score REAL,
-            total_score REAL,
+
+            ai1 NUMERIC,
+            ai2 NUMERIC,
+            ai3 NUMERIC,
+
+            ai_average NUMERIC,
+
+            ai_contribution NUMERIC,
+
+            eot_score NUMERIC,
+
+            total_score NUMERIC,
+
             grade TEXT,
-            identifier REAL,
+
+            identifier NUMERIC,
+
             descriptor TEXT,
+
             teacher_initials TEXT,
+
             teacher_id INTEGER,
-            paper1 REAL,
-            paper2 REAL,
+
+            paper1 NUMERIC,
+
+            paper2 NUMERIC,
+
             points INTEGER,
-            FOREIGN KEY (student_id) REFERENCES students(student_id),
+
+
+            FOREIGN KEY(student_id)
+                REFERENCES students(student_id),
+
+
             UNIQUE(student_id, subject, term, year)
+
         )
-    ''')
-    
-    # Attendance table
-    cursor.execute('''
+    """)
+        # ==================== ATTENDANCE TABLE ====================
+
+    cursor.execute("""
         CREATE TABLE IF NOT EXISTS attendance (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             student_id TEXT,
             date DATE,
             status TEXT,
-            FOREIGN KEY (student_id) REFERENCES students(student_id),
+
+            FOREIGN KEY(student_id)
+                REFERENCES students(student_id),
+
             UNIQUE(student_id, date)
         )
-    ''')
-    
-    # Schedules table
-    cursor.execute('''
+    """)
+
+
+    # ==================== SCHEDULES TABLE ====================
+
+    cursor.execute("""
         CREATE TABLE IF NOT EXISTS schedules (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             type TEXT,
             term_scope TEXT,
             content TEXT,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
-    ''')
-    
-    # Grading system
-    cursor.execute('''
+    """)
+
+
+    # ==================== GRADING SYSTEM ====================
+
+    cursor.execute("""
         CREATE TABLE IF NOT EXISTS grading_system (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            min_score REAL,
-            max_score REAL,
+            id SERIAL PRIMARY KEY,
+            min_score NUMERIC,
+            max_score NUMERIC,
             grade TEXT,
             descriptor TEXT
         )
-    ''')
-    
-    # A-Level grading
-    cursor.execute('''
+    """)
+
+
+    # ==================== A LEVEL GRADING ====================
+
+    cursor.execute("""
         CREATE TABLE IF NOT EXISTS alevel_grading (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            min_score REAL,
-            max_score REAL,
+            id SERIAL PRIMARY KEY,
+            min_score NUMERIC,
+            max_score NUMERIC,
             grade TEXT,
             points INTEGER,
             is_subsidiary INTEGER DEFAULT 0
         )
-    ''')
-    
-    # Identifier grading
-    cursor.execute('''
+    """)
+
+
+    # ==================== IDENTIFIER GRADING ====================
+
+    cursor.execute("""
         CREATE TABLE IF NOT EXISTS identifier_grading (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            min_value REAL,
-            max_value REAL,
+            id SERIAL PRIMARY KEY,
+            min_value NUMERIC,
+            max_value NUMERIC,
             descriptor TEXT
         )
-    ''')
-    
-    # Teacher comments
-    cursor.execute('''
+    """)
+
+
+    # ==================== TEACHER COMMENTS ====================
+
+    cursor.execute("""
         CREATE TABLE IF NOT EXISTS teacher_comments (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             student_id TEXT,
             term TEXT,
             year INTEGER,
@@ -311,29 +379,38 @@ def init_db():
             headteacher_comment TEXT,
             class_teacher_comment_locked INTEGER DEFAULT 0,
             headteacher_comment_locked INTEGER DEFAULT 0,
-            FOREIGN KEY (student_id) REFERENCES students(student_id)
+
+            FOREIGN KEY(student_id)
+                REFERENCES students(student_id)
         )
-    ''')
-    
-    # Teacher class assignments
-      cursor.execute('''
-          CREATE TABLE IF NOT EXISTS teacher_class_assignments (
-              id INTEGER PRIMARY KEY AUTOINCREMENT,
-              user_id INTEGER NOT NULL,
-              class_name TEXT NOT NULL,
-              subject TEXT,
-              assignment_type TEXT NOT NULL,
-              assigned_by TEXT,
-              assigned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-              FOREIGN KEY (user_id) REFERENCES users(id),
-              UNIQUE(user_id, class_name, subject, assignment_type)
-       )
-   ''')
-    
-    # Notifications
-    cursor.execute('''
+    """)
+
+
+    # ==================== TEACHER CLASS ASSIGNMENTS ====================
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS teacher_class_assignments (
+            id SERIAL PRIMARY KEY,
+            user_id INTEGER NOT NULL,
+            class_name TEXT NOT NULL,
+            subject TEXT,
+            assignment_type TEXT NOT NULL,
+            assigned_by TEXT,
+            assigned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+            FOREIGN KEY(user_id)
+                REFERENCES users(id),
+
+            UNIQUE(user_id, class_name, subject, assignment_type)
+        )
+    """)
+
+
+    # ==================== NOTIFICATIONS ====================
+
+    cursor.execute("""
         CREATE TABLE IF NOT EXISTS notifications (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             user_role TEXT,
             message TEXT,
             link TEXT,
@@ -341,10 +418,12 @@ def init_db():
             is_read INTEGER DEFAULT 0,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
-    ''')
-    
-    # School settings
-    cursor.execute('''
+    """)
+
+
+    # ==================== SCHOOL SETTINGS ====================
+
+    cursor.execute("""
         CREATE TABLE IF NOT EXISTS school_settings (
             id INTEGER PRIMARY KEY DEFAULT 1,
             next_term_begins DATE,
@@ -355,59 +434,69 @@ def init_db():
             school_phone TEXT DEFAULT 'Tel: +256 712 345678',
             school_email TEXT DEFAULT 'info@school.com',
             logo_url TEXT,
-            nssf_employee_rate REAL DEFAULT 5.0,
-            paye_rate REAL DEFAULT 10.0,
-            paye_threshold REAL DEFAULT 235000
+            nssf_employee_rate NUMERIC DEFAULT 5.0,
+            paye_rate NUMERIC DEFAULT 10.0,
+            paye_threshold NUMERIC DEFAULT 235000
         )
-    ''')
-    
-    # Predefined comments
-    cursor.execute('''
+    """)
+
+
+    # ==================== PREDEFINED COMMENTS ====================
+
+    cursor.execute("""
         CREATE TABLE IF NOT EXISTS predefined_comments (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             comment_type TEXT,
             comment_text TEXT,
             is_active INTEGER DEFAULT 1,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
-    ''')
-    
-    # Payments
-    cursor.execute('''
+    """)
+
+
+    # ==================== PAYMENTS ====================
+
+    cursor.execute("""
         CREATE TABLE IF NOT EXISTS payments (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             student_id TEXT,
-            amount REAL,
+            amount NUMERIC,
             payment_date DATE,
             receipt_no TEXT UNIQUE,
             payment_method TEXT,
             notes TEXT,
             recorded_by TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (student_id) REFERENCES students(student_id)
+
+            FOREIGN KEY(student_id)
+                REFERENCES students(student_id)
         )
-    ''')
-    
-    # Budget categories
-    cursor.execute('''
+    """)
+
+
+    # ==================== BUDGET CATEGORIES ====================
+
+    cursor.execute("""
         CREATE TABLE IF NOT EXISTS budget_categories (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             code TEXT UNIQUE,
             name TEXT,
             description TEXT,
-            allocated_amount REAL,
+            allocated_amount NUMERIC,
             year INTEGER
         )
-    ''')
-    
-    # Expenditures
-    cursor.execute('''
+    """)
+
+
+    # ==================== EXPENDITURES ====================
+
+    cursor.execute("""
         CREATE TABLE IF NOT EXISTS expenditures (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             voucher_no TEXT UNIQUE,
             category_id INTEGER,
             description TEXT,
-            amount REAL,
+            amount NUMERIC,
             expenditure_date DATE,
             payment_method TEXT,
             payee_name TEXT,
@@ -415,25 +504,29 @@ def init_db():
             status TEXT,
             recorded_by TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (category_id) REFERENCES budget_categories(id)
+
+            FOREIGN KEY(category_id)
+                REFERENCES budget_categories(id)
         )
-    ''')
-    
-    # Inventory categories
-    cursor.execute('''
+    """)
+        # ==================== INVENTORY CATEGORIES ====================
+
+    cursor.execute("""
         CREATE TABLE IF NOT EXISTS inventory_categories (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             name TEXT NOT NULL,
             description TEXT,
             warning_level INTEGER DEFAULT 10,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
-    ''')
-    
-    # Inventory items
-    cursor.execute('''
+    """)
+
+
+    # ==================== INVENTORY ITEMS ====================
+
+    cursor.execute("""
         CREATE TABLE IF NOT EXISTS inventory_items (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             item_code TEXT UNIQUE NOT NULL,
             name TEXT NOT NULL,
             category_id INTEGER,
@@ -445,8 +538,8 @@ def init_db():
             location TEXT,
             supplier TEXT,
             purchase_date DATE,
-            purchase_price REAL,
-            current_value REAL,
+            purchase_price NUMERIC,
+            current_value NUMERIC,
             status TEXT DEFAULT 'working',
             condition_notes TEXT,
             last_maintenance DATE,
@@ -456,19 +549,23 @@ def init_db():
             image_path TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (category_id) REFERENCES inventory_categories(id)
+
+            FOREIGN KEY(category_id)
+                REFERENCES inventory_categories(id)
         )
-    ''')
-    
-    # Inventory transactions
-    cursor.execute('''
+    """)
+
+
+    # ==================== INVENTORY TRANSACTIONS ====================
+
+    cursor.execute("""
         CREATE TABLE IF NOT EXISTS inventory_transactions (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             item_id INTEGER,
             transaction_type TEXT,
             quantity INTEGER,
-            unit_price REAL,
-            total_amount REAL,
+            unit_price NUMERIC,
+            total_amount NUMERIC,
             transaction_date DATE,
             issued_to TEXT,
             issued_to_role TEXT,
@@ -478,47 +575,59 @@ def init_db():
             approved_by TEXT,
             notes TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (item_id) REFERENCES inventory_items(id)
+
+            FOREIGN KEY(item_id)
+                REFERENCES inventory_items(id)
         )
-    ''')
-    
-    # Inventory alerts
-    cursor.execute('''
+    """)
+
+
+    # ==================== INVENTORY ALERTS ====================
+
+    cursor.execute("""
         CREATE TABLE IF NOT EXISTS inventory_alerts (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             item_id INTEGER,
             alert_type TEXT,
             message TEXT,
             is_read INTEGER DEFAULT 0,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (item_id) REFERENCES inventory_items(id)
+
+            FOREIGN KEY(item_id)
+                REFERENCES inventory_items(id)
         )
-    ''')
-    
-    # Houses
-    cursor.execute('''
+    """)
+
+
+    # ==================== HOUSES ====================
+
+    cursor.execute("""
         CREATE TABLE IF NOT EXISTS houses (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             name TEXT UNIQUE,
             description TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
-    ''')
-    
-    # Sports activities
-    cursor.execute('''
+    """)
+
+
+    # ==================== SPORTS ACTIVITIES ====================
+
+    cursor.execute("""
         CREATE TABLE IF NOT EXISTS sports_activities (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             name TEXT UNIQUE
         )
-    ''')
-    
-    # Payment webhooks
-    cursor.execute('''
+    """)
+
+
+    # ==================== PAYMENT WEBHOOKS ====================
+
+    cursor.execute("""
         CREATE TABLE IF NOT EXISTS payment_webhooks (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             transaction_id TEXT,
-            amount REAL,
+            amount NUMERIC,
             phone_number TEXT,
             student_id TEXT,
             reference TEXT,
@@ -528,10 +637,12 @@ def init_db():
             processed INTEGER DEFAULT 0,
             received_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
-    ''')
-    
-    # Payment gateway config
-    cursor.execute('''
+    """)
+
+
+    # ==================== PAYMENT GATEWAY CONFIG ====================
+
+    cursor.execute("""
         CREATE TABLE IF NOT EXISTS payment_gateway_config (
             id INTEGER PRIMARY KEY DEFAULT 1,
             gateway_name TEXT DEFAULT 'School Pay',
@@ -541,40 +652,54 @@ def init_db():
             callback_url TEXT,
             status TEXT DEFAULT 'inactive'
         )
-    ''')
-    
-    # Bank transaction logs
-    cursor.execute('''
+    """)
+
+
+    # ==================== BANK TRANSACTION LOGS ====================
+
+    cursor.execute("""
         CREATE TABLE IF NOT EXISTS bank_transaction_logs (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             payroll_id INTEGER,
             staff_id INTEGER,
             transaction_ref TEXT,
-            amount REAL,
+            amount NUMERIC,
             recipient_account TEXT,
             recipient_phone TEXT,
             status TEXT,
             response TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (payroll_id) REFERENCES payroll(id),
-            FOREIGN KEY (staff_id) REFERENCES staff(id)
+
+            FOREIGN KEY(payroll_id)
+                REFERENCES payroll(id),
+
+            FOREIGN KEY(staff_id)
+                REFERENCES staff(id)
         )
-    ''')
-    
-    # Authorization logs
-    cursor.execute('''
+    """)
+
+
+    # ==================== AUTHORIZATION LOGS ====================
+
+    cursor.execute("""
         CREATE TABLE IF NOT EXISTS authorization_logs (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             payroll_id INTEGER,
             action TEXT,
             performed_by TEXT,
             ip_address TEXT,
             details TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (payroll_id) REFERENCES payroll(id)
+
+            FOREIGN KEY(payroll_id)
+                REFERENCES payroll(id)
         )
-    ''')
-    
+    """)
+
+
+    # ==================== SAVE CHANGES ====================
+
+    db.commit()
     # Insert default data
     cursor.execute("SELECT COUNT(*) FROM role_limits")
     if cursor.fetchone()[0] == 0:
