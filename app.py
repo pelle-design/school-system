@@ -35,13 +35,20 @@ os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 import os
 import psycopg2
 import psycopg2.extras
+from flask import g
 
 
 DATABASE_URL = os.environ.get("DATABASE_URL")
 
+if not DATABASE_URL:
+    raise RuntimeError(
+        "DATABASE_URL is missing. Add PostgreSQL URL in Render Environment Variables."
+    )
+
 
 def get_db():
     """Get PostgreSQL database connection"""
+
     db = getattr(g, '_database', None)
 
     if db is None:
@@ -49,14 +56,18 @@ def get_db():
             DATABASE_URL,
             cursor_factory=psycopg2.extras.RealDictCursor
         )
+
     return db
+
 
 @app.teardown_appcontext
 def close_connection(exception):
+
     db = getattr(g, '_database', None)
 
     if db is not None:
         db.close()
+
 
 def init_db():
     """Initialize PostgreSQL database with all tables"""
@@ -1389,7 +1400,7 @@ def mark_all_notifications_read_route():
 
 # ==================== DASHBOARD ROUTES ====================
 
-@app.route('/dashboard')
+@app.route('/admin/dashboard')
 @login_required
 def dashboard():
     role=session.get('role')
@@ -3651,69 +3662,124 @@ def dos_edit_assignment(assignment_id):
         classes=classes
     )
     
-
 # ==================== UNIFIED TEACHER MODULE ====================
+
 @app.route('/teacher/students')
 def teacher_students():
     if not check_permission(['classteacher', 'subject_teacher']):
         abort(403)
-    
+
     term = request.args.get('term', 'Term 1')
     user_id = session.get('user_id')
     assignments = get_user_assignments(user_id)
-    
+
     if not assignments:
         flash('No classes assigned to you. Please contact admin.', 'danger')
         return redirect(url_for('dashboard'))
-    
+
     available_classes = list(set([a['class_name'] for a in assignments]))
     selected_class = request.args.get('class_name', session.get('selected_class', available_classes[0]))
     session['selected_class'] = selected_class
-    
+
     if selected_class not in available_classes:
         selected_class = available_classes[0]
         session['selected_class'] = selected_class
-    
+
     db = get_db_dict()
     cur = db.cursor()
-    cur.execute("SELECT student_id, full_name, photo_path, parent_phone FROM students WHERE class=? ORDER BY full_name", (selected_class,))
+    cur.execute(
+        "SELECT student_id, full_name, photo_path, parent_phone FROM students WHERE class=%s ORDER BY full_name",
+        (selected_class,)
+    )
     students = cur.fetchall()
+
     for s in students:
         s['photo_url'] = get_photo_url(s.get('photo_path'))
+
     cur.close()
-    
-    is_classteacher = any(a['assignment_type'] == 'classteacher' and a['class_name'] == selected_class for a in assignments)
-    
-    return render_template('teacher/students.html', students=students, selected_class=selected_class,
-                           available_classes=available_classes, is_classteacher=is_classteacher, term=term)
+
+    is_classteacher = any(
+        a['assignment_type'] == 'classteacher' and a['class_name'] == selected_class
+        for a in assignments
+    )
+
+    return render_template(
+        'teacher/students.html',
+        students=students,
+        selected_class=selected_class,
+        available_classes=available_classes,
+        is_classteacher=is_classteacher,
+        term=term
+    )
+
 
 @app.route('/teacher/attendance', methods=['GET', 'POST'])
 def teacher_attendance():
     if not check_permission(['classteacher']):
         abort(403)
+
     selected_class = session.get('selected_class')
+
     if not selected_class:
         flash('No class selected', 'danger')
         return redirect(url_for('teacher_students'))
-    selected_date = request.args.get('date', datetime.now().strftime('%Y-%m-%d'))
+
+    selected_date = request.args.get(
+        'date',
+        datetime.now().strftime('%Y-%m-%d')
+    )
+
     if request.method == 'POST':
         selected_date = request.form['date']
+
         for key, value in request.form.items():
             if key.startswith('status_'):
                 student_id = key.split('_')[1]
-                execute_db("INSERT INTO attendance (student_id, date, status) VALUES (?, ?, ?) ON CONFLICT(student_id, date) DO UPDATE SET status=?",
-                           (student_id, selected_date, value, value))
+
+                execute_db(
+                    """
+                    INSERT INTO attendance
+                    (student_id, date, status)
+                    VALUES (%s, %s, %s)
+                    ON CONFLICT(student_id, date)
+                    DO UPDATE SET status=%s
+                    """,
+                    (student_id, selected_date, value, value)
+                )
+
         flash('Attendance saved.', 'success')
+
     db = get_db_dict()
     cur = db.cursor()
-    cur.execute("SELECT s.student_id, s.full_name, a.status FROM students s LEFT JOIN attendance a ON s.student_id = a.student_id AND a.date = ? WHERE s.class = ? ORDER BY s.full_name", 
-                (selected_date, selected_class))
+
+    cur.execute(
+        """
+        SELECT s.student_id, s.full_name, a.status
+        FROM students s
+        LEFT JOIN attendance a
+        ON s.student_id = a.student_id
+        AND a.date = %s
+        WHERE s.class = %s
+        ORDER BY s.full_name
+        """,
+        (selected_date, selected_class)
+    )
+
     records = cur.fetchall()
     cur.close()
-    return render_template('teacher/attendance.html', records=records, selected_date=selected_date, assigned_class=selected_class)
+
+    return render_template(
+        'teacher/attendance.html',
+        records=records,
+        selected_date=selected_date,
+        assigned_class=selected_class
+    )
+
 
 @app.route("/save_manual_marks", methods=["POST"])
 def save_manual_marks():
+    db = get_db_dict()
+    cursor = db.cursor()
 
     student_ids = request.form.getlist("student_id[]")
     paper1 = request.form.getlist("paper1[]")
@@ -3722,52 +3788,121 @@ def save_manual_marks():
 
     for sid, p1, p2, init in zip(student_ids, paper1, paper2, initials):
 
-        # Insert or update database
-        cursor.execute("""
+        cursor.execute(
+            """
             INSERT INTO alevel_marks
             (student_id, paper1, paper2, teacher_initials)
-            VALUES (?, ?, ?, ?)
-        """, (sid, p1, p2, init))
+            VALUES (%s, %s, %s, %s)
+            """,
+            (sid, p1, p2, init)
+        )
 
     db.commit()
+    cursor.close()
 
     flash("Marks saved successfully.")
     return redirect(url_for("upload_marks"))
-    
+
+
 @app.route('/teacher/upload_marks', methods=['GET', 'POST'])
 def teacher_upload_marks():
     if not check_permission(['classteacher', 'subject_teacher', 'dos']):
         abort(403)
+
     teacher_id = session.get('user_id')
     assignments = get_user_assignments(teacher_id)
+
     if not assignments:
         flash('No classes assigned.', 'danger')
         return redirect(url_for('dashboard'))
+
     available_classes = list(set([a['class_name'] for a in assignments]))
-    selected_class = request.args.get('class_name', session.get('selected_class', available_classes[0]))
+
+    selected_class = request.args.get(
+        'class_name',
+        session.get('selected_class', available_classes[0])
+    )
+
     session['selected_class'] = selected_class
+
     if selected_class not in available_classes:
         selected_class = available_classes[0]
+
     class_upper = selected_class.upper()
-    level = 'alevel' if class_upper in ['S5', 'S6', 'A-LEVEL', 'A LEVEL','S.5', 'S.6'] or (class_upper.startswith('S') and len(class_upper) >= 2 and class_upper[1] in ['5', '6']) else 'olevel'
+
+    level = (
+        'alevel'
+        if class_upper in ['S5', 'S6', 'A-LEVEL', 'A LEVEL', 'S.5', 'S.6']
+        or (
+            class_upper.startswith('S')
+            and len(class_upper) >= 2
+            and class_upper[1] in ['5', '6']
+        )
+        else 'olevel'
+    )
+
     current_year = datetime.now().year
+
     if request.method == 'POST':
+
         subject = request.form['subject'].strip()
         term = request.form['term'].strip()
         year = request.form['year'].strip()
+
         is_subsidiary = request.form.get('is_subsidiary') == 'on'
+
         file = request.files.get('marks_file')
+
         if not file or not file.filename:
             flash('Please upload an Excel file.', 'danger')
-            return redirect(url_for('teacher_upload_marks', class_name=selected_class))
-        count = process_marks_upload(file, subject, term, year, selected_class, teacher_id, level, is_subsidiary)
-        flash(f'{count} marks uploaded for {subject} (Class: {selected_class}, {term} {year}).', 'success')
-        return redirect(url_for('teacher_upload_marks', class_name=selected_class))
-    return render_template(f'teacher/upload_marks_{level}.html', assigned_class=selected_class, current_year=current_year, 
-                          teacher_classes=[{'class_name': c} for c in available_classes], selected_class=selected_class)
+            return redirect(
+                url_for(
+                    'teacher_upload_marks',
+                    class_name=selected_class
+                )
+            )
+
+        count = process_marks_upload(
+            file,
+            subject,
+            term,
+            year,
+            selected_class,
+            teacher_id,
+            level,
+            is_subsidiary
+        )
+
+        flash(
+            f'{count} marks uploaded for {subject} '
+            f'(Class: {selected_class}, {term} {year}).',
+            'success'
+        )
+
+        return redirect(
+            url_for(
+                'teacher_upload_marks',
+                class_name=selected_class
+            )
+        )
+
+    return render_template(
+        f'teacher/upload_marks_{level}.html',
+        assigned_class=selected_class,
+        current_year=current_year,
+        teacher_classes=[
+            {'class_name': c}
+            for c in available_classes
+        ],
+        selected_class=selected_class
+    )
+
 
 @app.route("/save_olevel_marks", methods=["POST"])
 def save_olevel_marks():
+
+    db = get_db_dict()
+    cursor = db.cursor()
 
     student_ids = request.form.getlist("student_id[]")
     ai1 = request.form.getlist("ai1[]")
@@ -3777,525 +3912,2020 @@ def save_olevel_marks():
     initials = request.form.getlist("teacher_initials[]")
 
     for sid, a1, a2, a3, e, init in zip(
-        student_ids, ai1, ai2, ai3, eot, initials
+        student_ids,
+        ai1,
+        ai2,
+        ai3,
+        eot,
+        initials
     ):
 
-        cursor.execute("""
+        cursor.execute(
+            """
             INSERT INTO olevel_marks
-            (student_id, ai1, ai2, ai3,
-             eot_score, teacher_initials)
-            VALUES (?, ?, ?, ?, ?, ?)
-        """, (sid, a1, a2, a3, e, init))
+            (
+                student_id,
+                ai1,
+                ai2,
+                ai3,
+                eot_score,
+                teacher_initials
+            )
+            VALUES (%s, %s, %s, %s, %s, %s)
+            """,
+            (
+                sid,
+                a1,
+                a2,
+                a3,
+                e,
+                init
+            )
+        )
 
     db.commit()
+    cursor.close()
 
     flash("Marks saved successfully.", "success")
+
     return redirect(url_for("upload_olevel_marks"))
 
 @app.route('/teacher/report_card/<student_id>')
 def teacher_report_card(student_id):
     if not check_permission(['classteacher', 'subject_teacher', 'parent', 'dos', 'headteacher']):
         abort(403)
-    
+
     role = session.get('role')
     db = get_db_dict()
     cur = db.cursor()
-    
+
     if role in ['classteacher', 'subject_teacher']:
         selected_class = session.get('selected_class')
+
         if not selected_class:
             flash('No class selected', 'danger')
             return redirect(url_for('teacher_students'))
-        cur.execute("SELECT class FROM students WHERE student_id=?", (student_id,))
+
+        cur.execute(
+            "SELECT class FROM students WHERE student_id=%s",
+            (student_id,)
+        )
+
         res = cur.fetchone()
+
         if not res or res['class'] != selected_class:
             flash('Student not in your class.', 'danger')
             return redirect(url_for('teacher_students'))
+
     elif role == 'parent':
         parent_phone = session.get('phone')
+
         if not parent_phone:
             flash('No phone linked.', 'danger')
             return redirect(url_for('dashboard'))
-        cur.execute("SELECT parent_phone FROM students WHERE student_id=?", (student_id,))
+
+        cur.execute(
+            "SELECT parent_phone FROM students WHERE student_id=%s",
+            (student_id,)
+        )
+
         res = cur.fetchone()
+
         if not res or res['parent_phone'] != parent_phone:
             flash('Not authorized.', 'danger')
             return redirect(url_for('dashboard'))
+
     elif role == 'dos':
-        cur.execute("SELECT class FROM students WHERE student_id=?", (student_id,))
+        cur.execute(
+            "SELECT class FROM students WHERE student_id=%s",
+            (student_id,)
+        )
+
         if not cur.fetchone():
             flash('Student not found.', 'danger')
             return redirect(url_for('dos_class_lists'))
+
     elif role == 'headteacher':
-        cur.execute("SELECT class FROM students WHERE student_id=?", (student_id,))
+        cur.execute(
+            "SELECT class FROM students WHERE student_id=%s",
+            (student_id,)
+        )
+
         if not cur.fetchone():
             flash('Student not found.', 'danger')
             return redirect(url_for('dashboard'))
-    
-    cur.execute("SELECT full_name, class, photo_path FROM students WHERE student_id=?", (student_id,))
+
+    cur.execute(
+        "SELECT full_name, class, photo_path FROM students WHERE student_id=%s",
+        (student_id,)
+    )
+
     student = cur.fetchone()
+
     if not student:
         flash('Student not found.', 'danger')
         return redirect(url_for('dashboard'))
-    
-    full_name, class_name, photo_path = student['full_name'], student['class'], student['photo_path']
+
+    full_name = student['full_name']
+    class_name = student['class']
+    photo_path = student['photo_path']
+
     photo_url = get_photo_url(photo_path)
-    
+
     term = request.args.get('term', 'Term 1')
     year = request.args.get('year', datetime.now().year)
-    
-    cur.execute("SELECT school_name, school_address, school_phone, school_email, logo_url FROM school_settings WHERE id=1")
+
+    cur.execute(
+        """
+        SELECT school_name, school_address, school_phone,
+               school_email, logo_url
+        FROM school_settings
+        WHERE id=1
+        """
+    )
+
     school = cur.fetchone()
+
     school_name = school['school_name'] if school else 'YOUR SCHOOL NAME'
     school_address = school['school_address'] if school else 'P.O. Box 123, Kampala, Uganda'
     school_phone = school['school_phone'] if school else 'Tel: +256 712 345678'
     school_email = school['school_email'] if school else 'Email: info@school.com'
     school_logo_url = school['logo_url'] if school else url_for('static', filename='images/logo.png')
-    
-    cur.execute("SELECT next_term_begins, next_term_ends, headteacher_stamp FROM school_settings WHERE id=1")
+
+    cur.execute(
+        """
+        SELECT next_term_begins,
+               next_term_ends,
+               headteacher_stamp
+        FROM school_settings
+        WHERE id=1
+        """
+    )
+
     settings = cur.fetchone()
+
     next_term_begins = settings['next_term_begins'] if settings else None
     next_term_ends = settings['next_term_ends'] if settings else None
-    stamp_url = url_for('static', filename='uploads/' + settings['headteacher_stamp']) if settings and settings['headteacher_stamp'] else None
-    
-    cur.execute("SELECT comment, headteacher_comment, class_teacher_comment_locked, headteacher_comment_locked FROM teacher_comments WHERE student_id=? AND term=? AND year=?", 
-                (student_id, term, year))
+
+    stamp_url = (
+        url_for('static', filename='uploads/' + settings['headteacher_stamp'])
+        if settings and settings['headteacher_stamp']
+        else None
+    )
+
+    cur.execute(
+        """
+        SELECT comment,
+               headteacher_comment,
+               class_teacher_comment_locked,
+               headteacher_comment_locked
+        FROM teacher_comments
+        WHERE student_id=%s
+        AND term=%s
+        AND year=%s
+        """,
+        (student_id, term, year)
+    )
+
     comments = cur.fetchone()
+
     teacher_comment = comments['comment'] if comments else ''
     headteacher_comment = comments['headteacher_comment'] if comments else ''
-    teacher_comment_locked = comments['class_teacher_comment_locked'] if comments else 0
-    headteacher_comment_locked = comments['headteacher_comment_locked'] if comments else 0
-    
-    can_edit_class_comment = (role == 'classteacher' and not teacher_comment_locked)
-    can_edit_head_comment = (role == 'headteacher' and not headteacher_comment_locked)
-    can_view_only = role in ['subject_teacher', 'parent', 'dos']
-    
+
+    teacher_comment_locked = (
+        comments['class_teacher_comment_locked']
+        if comments else 0
+    )
+
+    headteacher_comment_locked = (
+        comments['headteacher_comment_locked']
+        if comments else 0
+    )
+
+    can_edit_class_comment = (
+        role == 'classteacher'
+        and not teacher_comment_locked
+    )
+
+    can_edit_head_comment = (
+        role == 'headteacher'
+        and not headteacher_comment_locked
+    )
+
+    can_view_only = role in [
+        'subject_teacher',
+        'parent',
+        'dos'
+    ]
+
     predefined_class_comments = get_predefined_comments('class_teacher')
     predefined_head_comments = get_predefined_comments('headteacher')
-    
+
     class_upper = class_name.upper()
-    is_alevel = class_upper in ['S5', 'S6', 'A-LEVEL', 'A LEVEL', 'S.5', 'S.6'] or (class_upper.startswith('S') and len(class_upper) >= 2 and class_upper[1] in ['5', '6'])
-    
+
+    is_alevel = (
+        class_upper in [
+            'S5',
+            'S6',
+            'A-LEVEL',
+            'A LEVEL',
+            'S.5',
+            'S.6'
+        ]
+        or (
+            class_upper.startswith('S')
+            and len(class_upper) >= 2
+            and class_upper[1] in ['5', '6']
+        )
+    )
+
     if is_alevel:
-        cur.execute("SELECT subject, paper1, paper2, total_score, grade, points, teacher_initials FROM marks WHERE student_id=? AND term=? AND year=? ORDER BY subject", 
-                    (student_id, term, year))
+
+        cur.execute(
+            """
+            SELECT subject,
+                   paper1,
+                   paper2,
+                   total_score,
+                   grade,
+                   points,
+                   teacher_initials
+            FROM marks
+            WHERE student_id=%s
+            AND term=%s
+            AND year=%s
+            ORDER BY subject
+            """,
+            (student_id, term, year)
+        )
+
         marks = cur.fetchall()
-        total_points = sum(m['points'] for m in marks if m['points'] is not None) if marks else 0
+
+        total_points = sum(
+            m['points']
+            for m in marks
+            if m['points'] is not None
+        ) if marks else 0
+
         cur.close()
-        return render_template('teacher/report_card_alevel.html',
-            student_id=student_id, full_name=full_name, class_name=class_name, photo_url=photo_url,
-            term=term, year=year, marks=marks, total_points=total_points,
-            teacher_comment=teacher_comment, headteacher_comment=headteacher_comment,
-            teacher_comment_locked=teacher_comment_locked, headteacher_comment_locked=headteacher_comment_locked,
-            next_term_begins=next_term_begins, next_term_ends=next_term_ends, stamp_url=stamp_url,
-            can_edit_class_comment=can_edit_class_comment, can_edit_head_comment=can_edit_head_comment, can_view_only=can_view_only,
-            school_name=school_name, school_address=school_address, school_phone=school_phone,
-            school_email=school_email, school_logo_url=school_logo_url,
+
+        return render_template(
+            'teacher/report_card_alevel.html',
+            student_id=student_id,
+            full_name=full_name,
+            class_name=class_name,
+            photo_url=photo_url,
+            term=term,
+            year=year,
+            marks=marks,
+            total_points=total_points,
+            teacher_comment=teacher_comment,
+            headteacher_comment=headteacher_comment,
+            teacher_comment_locked=teacher_comment_locked,
+            headteacher_comment_locked=headteacher_comment_locked,
+            next_term_begins=next_term_begins,
+            next_term_ends=next_term_ends,
+            stamp_url=stamp_url,
+            can_edit_class_comment=can_edit_class_comment,
+            can_edit_head_comment=can_edit_head_comment,
+            can_view_only=can_view_only,
+            school_name=school_name,
+            school_address=school_address,
+            school_phone=school_phone,
+            school_email=school_email,
+            school_logo_url=school_logo_url,
             predefined_class_comments=predefined_class_comments,
-            predefined_head_comments=predefined_head_comments)
+            predefined_head_comments=predefined_head_comments
+        )
+
     else:
-        cur.execute("""SELECT subject, ai1, ai2, ai3, ai_average, ai_contribution, eot_score, total_score, grade, identifier, descriptor, teacher_initials
-                       FROM marks WHERE student_id=? AND term=? AND year=? ORDER BY subject""", (student_id, term, year))
+
+        cur.execute(
+            """
+            SELECT subject,
+                   ai1,
+                   ai2,
+                   ai3,
+                   ai_average,
+                   ai_contribution,
+                   eot_score,
+                   total_score,
+                   grade,
+                   identifier,
+                   descriptor,
+                   teacher_initials
+            FROM marks
+            WHERE student_id=%s
+            AND term=%s
+            AND year=%s
+            ORDER BY subject
+            """,
+            (student_id, term, year)
+        )
+
         marks = cur.fetchall()
-        total_final = sum(m['total_score'] for m in marks) if marks else 0
+
+        total_final = sum(
+            m['total_score']
+            for m in marks
+        ) if marks else 0
+
         count = len(marks)
-        avg_percent = total_final / count if count > 0 else 0
-        avg_out_of_3 = round((avg_percent / 100) * 3, 2)
+
+        avg_percent = (
+            total_final / count
+            if count > 0
+            else 0
+        )
+
+        avg_out_of_3 = round(
+            (avg_percent / 100) * 3,
+            2
+        )
+
         general_grade, general_descriptor = get_grade_and_descriptor(avg_percent)
+
         cur.close()
-        return render_template('teacher/report_card.html',
-            student_id=student_id, full_name=full_name, class_name=class_name, photo_url=photo_url,
-            term=term, year=year, marks=marks, avg_out_of_3=avg_out_of_3,
-            general_grade=general_grade, general_descriptor=general_descriptor,
-            teacher_comment=teacher_comment, headteacher_comment=headteacher_comment,
-            teacher_comment_locked=teacher_comment_locked, headteacher_comment_locked=headteacher_comment_locked,
-            next_term_begins=next_term_begins, next_term_ends=next_term_ends, stamp_url=stamp_url,
-            can_edit_class_comment=can_edit_class_comment, can_edit_head_comment=can_edit_head_comment, can_view_only=can_view_only,
-            school_name=school_name, school_address=school_address, school_phone=school_phone,
-            school_email=school_email, school_logo_url=school_logo_url,
+
+        return render_template(
+            'teacher/report_card.html',
+            student_id=student_id,
+            full_name=full_name,
+            class_name=class_name,
+            photo_url=photo_url,
+            term=term,
+            year=year,
+            marks=marks,
+            avg_out_of_3=avg_out_of_3,
+            general_grade=general_grade,
+            general_descriptor=general_descriptor,
+            teacher_comment=teacher_comment,
+            headteacher_comment=headteacher_comment,
+            teacher_comment_locked=teacher_comment_locked,
+            headteacher_comment_locked=headteacher_comment_locked,
+            next_term_begins=next_term_begins,
+            next_term_ends=next_term_ends,
+            stamp_url=stamp_url,
+            can_edit_class_comment=can_edit_class_comment,
+            can_edit_head_comment=can_edit_head_comment,
+            can_view_only=can_view_only,
+            school_name=school_name,
+            school_address=school_address,
+            school_phone=school_phone,
+            school_email=school_email,
+            school_logo_url=school_logo_url,
             predefined_class_comments=predefined_class_comments,
-            predefined_head_comments=predefined_head_comments)
+            predefined_head_comments=predefined_head_comments
+        )
+
 
 @app.route('/teacher/save_comment', methods=['POST'])
 def teacher_save_comment():
     if not check_permission(['classteacher']):
         abort(403)
+
     student_id = request.form['student_id']
     term = request.form['term']
     year = request.form['year']
+
     comment = request.form.get('comment', '').strip()
     custom_comment = request.form.get('custom_comment', '').strip()
+
     final_comment = custom_comment if custom_comment else comment
-    
+
     cur = get_db().cursor()
-    cur.execute("SELECT class_teacher_comment_locked FROM teacher_comments WHERE student_id=? AND term=? AND year=?", (student_id, term, year))
+
+    cur.execute(
+        """
+        SELECT class_teacher_comment_locked
+        FROM teacher_comments
+        WHERE student_id=%s
+        AND term=%s
+        AND year=%s
+        """,
+        (student_id, term, year)
+    )
+
     existing = cur.fetchone()
     cur.close()
-    
+
     if existing and existing[0] == 1:
-        flash('Comment cannot be edited as it has been locked.', 'danger')
-        return redirect(url_for('teacher_report_card', student_id=student_id, term=term, year=year))
-    
-    execute_db("INSERT INTO teacher_comments (student_id, term, year, comment, class_teacher_comment_locked) VALUES (?, ?, ?, ?, 1) ON CONFLICT(student_id, term, year) DO UPDATE SET comment=?, class_teacher_comment_locked=1",
-               (student_id, term, year, final_comment, final_comment))
+        flash(
+            'Comment cannot be edited as it has been locked.',
+            'danger'
+        )
+
+        return redirect(
+            url_for(
+                'teacher_report_card',
+                student_id=student_id,
+                term=term,
+                year=year
+            )
+        )
+
+    execute_db(
+        """
+        INSERT INTO teacher_comments
+        (
+            student_id,
+            term,
+            year,
+            comment,
+            class_teacher_comment_locked
+        )
+        VALUES (%s,%s,%s,%s,1)
+
+        ON CONFLICT(student_id,term,year)
+
+        DO UPDATE SET
+        comment=%s,
+        class_teacher_comment_locked=1
+        """,
+        (
+            student_id,
+            term,
+            year,
+            final_comment,
+            final_comment
+        )
+    )
+
     flash('Comment saved and locked.', 'success')
-    return redirect(url_for('teacher_report_card', student_id=student_id, term=term, year=year))
+
+    return redirect(
+        url_for(
+            'teacher_report_card',
+            student_id=student_id,
+            term=term,
+            year=year
+        )
+    )
+
+@app.route('/teacher/report_card/<student_id>')
+def teacher_report_card(student_id):
+
+    if not check_permission(['classteacher', 'subject_teacher', 'parent', 'dos', 'headteacher']):
+        abort(403)
+
+    role = session.get('role')
+
+    db = get_db()
+    cur = db.cursor()
+
+
+    if role in ['classteacher', 'subject_teacher']:
+
+        selected_class = session.get('selected_class')
+
+        if not selected_class:
+            flash('No class selected', 'danger')
+            return redirect(url_for('teacher_students'))
+
+        cur.execute("""
+            SELECT class
+            FROM students
+            WHERE student_id=%s
+        """, (student_id,))
+
+        res = cur.fetchone()
+
+        if not res or res['class'] != selected_class:
+            flash('Student not in your class.', 'danger')
+            return redirect(url_for('teacher_students'))
+
+
+    elif role == 'parent':
+
+        parent_phone = session.get('phone')
+
+        if not parent_phone:
+            flash('No phone linked.', 'danger')
+            return redirect(url_for('dashboard'))
+
+        cur.execute("""
+            SELECT parent_phone
+            FROM students
+            WHERE student_id=%s
+        """, (student_id,))
+
+        res = cur.fetchone()
+
+        if not res or res['parent_phone'] != parent_phone:
+            flash('Not authorized.', 'danger')
+            return redirect(url_for('dashboard'))
+
+
+    elif role in ['dos', 'headteacher']:
+
+        cur.execute("""
+            SELECT class
+            FROM students
+            WHERE student_id=%s
+        """, (student_id,))
+
+        if not cur.fetchone():
+
+            flash('Student not found.', 'danger')
+
+            if role == 'dos':
+                return redirect(url_for('dos_class_lists'))
+
+            return redirect(url_for('dashboard'))
+
+
+
+    cur.execute("""
+        SELECT full_name, class, photo_path
+        FROM students
+        WHERE student_id=%s
+    """, (student_id,))
+
+    student = cur.fetchone()
+
+
+    if not student:
+
+        flash('Student not found.', 'danger')
+        cur.close()
+        return redirect(url_for('dashboard'))
+
+
+    full_name = student['full_name']
+    class_name = student['class']
+    photo_path = student['photo_path']
+
+    photo_url = get_photo_url(photo_path)
+
+
+
+    term = request.args.get('term', 'Term 1')
+    year = request.args.get('year', datetime.now().year)
+
+
+
+    cur.execute("""
+        SELECT 
+            school_name,
+            school_address,
+            school_phone,
+            school_email,
+            logo_url,
+            next_term_begins,
+            next_term_ends,
+            headteacher_stamp
+        FROM school_settings
+        WHERE id=1
+    """)
+
+    school = cur.fetchone()
+
+
+
+    school_name = school['school_name'] if school else 'YOUR SCHOOL NAME'
+    school_address = school['school_address'] if school else 'P.O. Box 123, Kampala, Uganda'
+    school_phone = school['school_phone'] if school else 'Tel: +256 712 345678'
+    school_email = school['school_email'] if school else 'Email: info@school.com'
+    school_logo_url = (
+        school['logo_url']
+        if school and school['logo_url']
+        else url_for('static', filename='images/logo.png')
+    )
+
+
+    next_term_begins = school['next_term_begins'] if school else None
+    next_term_ends = school['next_term_ends'] if school else None
+
+
+    stamp_url = None
+
+    if school and school['headteacher_stamp']:
+
+        stamp_url = url_for(
+            'static',
+            filename='uploads/' + school['headteacher_stamp']
+        )
+
+
+
+    cur.execute("""
+        SELECT 
+            comment,
+            headteacher_comment,
+            class_teacher_comment_locked,
+            headteacher_comment_locked
+        FROM teacher_comments
+        WHERE student_id=%s
+        AND term=%s
+        AND year=%s
+    """,
+    (
+        student_id,
+        term,
+        year
+    ))
+
+    comments = cur.fetchone()
+
+
+    teacher_comment = comments['comment'] if comments else ''
+    headteacher_comment = comments['headteacher_comment'] if comments else ''
+
+    teacher_comment_locked = (
+        comments['class_teacher_comment_locked']
+        if comments else 0
+    )
+
+    headteacher_comment_locked = (
+        comments['headteacher_comment_locked']
+        if comments else 0
+    )
+
+
+    can_edit_class_comment = (
+        role == 'classteacher'
+        and not teacher_comment_locked
+    )
+
+    can_edit_head_comment = (
+        role == 'headteacher'
+        and not headteacher_comment_locked
+    )
+
+    can_view_only = role in [
+        'subject_teacher',
+        'parent',
+        'dos'
+    ]
+
+
+    predefined_class_comments = get_predefined_comments('class_teacher')
+    predefined_head_comments = get_predefined_comments('headteacher')
+
+
+
+    class_upper = class_name.upper()
+
+    is_alevel = (
+        class_upper in [
+            'S5',
+            'S6',
+            'A-LEVEL',
+            'A LEVEL',
+            'S.5',
+            'S.6'
+        ]
+        or
+        (
+            class_upper.startswith('S')
+            and len(class_upper) >= 2
+            and class_upper[1] in ['5','6']
+        )
+    )
+
+
+
+    if is_alevel:
+
+        cur.execute("""
+            SELECT 
+                subject,
+                paper1,
+                paper2,
+                total_score,
+                grade,
+                points,
+                teacher_initials
+            FROM marks
+            WHERE student_id=%s
+            AND term=%s
+            AND year=%s
+            ORDER BY subject
+        """,
+        (
+            student_id,
+            term,
+            year
+        ))
+
+        marks = cur.fetchall()
+
+
+        total_points = sum(
+            m['points']
+            for m in marks
+            if m['points'] is not None
+        )
+
+
+        cur.close()
+
+
+        return render_template(
+            'teacher/report_card_alevel.html',
+            student_id=student_id,
+            full_name=full_name,
+            class_name=class_name,
+            photo_url=photo_url,
+            term=term,
+            year=year,
+            marks=marks,
+            total_points=total_points,
+            teacher_comment=teacher_comment,
+            headteacher_comment=headteacher_comment,
+            teacher_comment_locked=teacher_comment_locked,
+            headteacher_comment_locked=headteacher_comment_locked,
+            next_term_begins=next_term_begins,
+            next_term_ends=next_term_ends,
+            stamp_url=stamp_url,
+            can_edit_class_comment=can_edit_class_comment,
+            can_edit_head_comment=can_edit_head_comment,
+            can_view_only=can_view_only,
+            school_name=school_name,
+            school_address=school_address,
+            school_phone=school_phone,
+            school_email=school_email,
+            school_logo_url=school_logo_url,
+            predefined_class_comments=predefined_class_comments,
+            predefined_head_comments=predefined_head_comments
+        )
+
+
+
+    else:
+
+        cur.execute("""
+            SELECT
+                subject,
+                ai1,
+                ai2,
+                ai3,
+                ai_average,
+                ai_contribution,
+                eot_score,
+                total_score,
+                grade,
+                identifier,
+                descriptor,
+                teacher_initials
+            FROM marks
+            WHERE student_id=%s
+            AND term=%s
+            AND year=%s
+            ORDER BY subject
+        """,
+        (
+            student_id,
+            term,
+            year
+        ))
+
+
+        marks = cur.fetchall()
+
+
+        total_final = sum(
+            m['total_score']
+            for m in marks
+            if m['total_score'] is not None
+        )
+
+
+        count = len(marks)
+
+        avg_percent = (
+            total_final / count
+            if count > 0
+            else 0
+        )
+
+
+        avg_out_of_3 = round(
+            (avg_percent / 100) * 3,
+            2
+        )
+
+
+        general_grade, general_descriptor = get_grade_and_descriptor(avg_percent)
+
+
+        cur.close()
+
+
+        return render_template(
+            'teacher/report_card.html',
+            student_id=student_id,
+            full_name=full_name,
+            class_name=class_name,
+            photo_url=photo_url,
+            term=term,
+            year=year,
+            marks=marks,
+            avg_out_of_3=avg_out_of_3,
+            general_grade=general_grade,
+            general_descriptor=general_descriptor,
+            teacher_comment=teacher_comment,
+            headteacher_comment=headteacher_comment,
+            teacher_comment_locked=teacher_comment_locked,
+            headteacher_comment_locked=headteacher_comment_locked,
+            next_term_begins=next_term_begins,
+            next_term_ends=next_term_ends,
+            stamp_url=stamp_url,
+            can_edit_class_comment=can_edit_class_comment,
+            can_edit_head_comment=can_edit_head_comment,
+            can_view_only=can_view_only,
+            school_name=school_name,
+            school_address=school_address,
+            school_phone=school_phone,
+            school_email=school_email,
+            school_logo_url=school_logo_url,
+            predefined_class_comments=predefined_class_comments,
+            predefined_head_comments=predefined_head_comments
+        )
+
+@app.route('/teacher/save_comment', methods=['POST'])
+def teacher_save_comment():
+
+    if not check_permission(['classteacher']):
+        abort(403)
+
+    student_id = request.form['student_id']
+    term = request.form['term']
+    year = request.form['year']
+
+    comment = request.form.get('comment', '').strip()
+    custom_comment = request.form.get('custom_comment', '').strip()
+
+    final_comment = custom_comment if custom_comment else comment
+
+
+    db = get_db()
+    cur = db.cursor()
+
+
+    cur.execute("""
+        SELECT class_teacher_comment_locked
+        FROM teacher_comments
+        WHERE student_id=%s
+        AND term=%s
+        AND year=%s
+    """,
+    (
+        student_id,
+        term,
+        year
+    ))
+
+    existing = cur.fetchone()
+
+
+    if existing and existing['class_teacher_comment_locked'] == 1:
+
+        cur.close()
+
+        flash(
+            'Comment cannot be edited as it has been locked.',
+            'danger'
+        )
+
+        return redirect(
+            url_for(
+                'teacher_report_card',
+                student_id=student_id,
+                term=term,
+                year=year
+            )
+        )
+
+
+    cur.execute("""
+        INSERT INTO teacher_comments
+        (
+            student_id,
+            term,
+            year,
+            comment,
+            class_teacher_comment_locked
+        )
+        VALUES (%s,%s,%s,%s,1)
+
+        ON CONFLICT(student_id,term,year)
+
+        DO UPDATE SET
+            comment=EXCLUDED.comment,
+            class_teacher_comment_locked=1
+    """,
+    (
+        student_id,
+        term,
+        year,
+        final_comment
+    ))
+
+
+    db.commit()
+    cur.close()
+
+
+    flash(
+        'Comment saved and locked.',
+        'success'
+    )
+
+
+    return redirect(
+        url_for(
+            'teacher_report_card',
+            student_id=student_id,
+            term=term,
+            year=year
+        )
+    )
 
 @app.route('/teacher/edit_student/<student_id>', methods=['GET', 'POST'])
 def teacher_edit_student(student_id):
+
     if not check_permission(['classteacher']):
         abort(403)
-    
-    db = get_db_dict()
+
+    db = get_db()
     cur = db.cursor()
-    
-    # Get student details
-    cur.execute("SELECT * FROM students WHERE student_id = ?", (student_id,))
-    student = cur.fetchone()
-    
-    if not student:
-        flash('Student not found.', 'danger')
-        return redirect(url_for('teacher_students'))
-    
-    # Get teacher's assigned class
+
+
     cur.execute("""
-        SELECT class_name FROM teacher_class_assignments 
-        WHERE user_id = ? AND assignment_type = 'classteacher'
-    """, (session.get('user_id'),))
-    result = cur.fetchone()
-    assigned_class = result['class_name'] if isinstance(result, dict) else result[0] if result else None
-    
-    if request.method == 'POST':
-        full_name = request.form.get('full_name', '').strip()
-        parent_phone = request.form.get('parent_phone', '').strip()
-        class_name = request.form.get('class', '').strip()
-        admission_date = request.form.get('admission_date', '')
-        date_of_birth = request.form.get('date_of_birth', '')
-        sex = request.form.get('sex', '')
-        preferred_house = request.form.get('preferred_house', '')
-        disability = request.form.get('disability', '')
-        parent_email = request.form.get('parent_email', '')
-        address = request.form.get('address', '')
-        
-        # Calculate age from date of birth
-        age = None
-        if date_of_birth:
-            try:
-                birth_date = datetime.strptime(date_of_birth, '%Y-%m-%d').date()
-                today = datetime.now().date()
-                age = today.year - birth_date.year - ((today.month, today.day) < (birth_date.month, birth_date.day))
-            except:
-                age = None
-        
-        # Handle photo upload
-        photo_path = student.get('photo_path', 'default_avatar.png')
-        photo = request.files.get('photo')
-        if photo and photo.filename and allowed_file(photo.filename, ALLOWED_IMAGE_EXTENSIONS):
-            ext = photo.filename.rsplit('.', 1)[1].lower()
-            photo_filename = f"{student_id}.{ext}"
-            photo.save(os.path.join(app.config['UPLOAD_FOLDER'], photo_filename))
-            photo_path = photo_filename
-        
-        # Update student record
-        cur.execute("""
-            UPDATE students 
-            SET full_name = ?, parent_phone = ?, class = ?, admission_date = ?, 
-                date_of_birth = ?, age = ?, sex = ?, preferred_house = ?, 
-                disability = ?, parent_email = ?, address = ?, photo_path = ?
-            WHERE student_id = ?
-        """, (full_name, parent_phone, class_name, admission_date, date_of_birth, age, 
-              sex, preferred_house, disability, parent_email, address, photo_path, student_id))
-        
-        db.commit()
+        SELECT *
+        FROM students
+        WHERE student_id=%s
+    """,
+    (student_id,))
+
+    student = cur.fetchone()
+
+
+    if not student:
+
         cur.close()
-        
-        flash(f'Student {full_name} updated successfully!', 'success')
-        return redirect(url_for('teacher_students'))
-    
+
+        flash(
+            'Student not found.',
+            'danger'
+        )
+
+        return redirect(
+            url_for('teacher_students')
+        )
+
+
+
+    cur.execute("""
+        SELECT class_name
+        FROM teacher_class_assignments
+        WHERE user_id=%s
+        AND assignment_type='classteacher'
+    """,
+    (session.get('user_id'),))
+
+
+    result = cur.fetchone()
+
+
+    assigned_class = (
+        result['class_name']
+        if result
+        else None
+    )
+
+
+
+    if request.method == 'POST':
+
+        full_name = request.form.get(
+            'full_name',
+            ''
+        ).strip()
+
+        parent_phone = request.form.get(
+            'parent_phone',
+            ''
+        ).strip()
+
+        class_name = request.form.get(
+            'class',
+            ''
+        ).strip()
+
+        admission_date = request.form.get(
+            'admission_date',
+            ''
+        )
+
+        date_of_birth = request.form.get(
+            'date_of_birth',
+            ''
+        )
+
+        sex = request.form.get(
+            'sex',
+            ''
+        )
+
+        preferred_house = request.form.get(
+            'preferred_house',
+            ''
+        )
+
+        disability = request.form.get(
+            'disability',
+            ''
+        )
+
+        parent_email = request.form.get(
+            'parent_email',
+            ''
+        )
+
+        address = request.form.get(
+            'address',
+            ''
+        )
+
+
+
+        age = None
+
+        if date_of_birth:
+
+            try:
+
+                birth_date = datetime.strptime(
+                    date_of_birth,
+                    '%Y-%m-%d'
+                ).date()
+
+
+                today = datetime.now().date()
+
+
+                age = (
+                    today.year
+                    - birth_date.year
+                    - (
+                        (today.month, today.day)
+                        <
+                        (birth_date.month, birth_date.day)
+                    )
+                )
+
+            except:
+
+                age = None
+
+
+
+        photo_path = student.get(
+            'photo_path',
+            'default_avatar.png'
+        )
+
+
+        photo = request.files.get('photo')
+
+
+        if (
+            photo
+            and photo.filename
+            and allowed_file(
+                photo.filename,
+                ALLOWED_IMAGE_EXTENSIONS
+            )
+        ):
+
+            ext = photo.filename.rsplit(
+                '.',
+                1
+            )[1].lower()
+
+
+            photo_filename = f"{student_id}.{ext}"
+
+
+            photo.save(
+                os.path.join(
+                    app.config['UPLOAD_FOLDER'],
+                    photo_filename
+                )
+            )
+
+
+            photo_path = photo_filename
+
+
+
+        cur.execute("""
+            UPDATE students
+            SET
+                full_name=%s,
+                parent_phone=%s,
+                class=%s,
+                admission_date=%s,
+                date_of_birth=%s,
+                age=%s,
+                sex=%s,
+                preferred_house=%s,
+                disability=%s,
+                parent_email=%s,
+                address=%s,
+                photo_path=%s
+
+            WHERE student_id=%s
+        """,
+        (
+            full_name,
+            parent_phone,
+            class_name,
+            admission_date,
+            date_of_birth,
+            age,
+            sex,
+            preferred_house,
+            disability,
+            parent_email,
+            address,
+            photo_path,
+            student_id
+        ))
+
+
+        db.commit()
+
+        cur.close()
+
+
+        flash(
+            f'Student {full_name} updated successfully!',
+            'success'
+        )
+
+
+        return redirect(
+            url_for('teacher_students')
+        )
+
+
+
     cur.close()
-    return render_template('teacher/edit_student.html', student=student, assigned_class=assigned_class)
+
+
+    return render_template(
+        'teacher/edit_student.html',
+        student=student,
+        assigned_class=assigned_class
+    )
 
 @app.route('/teacher/remove_student/<student_id>', methods=['POST'])
 def teacher_remove_student(student_id):
+
     if not check_permission(['classteacher', 'dos']):
         abort(403)
-    
-    db = get_db_dict()
+
+
+    db = get_db()
     cur = db.cursor()
-    
-    # First check if student exists
-    cur.execute("SELECT full_name, class FROM students WHERE student_id = ?", (student_id,))
+
+
+    cur.execute("""
+        SELECT full_name, class
+        FROM students
+        WHERE student_id=%s
+    """,
+    (student_id,))
+
+
     student = cur.fetchone()
-    
+
+
     if not student:
-        flash('Student not found.', 'danger')
-        return redirect(url_for('teacher_students'))
-    
-    # For class teacher, verify student is in their class
+
+        cur.close()
+
+        flash(
+            'Student not found.',
+            'danger'
+        )
+
+        return redirect(
+            url_for('teacher_students')
+        )
+
+
+
     if session.get('role') == 'classteacher':
+
         cur.execute("""
-            SELECT class_name FROM teacher_class_assignments 
-            WHERE user_id = ? AND assignment_type = 'classteacher'
-        """, (session.get('user_id'),))
+            SELECT class_name
+            FROM teacher_class_assignments
+            WHERE user_id=%s
+            AND assignment_type='classteacher'
+        """,
+        (session.get('user_id'),))
+
+
         result = cur.fetchone()
-        assigned_class = result['class_name'] if isinstance(result, dict) else result[0] if result else None
-        
-        student_class = student['class'] if isinstance(student, dict) else student[1]
-        
-        if assigned_class != student_class:
-            flash('You can only remove students from your own class.', 'danger')
+
+
+        assigned_class = (
+            result['class_name']
+            if result
+            else None
+        )
+
+
+        if assigned_class != student['class']:
+
             cur.close()
-            return redirect(url_for('teacher_students'))
-    
-    # Delete the student
-    cur.execute("DELETE FROM students WHERE student_id = ?", (student_id,))
+
+            flash(
+                'You can only remove students from your own class.',
+                'danger'
+            )
+
+            return redirect(
+                url_for('teacher_students')
+            )
+
+
+
+    cur.execute("""
+        DELETE FROM students
+        WHERE student_id=%s
+    """,
+    (student_id,))
+
+
     db.commit()
+
     cur.close()
-    
-    flash(f'Student {student["full_name"] if isinstance(student, dict) else student[0]} removed successfully.', 'success')
-    return redirect(url_for('teacher_students'))
+
+
+    flash(
+        f"Student {student['full_name']} removed successfully.",
+        'success'
+    )
+
+
+    return redirect(
+        url_for('teacher_students')
+    )
 
 @app.route('/teacher/upload_students', methods=['GET', 'POST'])
 def teacher_upload_students():
+
     if not check_permission(['classteacher']):
         abort(403)
-    
+
+
     if request.method == 'POST':
+
         file = request.files.get('excel_file')
+
+
         if not file or not file.filename:
-            flash('Please upload an Excel or CSV file.', 'danger')
-            return redirect(url_for('teacher_upload_students'))
-        
+
+            flash(
+                'Please upload an Excel or CSV file.',
+                'danger'
+            )
+
+            return redirect(
+                url_for('teacher_upload_students')
+            )
+
+
         try:
+
             from openpyxl import load_workbook
             import csv
             import io
-            
-            # Get teacher's assigned class
-            db = get_db_dict()
+
+
+            db = get_db()
             cur = db.cursor()
+
+
             cur.execute("""
-                SELECT class_name FROM teacher_class_assignments 
-                WHERE user_id = ? AND assignment_type = 'classteacher'
-            """, (session.get('user_id'),))
+                SELECT class_name
+                FROM teacher_class_assignments
+                WHERE user_id=%s
+                AND assignment_type='classteacher'
+            """,
+            (session.get('user_id'),))
+
+
             result = cur.fetchone()
-            
+
+
             if not result:
-                flash('You are not assigned as a class teacher.', 'danger')
-                return redirect(url_for('teacher_upload_students'))
-            
-            assigned_class = result['class_name'] if isinstance(result, dict) else result[0]
-            
+
+                cur.close()
+
+                flash(
+                    'You are not assigned as a class teacher.',
+                    'danger'
+                )
+
+                return redirect(
+                    url_for('teacher_upload_students')
+                )
+
+
+            assigned_class = result['class_name']
+
+
             success_count = 0
             error_count = 0
             errors = []
-            row_index = 2
-            
-            # Handle Excel file
-            if file.filename.endswith('.xlsx') or file.filename.endswith('.xls'):
-                wb = load_workbook(file, data_only=True)
+
+
+
+            def insert_student(full_name, parent_phone):
+
+                nonlocal success_count, error_count
+
+
+                if not full_name:
+
+                    error_count += 1
+                    return False
+
+
+                student_id = generate_student_id()
+
+
+                cur.execute("""
+                    INSERT INTO students
+                    (
+                        student_id,
+                        full_name,
+                        class,
+                        parent_phone,
+                        admission_status,
+                        fees_total,
+                        fees_paid,
+                        fees_balance
+                    )
+                    VALUES
+                    (%s,%s,%s,%s,'approved',0,0,0)
+                """,
+                (
+                    student_id,
+                    full_name,
+                    assigned_class,
+                    parent_phone
+                ))
+
+
+                success_count += 1
+
+                return True
+
+
+
+
+            # ================= EXCEL =================
+
+            if file.filename.endswith(('.xlsx','.xls')):
+
+
+                wb = load_workbook(
+                    file,
+                    data_only=True
+                )
+
                 sheet = wb.active
-                
-                # Get headers to find correct columns
-                headers = []
-                for cell in sheet[1]:
-                    headers.append(str(cell.value).strip().lower() if cell.value else '')
-                
-                # Find column indices
+
+
+                headers = [
+                    str(cell.value).strip().lower()
+                    if cell.value else ''
+                    for cell in sheet[1]
+                ]
+
+
                 full_name_col = None
                 parent_phone_col = None
-                
+
+
+
                 for idx, h in enumerate(headers):
-                    if h in ['full_name', 'name', 'student_name']:
+
+                    if h in [
+                        'full_name',
+                        'name',
+                        'student_name'
+                    ]:
                         full_name_col = idx
-                    elif h in ['parent_phone', 'phone', 'parent_contact']:
+
+
+                    elif h in [
+                        'parent_phone',
+                        'phone',
+                        'parent_contact'
+                    ]:
                         parent_phone_col = idx
-                
-                # Default to first two columns if not found
+
+
+
                 if full_name_col is None:
                     full_name_col = 0
+
+
                 if parent_phone_col is None:
                     parent_phone_col = 1
-                
-                # Iterate through rows
-                for row_idx in range(2, sheet.max_row + 1):
-                    full_name = str(sheet.cell(row=row_idx, column=full_name_col + 1).value or '').strip()
-                    parent_phone = str(sheet.cell(row=row_idx, column=parent_phone_col + 1).value or '').strip()
-                    
-                    if not full_name:
-                        errors.append(f"Row {row_idx}: Missing full_name")
-                        error_count += 1
-                        continue
-                    
-                    # Generate unique student ID
-                    student_id = generate_student_id()
-                    
-                    # Insert student
-                    cur.execute("""
-                        INSERT INTO students (student_id, full_name, class, parent_phone, admission_status, fees_total, fees_paid, fees_balance)
-                        VALUES (?, ?, ?, ?, 'approved', 0, 0, 0)
-                    """, (student_id, full_name, assigned_class, parent_phone))
-                    
-                    success_count += 1
-                    row_index = row_idx
-            
-            # Handle CSV file
+
+
+
+                for row_idx in range(
+                    2,
+                    sheet.max_row + 1
+                ):
+
+
+                    full_name = str(
+                        sheet.cell(
+                            row=row_idx,
+                            column=full_name_col + 1
+                        ).value or ''
+                    ).strip()
+
+
+
+                    parent_phone = str(
+                        sheet.cell(
+                            row=row_idx,
+                            column=parent_phone_col + 1
+                        ).value or ''
+                    ).strip()
+
+
+
+                    if not insert_student(
+                        full_name,
+                        parent_phone
+                    ):
+
+                        errors.append(
+                            f"Row {row_idx}: Missing full name"
+                        )
+
+
+
+            # ================= CSV =================
+
+
             elif file.filename.endswith('.csv'):
+
+
                 content = file.read().decode('utf-8')
-                csv_reader = csv.reader(io.StringIO(content))
-                headers = next(csv_reader)  # Skip header row
-                
-                # Find column indices
+
+
+                csv_reader = csv.reader(
+                    io.StringIO(content)
+                )
+
+
+                headers = next(csv_reader)
+
+
+
                 full_name_col = None
                 parent_phone_col = None
-                
+
+
+
                 for idx, h in enumerate(headers):
-                    h_lower = h.strip().lower()
-                    if h_lower in ['full_name', 'name', 'student_name']:
+
+                    h = h.strip().lower()
+
+
+                    if h in [
+                        'full_name',
+                        'name',
+                        'student_name'
+                    ]:
+
                         full_name_col = idx
-                    elif h_lower in ['parent_phone', 'phone', 'parent_contact']:
+
+
+                    elif h in [
+                        'parent_phone',
+                        'phone',
+                        'parent_contact'
+                    ]:
+
                         parent_phone_col = idx
-                
+
+
+
                 if full_name_col is None:
                     full_name_col = 0
+
+
                 if parent_phone_col is None:
                     parent_phone_col = 1
-                
-                for row_idx, row in enumerate(csv_reader, start=2):
-                    if len(row) <= max(full_name_col, parent_phone_col):
-                        continue
-                    
-                    full_name = row[full_name_col].strip() if full_name_col < len(row) else ''
-                    parent_phone = row[parent_phone_col].strip() if parent_phone_col < len(row) else ''
-                    
-                    if not full_name:
-                        errors.append(f"Row {row_idx}: Missing full_name")
-                        error_count += 1
-                        continue
-                    
-                    # Generate unique student ID
-                    student_id = generate_student_id()
-                    
-                    # Insert student
-                    cur.execute("""
-                        INSERT INTO students (student_id, full_name, class, parent_phone, admission_status, fees_total, fees_paid, fees_balance)
-                        VALUES (?, ?, ?, ?, 'approved', 0, 0, 0)
-                    """, (student_id, full_name, assigned_class, parent_phone))
-                    
-                    success_count += 1
-            
+
+
+
+                for row_idx, row in enumerate(
+                    csv_reader,
+                    start=2
+                ):
+
+
+                    full_name = (
+                        row[full_name_col].strip()
+                        if full_name_col < len(row)
+                        else ''
+                    )
+
+
+                    parent_phone = (
+                        row[parent_phone_col].strip()
+                        if parent_phone_col < len(row)
+                        else ''
+                    )
+
+
+                    if not insert_student(
+                        full_name,
+                        parent_phone
+                    ):
+
+                        errors.append(
+                            f"Row {row_idx}: Missing full name"
+                        )
+
+
+
             else:
-                flash('Unsupported file format. Please upload .xlsx, .xls, or .csv', 'danger')
-                return redirect(url_for('teacher_upload_students'))
-            
+
+                cur.close()
+
+                flash(
+                    'Unsupported file format. Upload .xlsx, .xls, or .csv',
+                    'danger'
+                )
+
+                return redirect(
+                    url_for('teacher_upload_students')
+                )
+
+
+
             db.commit()
+
             cur.close()
-            
-            # Add notification for DOS
-            add_notification('dos', f'Class teacher uploaded {success_count} students to class {assigned_class}', '/dos/class_lists')
-            
-            flash(f'Uploaded {success_count} students to class {assigned_class}. Errors: {error_count}', 
-                  'success' if success_count > 0 else 'danger')
-            if errors:
-                for e in errors[:5]:
-                    flash(e, 'warning')
-                    
+
+
+
+            add_notification(
+                'dos',
+                f'Class teacher uploaded {success_count} students to class {assigned_class}',
+                '/dos/class_lists'
+            )
+
+
+
+            flash(
+                f'Uploaded {success_count} students to class {assigned_class}. Errors: {error_count}',
+                'success' if success_count > 0 else 'danger'
+            )
+
+
+
+            for error in errors[:5]:
+
+                flash(
+                    error,
+                    'warning'
+                )
+
+
+
         except Exception as e:
-            flash(f'Error: {str(e)}', 'danger')
-        
-        return redirect(url_for('teacher_students'))
-    
-    return render_template('teacher/upload_students.html')
+
+            flash(
+                f'Error: {str(e)}',
+                'danger'
+            )
+
+
+        return redirect(
+            url_for('teacher_students')
+        )
+
+
+
+    return render_template(
+        'teacher/upload_students.html'
+    )
 
 @app.route('/teacher/print_all_report_cards')
 def teacher_print_all_report_cards():
+
     if not check_permission(['classteacher']):
         abort(403)
-    
+
+
     selected_class = session.get('selected_class')
+
+
     if not selected_class:
         selected_class = session.get('assigned_class')
+
+
     if not selected_class:
-        flash('No class assigned to you.', 'danger')
-        return redirect(url_for('teacher_students'))
-    
-    term = request.args.get('term', 'Term 1')
-    year = request.args.get('year', datetime.now().year)
-    
-    db = get_db_dict()
+
+        flash(
+            'No class assigned to you.',
+            'danger'
+        )
+
+        return redirect(
+            url_for('teacher_students')
+        )
+
+
+
+    term = request.args.get(
+        'term',
+        'Term 1'
+    )
+
+    year = request.args.get(
+        'year',
+        datetime.now().year
+    )
+
+
+
+    db = get_db()
     cur = db.cursor()
-    
-    cur.execute("SELECT student_id, full_name, photo_path FROM students WHERE class=? ORDER BY full_name", (selected_class,))
+
+
+
+    cur.execute("""
+        SELECT
+            student_id,
+            full_name,
+            photo_path
+        FROM students
+        WHERE class=%s
+        ORDER BY full_name
+    """,
+    (selected_class,))
+
+
     students_data = cur.fetchall()
-    
+
+
+
     if not students_data:
-        flash(f'No students found in class {selected_class}.', 'warning')
-        return redirect(url_for('teacher_students'))
-    
-    cur.execute("SELECT school_name, school_address, school_phone, school_email, logo_url FROM school_settings WHERE id=1")
+
+        cur.close()
+
+        flash(
+            f'No students found in class {selected_class}.',
+            'warning'
+        )
+
+        return redirect(
+            url_for('teacher_students')
+        )
+
+
+
+    cur.execute("""
+        SELECT
+            school_name,
+            school_address,
+            school_phone,
+            school_email,
+            logo_url,
+            next_term_begins,
+            next_term_ends,
+            headteacher_stamp
+        FROM school_settings
+        WHERE id=1
+    """)
+
+
     school_data = cur.fetchone()
-    if school_data:
-        school_name = school_data['school_name'] if school_data['school_name'] else 'YOUR SCHOOL NAME'
-        school_address = school_data['school_address'] if school_data['school_address'] else 'P.O. Box 123, Kampala, Uganda'
-        school_phone = school_data['school_phone'] if school_data['school_phone'] else 'Tel: +256 712 345678'
-        school_email = school_data['school_email'] if school_data['school_email'] else 'Email: info@school.com'
-        school_logo_url = school_data['logo_url'] if school_data['logo_url'] else url_for('static', filename='images/logo.png')
-    else:
-        school_name = 'YOUR SCHOOL NAME'
-        school_address = 'P.O. Box 123, Kampala, Uganda'
-        school_phone = 'Tel: +256 712 345678'
-        school_email = 'Email: info@school.com'
-        school_logo_url = url_for('static', filename='images/logo.png')
-    
-    cur.execute("SELECT next_term_begins, next_term_ends, headteacher_stamp FROM school_settings WHERE id=1")
-    settings = cur.fetchone()
-    next_term_begins = settings['next_term_begins'] if settings else None
-    next_term_ends = settings['next_term_ends'] if settings else None
-    stamp_url = url_for('static', filename='uploads/' + settings['headteacher_stamp']) if settings and settings['headteacher_stamp'] else None
-    
+
+
+
+    school_name = (
+        school_data['school_name']
+        if school_data and school_data['school_name']
+        else 'YOUR SCHOOL NAME'
+    )
+
+
+    school_address = (
+        school_data['school_address']
+        if school_data and school_data['school_address']
+        else 'P.O. Box 123, Kampala, Uganda'
+    )
+
+
+    school_phone = (
+        school_data['school_phone']
+        if school_data and school_data['school_phone']
+        else 'Tel: +256 712 345678'
+    )
+
+
+    school_email = (
+        school_data['school_email']
+        if school_data and school_data['school_email']
+        else 'Email: info@school.com'
+    )
+
+
+    school_logo_url = (
+        school_data['logo_url']
+        if school_data and school_data['logo_url']
+        else url_for(
+            'static',
+            filename='images/logo.png'
+        )
+    )
+
+
+
+    next_term_begins = (
+        school_data['next_term_begins']
+        if school_data
+        else None
+    )
+
+
+    next_term_ends = (
+        school_data['next_term_ends']
+        if school_data
+        else None
+    )
+
+
+    stamp_url = None
+
+
+    if school_data and school_data['headteacher_stamp']:
+
+        stamp_url = url_for(
+            'static',
+            filename='uploads/' + school_data['headteacher_stamp']
+        )
+
+
+
     class_upper = selected_class.upper()
-    is_alevel = class_upper in ['S5', 'S6', 'A-LEVEL', 'A LEVEL', 'S.5', 'S.6'] or (class_upper.startswith('S') and len(class_upper) >= 2 and class_upper[1] in ['5', '6'])
-    
+
+
+    is_alevel = (
+        class_upper in [
+            'S5',
+            'S6',
+            'A-LEVEL',
+            'A LEVEL',
+            'S.5',
+            'S.6'
+        ]
+        or
+        (
+            class_upper.startswith('S')
+            and len(class_upper) >= 2
+            and class_upper[1] in ['5','6']
+        )
+    )
+
+
+
     all_reports = []
+
+
+
     for student in students_data:
+
+
         student_id = student['student_id']
         full_name = student['full_name']
-        photo_path = student['photo_path']
-        photo_url = get_photo_url(photo_path)
-        
-        cur.execute("SELECT comment, headteacher_comment FROM teacher_comments WHERE student_id=? AND term=? AND year=?", (student_id, term, year))
+
+        photo_url = get_photo_url(
+            student['photo_path']
+        )
+
+
+
+        cur.execute("""
+            SELECT
+                comment,
+                headteacher_comment
+            FROM teacher_comments
+            WHERE student_id=%s
+            AND term=%s
+            AND year=%s
+        """,
+        (
+            student_id,
+            term,
+            year
+        ))
+
+
         comments_row = cur.fetchone()
-        teacher_comment = comments_row['comment'] if comments_row else ''
-        headteacher_comment = comments_row['headteacher_comment'] if comments_row else ''
-        
+
+
+
+        teacher_comment = (
+            comments_row['comment']
+            if comments_row
+            else ''
+        )
+
+
+        headteacher_comment = (
+            comments_row['headteacher_comment']
+            if comments_row
+            else ''
+        )
+
+
+
         if is_alevel:
-            cur.execute("SELECT subject, paper1, paper2, total_score, grade, points, teacher_initials FROM marks WHERE student_id=? AND term=? AND year=? ORDER BY subject", 
-                        (student_id, term, year))
+
+
+            cur.execute("""
+                SELECT
+                    subject,
+                    paper1,
+                    paper2,
+                    total_score,
+                    grade,
+                    points,
+                    teacher_initials
+                FROM marks
+                WHERE student_id=%s
+                AND term=%s
+                AND year=%s
+                ORDER BY subject
+            """,
+            (
+                student_id,
+                term,
+                year
+            ))
+
+
             marks = cur.fetchall()
-            total_points = sum(m['points'] for m in marks if m['points'] is not None) if marks else 0
-            all_reports.append({'student_id': student_id, 'full_name': full_name, 'photo_url': photo_url, 'marks': marks,
-                                'total_points': total_points, 'teacher_comment': teacher_comment, 'headteacher_comment': headteacher_comment})
+
+
+
+            total_points = sum(
+                m['points']
+                for m in marks
+                if m['points'] is not None
+            )
+
+
+
+            all_reports.append({
+
+                'student_id': student_id,
+                'full_name': full_name,
+                'photo_url': photo_url,
+                'marks': marks,
+                'total_points': total_points,
+                'teacher_comment': teacher_comment,
+                'headteacher_comment': headteacher_comment
+
+            })
+
+
+
         else:
-            cur.execute("""SELECT subject, ai1, ai2, ai3, ai_average, ai_contribution, eot_score, total_score, grade, identifier, descriptor, teacher_initials
-                           FROM marks WHERE student_id=? AND term=? AND year=? ORDER BY subject""", (student_id, term, year))
+
+
+            cur.execute("""
+                SELECT
+                    subject,
+                    ai1,
+                    ai2,
+                    ai3,
+                    ai_average,
+                    ai_contribution,
+                    eot_score,
+                    total_score,
+                    grade,
+                    identifier,
+                    descriptor,
+                    teacher_initials
+                FROM marks
+                WHERE student_id=%s
+                AND term=%s
+                AND year=%s
+                ORDER BY subject
+            """,
+            (
+                student_id,
+                term,
+                year
+            ))
+
+
+
             marks = cur.fetchall()
-            total_final = sum(m['total_score'] for m in marks) if marks else 0
+
+
+
+            total_final = sum(
+                m['total_score']
+                for m in marks
+                if m['total_score'] is not None
+            )
+
+
+
             count = len(marks)
-            avg_percent = total_final / count if count > 0 else 0
-            avg_out_of_3 = round((avg_percent / 100) * 3, 2)
-            general_grade, general_descriptor = get_grade_and_descriptor(avg_percent)
-            all_reports.append({'student_id': student_id, 'full_name': full_name, 'photo_url': photo_url, 'marks': marks,
-                                'avg_out_of_3': avg_out_of_3, 'general_grade': general_grade, 'general_descriptor': general_descriptor,
-                                'teacher_comment': teacher_comment, 'headteacher_comment': headteacher_comment})
-    
+
+
+            avg_percent = (
+                total_final / count
+                if count > 0
+                else 0
+            )
+
+
+            avg_out_of_3 = round(
+                (avg_percent / 100) * 3,
+                2
+            )
+
+
+            general_grade, general_descriptor = get_grade_and_descriptor(
+                avg_percent
+            )
+
+
+
+            all_reports.append({
+
+                'student_id': student_id,
+                'full_name': full_name,
+                'photo_url': photo_url,
+                'marks': marks,
+                'avg_out_of_3': avg_out_of_3,
+                'general_grade': general_grade,
+                'general_descriptor': general_descriptor,
+                'teacher_comment': teacher_comment,
+                'headteacher_comment': headteacher_comment
+
+            })
+
+
+
     cur.close()
-    template = 'teacher/print_all_report_cards_alevel.html' if is_alevel else 'teacher/print_all_report_cards.html'
-    return render_template(template, reports=all_reports, class_name=selected_class, term=term, year=year,
-                          next_term_begins=next_term_begins, next_term_ends=next_term_ends, stamp_url=stamp_url,
-                          school_name=school_name, school_address=school_address, school_phone=school_phone,
-                          school_email=school_email, school_logo_url=school_logo_url)
+
+
+
+    template = (
+        'teacher/print_all_report_cards_alevel.html'
+        if is_alevel
+        else
+        'teacher/print_all_report_cards.html'
+    )
+
+
+
+    return render_template(
+        template,
+        reports=all_reports,
+        class_name=selected_class,
+        term=term,
+        year=year,
+        next_term_begins=next_term_begins,
+        next_term_ends=next_term_ends,
+        stamp_url=stamp_url,
+        school_name=school_name,
+        school_address=school_address,
+        school_phone=school_phone,
+        school_email=school_email,
+        school_logo_url=school_logo_url
+    )
+
+
 
 # ==================== BURSAR MODULE ====================
+
 def generate_receipt_number():
     return generate_unique_number('RCP', 'payments', 'receipt_no', year_format=True)
 
@@ -4310,92 +5940,112 @@ def calculate_nssf_and_paye(gross_salary):
     cur.execute("SELECT nssf_employee_rate, paye_rate, paye_threshold FROM school_settings WHERE id=1")
     rates = cur.fetchone()
     cur.close()
-    nssf_employee_rate = rates[0] if rates else 5.0
-    paye_rate = rates[1] if rates else 10.0
-    paye_threshold = rates[2] if rates else 235000
+    nssf_employee_rate = rates['nssf_employee_rate'] if rates else 5.0
+    paye_rate = rates['paye_rate'] if rates else 10.0
+    paye_threshold = rates['paye_threshold'] if rates else 235000
     nssf_employee = (gross_salary * nssf_employee_rate) / 100
     taxable_amount = max(0, gross_salary - paye_threshold)
     paye_tax = (taxable_amount * paye_rate) / 100
-    return {'nssf_employee': round(nssf_employee, 2), 'paye_tax': round(paye_tax, 2)}
+    return {
+        'nssf_employee': round(nssf_employee, 2),
+        'paye_tax': round(paye_tax, 2)
+    }
 
 @app.route('/bursar/dashboard')
 def bursar_dashboard():
     if not check_permission(['bursar']):
         abort(403)
-    
-    db = get_db()
+
+    db = get_db_dict()
     cur = db.cursor()
-    
-    # Get totals safely
-    cur.execute("SELECT SUM(fees_total) as total_fees, SUM(fees_paid) as total_paid, SUM(fees_balance) as total_balance FROM students")
-    row = cur.fetchone()
-    totals = {
-        'total_fees': row[0] if row and row[0] else 0,
-        'total_paid': row[1] if row and row[1] else 0,
-        'total_balance': row[2] if row and row[2] else 0
-    }
-    
-    cur.execute("SELECT COUNT(*) FROM students WHERE fees_balance > 0")
-    defaulter_count = cur.fetchone()[0] or 0
-    
-    cur.execute("SELECT COUNT(*) FROM students")
-    total_students = cur.fetchone()[0] or 0
-    
-    # Recent payments
+
     cur.execute("""
-        SELECT p.*, s.full_name, s.class 
-        FROM payments p 
-        JOIN students s ON p.student_id = s.student_id 
-        ORDER BY p.payment_date DESC 
+        SELECT 
+            COALESCE(SUM(fees_total),0) AS total_fees,
+            COALESCE(SUM(fees_paid),0) AS total_paid,
+            COALESCE(SUM(fees_balance),0) AS total_balance
+        FROM students
+    """)
+    totals = cur.fetchone()
+
+    cur.execute("SELECT COUNT(*) AS count FROM students WHERE fees_balance > 0")
+    defaulter_count = cur.fetchone()['count']
+
+    cur.execute("SELECT COUNT(*) AS count FROM students")
+    total_students = cur.fetchone()['count']
+
+    cur.execute("""
+        SELECT p.*, s.full_name, s.class
+        FROM payments p
+        JOIN students s ON p.student_id=s.student_id
+        ORDER BY p.payment_date DESC
         LIMIT 10
     """)
     recent_payments = cur.fetchall()
+
     cur.close()
-    
-    return render_template('bursar/dashboard.html', 
-                          totals=totals,
-                          defaulter_count=defaulter_count,
-                          total_students=total_students,
-                          recent_payments=recent_payments)
+
+    return render_template(
+        'bursar/dashboard.html',
+        totals=totals,
+        defaulter_count=defaulter_count,
+        total_students=total_students,
+        recent_payments=recent_payments
+    )
 
 @app.route('/bursar/students')
 def bursar_students():
     if not check_permission(['bursar']):
         abort(403)
-    
-    search = request.args.get('search', '').strip()
-    class_filter = request.args.get('class', '').strip()
-    
+
+    search = request.args.get('search','').strip()
+    class_filter = request.args.get('class','').strip()
+
     db = get_db_dict()
     cur = db.cursor()
-    
-    query = "SELECT student_id, full_name, class, parent_phone, fees_total, fees_paid, fees_balance FROM students WHERE 1=1"
+
+    query = """
+        SELECT student_id, full_name, class, parent_phone,
+               fees_total, fees_paid, fees_balance
+        FROM students
+        WHERE 1=1
+    """
+
     params = []
-    
+
     if search:
-        query += " AND (student_id LIKE ? OR full_name LIKE ?)"
+        query += " AND (student_id ILIKE %s OR full_name ILIKE %s)"
         pattern = f"%{search}%"
         params.extend([pattern, pattern])
+
     if class_filter:
-        query += " AND class = ?"
+        query += " AND class=%s"
         params.append(class_filter)
-    
+
     query += " ORDER BY full_name"
+
     cur.execute(query, params)
     students = cur.fetchall()
-    
-    # Get distinct classes - FIXED
-    cur.execute("SELECT DISTINCT class FROM students WHERE class IS NOT NULL AND class != '' ORDER BY class")
-    rows = cur.fetchall()
-    classes = []
-    for row in rows:
-        if isinstance(row, dict):
-            classes.append(row.get('class'))
-        else:
-            classes.append(row[0])
-    
+
+    cur.execute("""
+        SELECT DISTINCT class
+        FROM students
+        WHERE class IS NOT NULL
+        AND class != ''
+        ORDER BY class
+    """)
+
+    classes = [row['class'] for row in cur.fetchall()]
+
     cur.close()
-    return render_template('bursar/students.html', students=students, classes=classes, search=search, class_filter=class_filter)
+
+    return render_template(
+        'bursar/students.html',
+        students=students,
+        classes=classes,
+        search=search,
+        class_filter=class_filter
+    )
 
 @app.route('/bursar/student/<student_id>')
 def bursar_student_detail(student_id):
@@ -4403,12 +6053,22 @@ def bursar_student_detail(student_id):
         abort(403)
     db = get_db_dict()
     cur = db.cursor()
-    cur.execute("SELECT student_id, full_name, class, parent_phone, fees_total, fees_paid, fees_balance FROM students WHERE student_id=?", (student_id,))
+    cur.execute("""
+        SELECT student_id, full_name, class, parent_phone,
+               fees_total, fees_paid, fees_balance
+        FROM students
+        WHERE student_id=%s
+    """, (student_id,))
     student = cur.fetchone()
     if not student:
         flash('Student not found.', 'danger')
         return redirect(url_for('bursar_students'))
-    cur.execute("SELECT * FROM payments WHERE student_id=? ORDER BY payment_date DESC", (student_id,))
+    cur.execute("""
+        SELECT *
+        FROM payments
+        WHERE student_id=%s
+        ORDER BY payment_date DESC
+    """, (student_id,))
     payments = cur.fetchall()
     cur.close()
     return render_template('bursar/student_detail.html', student=student, payments=payments)
@@ -4417,28 +6077,61 @@ def bursar_student_detail(student_id):
 def bursar_record_payment():
     if not check_permission(['bursar']):
         abort(403)
+
     student_id = request.form['student_id']
     amount = float(request.form['amount'])
     payment_method = request.form.get('payment_method', 'Cash')
     notes = request.form.get('notes', '')
     receipt_no = generate_receipt_number()
-    
+
     db = get_db_dict()
     cur = db.cursor()
-    cur.execute("SELECT full_name, parent_phone, fees_paid, fees_balance FROM students WHERE student_id=?", (student_id,))
+
+    cur.execute("""
+        SELECT full_name, parent_phone, fees_paid, fees_balance
+        FROM students
+        WHERE student_id=%s
+    """, (student_id,))
     student = cur.fetchone()
+
     if not student:
         flash('Student not found.', 'danger')
         return redirect(url_for('bursar_students'))
-    cur.execute("INSERT INTO payments (student_id, amount, payment_date, receipt_no, payment_method, notes, recorded_by) VALUES (?, ?, DATE('now'), ?, ?, ?, ?)",
-                (student_id, amount, receipt_no, payment_method, notes, session.get('username')))
+
+    cur.execute("""
+        INSERT INTO payments
+        (student_id, amount, payment_date, receipt_no,
+         payment_method, notes, recorded_by)
+        VALUES (%s, %s, CURRENT_DATE, %s, %s, %s, %s)
+    """, (
+        student_id,
+        amount,
+        receipt_no,
+        payment_method,
+        notes,
+        session.get('username')
+    ))
+
     new_paid = student['fees_paid'] + amount
     new_balance = student['fees_balance'] - amount
-    cur.execute("UPDATE students SET fees_paid=?, fees_balance=? WHERE student_id=?", (new_paid, new_balance, student_id))
+
+    cur.execute("""
+        UPDATE students
+        SET fees_paid=%s, fees_balance=%s
+        WHERE student_id=%s
+    """, (new_paid, new_balance, student_id))
+
     db.commit()
     cur.close()
+
     if student['parent_phone']:
-        send_fee_sms(student['parent_phone'], student['full_name'], amount, new_balance)
+        send_fee_sms(
+            student['parent_phone'],
+            student['full_name'],
+            amount,
+            new_balance
+        )
+
     flash(f'Payment recorded. Receipt: {receipt_no}', 'success')
     return redirect(url_for('bursar_student_detail', student_id=student_id))
 
@@ -4446,55 +6139,100 @@ def bursar_record_payment():
 def bursar_print_receipts():
     if not check_permission(['bursar']):
         abort(403)
+
     receipt_ids = request.args.get('ids', '')
     receipts = []
+
     if receipt_ids:
         ids = [int(x) for x in receipt_ids.split(',') if x.isdigit()]
+
         if ids:
-            placeholders = ','.join(['?'] * len(ids))
+            placeholders = ','.join(['%s'] * len(ids))
+
             db = get_db_dict()
             cur = db.cursor()
-            cur.execute(f"SELECT p.*, s.full_name, s.class FROM payments p JOIN students s ON p.student_id = s.student_id WHERE p.id IN ({placeholders}) ORDER BY p.payment_date DESC", ids)
+
+            cur.execute(f"""
+                SELECT p.*, s.full_name, s.class
+                FROM payments p
+                JOIN students s 
+                ON p.student_id=s.student_id
+                WHERE p.id IN ({placeholders})
+                ORDER BY p.payment_date DESC
+            """, ids)
+
             receipts = cur.fetchall()
             cur.close()
-    return render_template('bursar/print_receipts.html', receipts=receipts)
+
+    return render_template(
+        'bursar/print_receipts.html',
+        receipts=receipts
+    )
 
 @app.route('/bursar/send_reminder/<student_id>')
 def bursar_send_reminder(student_id):
     if not check_permission(['bursar']):
         abort(403)
+
     db = get_db_dict()
     cur = db.cursor()
-    cur.execute("SELECT full_name, parent_phone, fees_balance FROM students WHERE student_id=?", (student_id,))
+
+    cur.execute("""
+        SELECT full_name, parent_phone, fees_balance
+        FROM students
+        WHERE student_id=%s
+    """, (student_id,))
+
     student = cur.fetchone()
     cur.close()
+
     if student and student['parent_phone']:
-        send_sms(student['parent_phone'], f"Fees reminder: UGX {student['fees_balance']:,.2f} outstanding for {student['full_name']}.")
+        send_sms(
+            student['parent_phone'],
+            f"Fees reminder: UGX {student['fees_balance']:,.2f} outstanding for {student['full_name']}."
+        )
         flash('Reminder sent.', 'success')
     else:
         flash('No parent phone.', 'warning')
+
     return redirect(url_for('bursar_student_detail', student_id=student_id))
 
 @app.route('/bursar/bulk_reminder', methods=['POST'])
 def bursar_bulk_reminder():
     if not check_permission(['bursar']):
         abort(403)
+
     class_filter = request.form.get('class', '')
+
     db = get_db_dict()
     cur = db.cursor()
-    query = "SELECT full_name, parent_phone, fees_balance FROM students WHERE fees_balance > 0"
+
+    query = """
+        SELECT full_name, parent_phone, fees_balance
+        FROM students
+        WHERE fees_balance > 0
+    """
+
+    params = []
+
     if class_filter:
-        query += " AND class = ?"
-        cur.execute(query, (class_filter,))
-    else:
-        cur.execute(query)
+        query += " AND class=%s"
+        params.append(class_filter)
+
+    cur.execute(query, params)
     students = cur.fetchall()
     cur.close()
+
     sent = 0
+
     for s in students:
         if s['parent_phone']:
-            send_sms(s['parent_phone'], f"Fees reminder: UGX {s['fees_balance']:,.2f} outstanding for {s['full_name']}.")
+            send_sms(
+                s['parent_phone'],
+                f"Fees reminder: UGX {s['fees_balance']:,.2f} outstanding for {s['full_name']}."
+            )
             sent += 1
+
     flash(f'{sent} reminders sent.', 'success')
     return redirect(url_for('bursar_students'))
 
@@ -4502,54 +6240,72 @@ def bursar_bulk_reminder():
 def bursar_clearance(student_id):
     if not check_permission(['bursar']):
         abort(403)
-    
+
     db = get_db_dict()
     cur = db.cursor()
-    cur.execute("SELECT student_id, full_name, class, parent_phone, fees_balance, fees_total, fees_paid, photo_path FROM students WHERE student_id=?", (student_id,))
+
+    cur.execute("""
+        SELECT student_id, full_name, class, parent_phone,
+               fees_balance, fees_total, fees_paid, photo_path
+        FROM students
+        WHERE student_id=%s
+    """, (student_id,))
+
     student = cur.fetchone()
     cur.close()
-    
+
     if not student:
         flash('Student not found', 'danger')
         return redirect(url_for('bursar_students'))
-    
-    # Add default values for missing fields
+
     student['fees_total'] = student.get('fees_total') or 0
     student['fees_paid'] = student.get('fees_paid') or 0
     student['fees_balance'] = student.get('fees_balance') or 0
     student['photo_url'] = get_photo_url(student.get('photo_path'))
-    
-    return render_template('bursar/clearance.html', student=student)
+
+    return render_template(
+        'bursar/clearance.html',
+        student=student
+    )
 
 @app.route('/bursar/bulk_clearance')
 def bursar_bulk_clearance():
     if not check_permission(['bursar']):
         abort(403)
-    
+
     class_filter = request.args.get('class', '')
+
     db = get_db_dict()
     cur = db.cursor()
-    
-    query = "SELECT student_id, full_name, class, parent_phone, fees_balance, fees_total, fees_paid, photo_path FROM students WHERE fees_balance <= 0"
+
+    query = """
+        SELECT student_id, full_name, class, parent_phone,
+               fees_balance, fees_total, fees_paid, photo_path
+        FROM students
+        WHERE fees_balance <= 0
+    """
+
     params = []
-    
+
     if class_filter:
-        query += " AND class = ?"
+        query += " AND class=%s"
         params.append(class_filter)
-        cur.execute(query, params)
-    else:
-        cur.execute(query)
-    
+
+    cur.execute(query, params)
     students = cur.fetchall()
     cur.close()
-    
+
     for s in students:
         s['fees_total'] = s.get('fees_total') or 0
         s['fees_paid'] = s.get('fees_paid') or 0
         s['fees_balance'] = s.get('fees_balance') or 0
         s['photo_url'] = get_photo_url(s.get('photo_path'))
-    
-    return render_template('bursar/bulk_clearance.html', students=students)
+
+    return render_template(
+        'bursar/bulk_clearance.html',
+        students=students
+    )
+
 
 @app.route('/bursar/webhook/process')
 def bursar_process_webhooks():
@@ -4562,385 +6318,1092 @@ def bursar_process_webhooks():
     processed = 0
     for w in webhooks:
         if w.get('student_id'):
-            cur.execute("SELECT full_name, parent_phone, fees_paid, fees_balance FROM students WHERE student_id=?", (w['student_id'],))
+            cur.execute("SELECT full_name, parent_phone, fees_paid, fees_balance FROM students WHERE student_id=%s", (w['student_id'],))
             student = cur.fetchone()
             if student:
                 receipt_no = generate_receipt_number()
-                cur.execute("INSERT INTO payments (student_id, amount, payment_date, receipt_no, payment_method, notes, recorded_by) VALUES (?, ?, DATE('now'), ?, ?, ?, ?)",
-                           (w['student_id'], w['amount'], receipt_no, w.get('payment_method', 'Mobile Money'), 
-                            f"Auto from webhook: {w.get('transaction_id', '')}", 'System'))
-                new_paid = student['fees_paid'] + w['amount']
-                new_balance = student['fees_balance'] - w['amount']
-                cur.execute("UPDATE students SET fees_paid=?, fees_balance=? WHERE student_id=?", (new_paid, new_balance, w['student_id']))
-                db.commit()
+                cur.execute("""
+                    INSERT INTO payments 
+                    (student_id, amount, payment_date, receipt_no, payment_method, notes, recorded_by)
+                    VALUES (%s, %s, CURRENT_DATE, %s, %s, %s, %s)
+                """,(w['student_id'],w['amount'],receipt_no,w.get('payment_method','Mobile Money'),f"Auto from webhook: {w.get('transaction_id','')}",'System'))
+                new_paid = (student['fees_paid'] or 0) + w['amount']
+                new_balance = (student['fees_balance'] or 0) - w['amount']
+                cur.execute("UPDATE students SET fees_paid=%s, fees_balance=%s WHERE student_id=%s",(new_paid,new_balance,w['student_id']))
                 if student.get('parent_phone'):
-                    send_fee_sms(student['parent_phone'], student['full_name'], w['amount'], new_balance)
-        cur.execute("UPDATE payment_webhooks SET processed=1 WHERE id=?", (w['id'],))
+                    send_fee_sms(student['parent_phone'],student['full_name'],w['amount'],new_balance)
+        cur.execute("UPDATE payment_webhooks SET processed=1 WHERE id=%s",(w['id'],))
         processed += 1
     db.commit()
     cur.close()
-    flash(f'Processed {processed} pending webhooks.', 'success')
+    flash(f'Processed {processed} pending webhooks.','success')
     return redirect(url_for('bursar_dashboard'))
 
 @app.route('/bursar/webhook/payment', methods=['POST'])
 def bursar_payment_webhook():
     data = request.get_json()
     if not data:
-        return jsonify({'error': 'Invalid data'}), 400
-    execute_db("""INSERT INTO payment_webhooks (transaction_id, amount, phone_number, student_id, reference, payment_method, raw_data, status, processed)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, 'received', 0)""",
-               (data.get('transaction_id'), data.get('amount'), data.get('phone_number'), data.get('student_id'),
-                data.get('reference'), data.get('payment_method'), json.dumps(data)))
-    return jsonify({'status': 'received'}), 200
+        return jsonify({'error':'Invalid data'}),400
+    execute_db("""
+        INSERT INTO payment_webhooks 
+        (transaction_id, amount, phone_number, student_id, reference, payment_method, raw_data, status, processed)
+        VALUES (%s,%s,%s,%s,%s,%s,%s,'received',0)
+    """,(data.get('transaction_id'),data.get('amount'),data.get('phone_number'),data.get('student_id'),data.get('reference'),data.get('payment_method'),json.dumps(data)))
+    return jsonify({'status':'received'}),200
 
-# ==================== STAFF PAYROLL ====================
 def generate_staff_no():
-    return generate_unique_number('STF', 'staff', 'staff_no', year_format=True)
+    return generate_unique_number('STF','staff','staff_no',year_format=True)
 
 def generate_payroll_no():
-    year_month = datetime.now().strftime("%Y%m")
-    cur = get_db().cursor()
-    cur.execute("SELECT payroll_no FROM payroll WHERE payroll_no LIKE ? ORDER BY payroll_no DESC LIMIT 1", (f'PR-{year_month}-%',))
-    last = cur.fetchone()
+    year_month=datetime.now().strftime("%Y%m")
+    cur=get_db().cursor()
+    cur.execute("SELECT payroll_no FROM payroll WHERE payroll_no LIKE %s ORDER BY payroll_no DESC LIMIT 1",(f'PR-{year_month}-%',))
+    last=cur.fetchone()
     cur.close()
     if last:
-        last_num = int(last[0].split('-')[-1])
-        new_num = last_num + 1
+        last_num=int(last[0].split('-')[-1])
+        new_num=last_num+1
     else:
-        new_num = 1
+        new_num=1
     return f"PR-{year_month}-{new_num:04d}"
 
 @app.route('/bursar/staff')
 def bursar_staff():
     if not check_permission(['bursar']):
         abort(403)
-    
-    db = get_db_dict()
-    cur = db.cursor()
+    db=get_db_dict()
+    cur=db.cursor()
     cur.execute("SELECT * FROM staff ORDER BY full_name")
-    staff = cur.fetchall()
-    
-    # Get NSSF and PAYE rates - handle dictionary result
-    cur.execute("SELECT nssf_employee_rate, paye_rate, paye_threshold FROM school_settings WHERE id=1")
-    rates_row = cur.fetchone()
-    
+    staff=cur.fetchall()
+    cur.execute("SELECT nssf_employee_rate,paye_rate,paye_threshold FROM school_settings WHERE id=1")
+    rates_row=cur.fetchone()
     if rates_row:
-        nssf_rate = rates_row['nssf_employee_rate'] if 'nssf_employee_rate' in rates_row else 5.0
-        paye_rate = rates_row['paye_rate'] if 'paye_rate' in rates_row else 10.0
-        paye_threshold = rates_row['paye_threshold'] if 'paye_threshold' in rates_row else 235000
+        nssf_rate=rates_row.get('nssf_employee_rate',5.0)
+        paye_rate=rates_row.get('paye_rate',10.0)
+        paye_threshold=rates_row.get('paye_threshold',235000)
     else:
-        nssf_rate = 5.0
-        paye_rate = 10.0
-        paye_threshold = 235000
-    
-    # Calculate totals and add NSSF/PAYE to each staff
-    total_basic = 0
-    total_allowances = 0
-    total_gross = 0
-    total_nssf = 0
-    total_paye = 0
-    total_deductions = 0
-    total_net = 0
-    
+        nssf_rate=5.0
+        paye_rate=10.0
+        paye_threshold=235000
+    total_basic=total_allowances=total_gross=total_nssf=total_paye=total_deductions=total_net=0
     for s in staff:
-        gross = (s['salary_basic'] or 0) + (s['salary_allowances'] or 0)
-        nssf = (gross * nssf_rate) / 100
-        taxable = max(0, gross - paye_threshold)
-        paye = (taxable * paye_rate) / 100
-        net = gross - nssf - paye - (s['salary_deductions'] or 0)
-        
-        s['gross'] = float(gross)
-        s['nssf'] = float(round(nssf, 2))
-        s['paye'] = float(round(paye, 2))
-        s['net'] = float(round(net, 2))
-        s['salary_net'] = float(round(net, 2))
-        
-        total_basic += float(s['salary_basic'] or 0)
-        total_allowances += float(s['salary_allowances'] or 0)
-        total_gross += float(gross)
-        total_nssf += float(nssf)
-        total_paye += float(paye)
-        total_deductions += float(s['salary_deductions'] or 0)
-        total_net += float(net)
-    
+        gross=(s['salary_basic'] or 0)+(s['salary_allowances'] or 0)
+        nssf=(gross*nssf_rate)/100
+        taxable=max(0,gross-paye_threshold)
+        paye=(taxable*paye_rate)/100
+        net=gross-nssf-paye-(s['salary_deductions'] or 0)
+        s['gross']=float(gross)
+        s['nssf']=round(nssf,2)
+        s['paye']=round(paye,2)
+        s['net']=round(net,2)
+        s['salary_net']=round(net,2)
+        total_basic+=s['salary_basic'] or 0
+        total_allowances+=s['salary_allowances'] or 0
+        total_gross+=gross
+        total_nssf+=nssf
+        total_paye+=paye
+        total_deductions+=s['salary_deductions'] or 0
+        total_net+=net
     cur.close()
-    
-    return render_template('bursar/staff.html', 
-                          staff=staff,
-                          total_basic=total_basic,
-                          total_allowances=total_allowances,
-                          total_gross=total_gross,
-                          total_nssf=total_nssf,
-                          total_paye=total_paye,
-                          total_deductions=total_deductions,
-                          total_net=total_net,
-                          nssf_rate=nssf_rate,
-                          paye_rate=paye_rate,
-                          paye_threshold=paye_threshold)
+    return render_template('bursar/staff.html',staff=staff,total_basic=total_basic,total_allowances=total_allowances,total_gross=total_gross,total_nssf=total_nssf,total_paye=total_paye,total_deductions=total_deductions,total_net=total_net,nssf_rate=nssf_rate,paye_rate=paye_rate,paye_threshold=paye_threshold)
 
-@app.route('/bursar/staff/add', methods=['GET', 'POST'])
+@app.route('/bursar/staff/add', methods=['GET','POST'])
 def bursar_staff_add():
     if not check_permission(['bursar']):
         abort(403)
-    if request.method == 'POST':
-        full_name = request.form['full_name'].strip()
-        position = request.form['position'].strip()
-        department = request.form.get('department', '').strip()
-        phone = validate_and_format_phone(request.form.get('phone', ''))
-        email = request.form.get('email', '').strip()
-        nssf_number = request.form.get('nssf_number', '').strip()
-        tin_number = request.form.get('tin_number', '').strip()
-        bank_account = request.form.get('bank_account', '').strip()
-        bank_name = request.form.get('bank_name', '').strip()
-        salary_basic = float(request.form.get('salary_basic', 0))
-        salary_allowances = float(request.form.get('salary_allowances', 0))
-        salary_deductions = float(request.form.get('salary_deductions', 0))
-        staff_no = generate_staff_no()
-        
-        execute_db("""INSERT INTO staff (staff_no, full_name, position, department, phone, email, nssf_number, tin_number, bank_account, bank_name, salary_basic, salary_allowances, salary_deductions)
-                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                   (staff_no, full_name, position, department, phone, email, nssf_number, tin_number,
-                    bank_account, bank_name, salary_basic, salary_allowances, salary_deductions))
-        flash(f'Staff {full_name} added. Staff No: {staff_no}', 'success')
+    if request.method=='POST':
+        full_name=request.form['full_name'].strip()
+        position=request.form['position'].strip()
+        department=request.form.get('department','').strip()
+        phone=validate_and_format_phone(request.form.get('phone',''))
+        email=request.form.get('email','').strip()
+        nssf_number=request.form.get('nssf_number','').strip()
+        tin_number=request.form.get('tin_number','').strip()
+        bank_account=request.form.get('bank_account','').strip()
+        bank_name=request.form.get('bank_name','').strip()
+        salary_basic=float(request.form.get('salary_basic',0))
+        salary_allowances=float(request.form.get('salary_allowances',0))
+        salary_deductions=float(request.form.get('salary_deductions',0))
+        staff_no=generate_staff_no()
+        execute_db("""
+            INSERT INTO staff
+            (staff_no,full_name,position,department,phone,email,nssf_number,tin_number,bank_account,bank_name,salary_basic,salary_allowances,salary_deductions)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+        """,(staff_no,full_name,position,department,phone,email,nssf_number,tin_number,bank_account,bank_name,salary_basic,salary_allowances,salary_deductions))
+        flash(f'Staff {full_name} added. Staff No: {staff_no}','success')
         return redirect(url_for('bursar_staff'))
     return render_template('bursar/staff_add.html')
 
-@app.route('/bursar/payroll/generate', methods=['GET', 'POST'])
+
+@app.route('/bursar/payroll/generate',methods=['GET','POST'])
 def bursar_generate_payroll():
     if not check_permission(['bursar']):
         abort(403)
-    
-    if request.method == 'POST':
-        month_year = request.form['month_year']
-        selected_staff = request.form.getlist('staff_ids')
+    if request.method=='POST':
+        month_year=request.form['month_year']
+        selected_staff=request.form.getlist('staff_ids')
         if not selected_staff:
-            flash('No staff selected.', 'danger')
+            flash('No staff selected.','danger')
             return redirect(url_for('bursar_generate_payroll'))
-        
-        db = get_db_dict()
-        cur = db.cursor()
-        
-        # Get rates from school settings
-        cur.execute("SELECT nssf_employee_rate, paye_rate, paye_threshold FROM school_settings WHERE id=1")
-        rates = cur.fetchone()
-        
-        # Safe extraction - works for both tuple and dictionary
+
+        db=get_db_dict()
+        cur=db.cursor()
+
+        cur.execute("SELECT nssf_employee_rate,paye_rate,paye_threshold FROM school_settings WHERE id=1")
+        rates=cur.fetchone()
+
         if rates:
-            if isinstance(rates, dict):
-                nssf_rate = rates.get('nssf_employee_rate', 5.0)
-                paye_rate = rates.get('paye_rate', 10.0)
-                paye_threshold = rates.get('paye_threshold', 235000)
-            else:
-                nssf_rate = rates[0] if len(rates) > 0 else 5.0
-                paye_rate = rates[1] if len(rates) > 1 else 10.0
-                paye_threshold = rates[2] if len(rates) > 2 else 235000
+            nssf_rate=rates.get('nssf_employee_rate',5.0)
+            paye_rate=rates.get('paye_rate',10.0)
+            paye_threshold=rates.get('paye_threshold',235000)
         else:
-            nssf_rate = 5.0
-            paye_rate = 10.0
-            paye_threshold = 235000
-        
-        # Get selected staff with bank details
-        placeholders = ','.join(['?'] * len(selected_staff))
+            nssf_rate=5.0
+            paye_rate=10.0
+            paye_threshold=235000
+
+        placeholders=','.join(['%s']*len(selected_staff))
         cur.execute(f"""
-            SELECT id, full_name, position, salary_basic, salary_allowances, 
-                   salary_deductions, bank_name, bank_account, phone 
-            FROM staff 
+            SELECT id,full_name,position,salary_basic,salary_allowances,salary_deductions,bank_name,bank_account,phone
+            FROM staff
             WHERE id IN ({placeholders})
-        """, selected_staff)
-        staff_list = cur.fetchall()
-        
-        total_amount = 0
+        """,selected_staff)
+
+        staff_list=cur.fetchall()
+        total_amount=0
+
         for staff in staff_list:
-            gross = (staff['salary_basic'] or 0) + (staff['salary_allowances'] or 0)
-            nssf = (gross * nssf_rate) / 100
-            taxable = max(0, gross - paye_threshold)
-            paye = (taxable * paye_rate) / 100
-            net = gross - nssf - paye - (staff['salary_deductions'] or 0)
-            total_amount += net
-        
-        payroll_no = generate_payroll_no()
-        approval_code = generate_approval_code()
-        token, expires_at = generate_secure_token(2)
-        
-        # FIXED: Added approval_status column
+            gross=(staff['salary_basic'] or 0)+(staff['salary_allowances'] or 0)
+            nssf=(gross*nssf_rate)/100
+            taxable=max(0,gross-paye_threshold)
+            paye=(taxable*paye_rate)/100
+            net=gross-nssf-paye-(staff['salary_deductions'] or 0)
+            total_amount+=net
+
+        payroll_no=generate_payroll_no()
+        approval_code=generate_approval_code()
+        token,expires_at=generate_secure_token(2)
+
         cur.execute("""
-            INSERT INTO payroll (
-                payroll_no, month_year, total_amount, approval_code, 
-                headteacher_access_token, token_expires_at, recorded_by, approval_status
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        """, (payroll_no, month_year, total_amount, approval_code, token, expires_at, 
-              session.get('username'), 'pending'))
-        payroll_id = cur.lastrowid
-        
+            INSERT INTO payroll
+            (payroll_no,month_year,total_amount,approval_code,headteacher_access_token,token_expires_at,recorded_by,approval_status)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s)
+            RETURNING id
+        """,(payroll_no,month_year,total_amount,approval_code,token,expires_at,session.get('username'),'pending'))
+
+        payroll_id=cur.fetchone()['id']
+
         for staff in staff_list:
-            gross = (staff['salary_basic'] or 0) + (staff['salary_allowances'] or 0)
-            nssf = (gross * nssf_rate) / 100
-            taxable = max(0, gross - paye_threshold)
-            paye = (taxable * paye_rate) / 100
-            net_salary = gross - nssf - paye - (staff['salary_deductions'] or 0)
-            
+            gross=(staff['salary_basic'] or 0)+(staff['salary_allowances'] or 0)
+            nssf=(gross*nssf_rate)/100
+            taxable=max(0,gross-paye_threshold)
+            paye=(taxable*paye_rate)/100
+            net_salary=gross-nssf-paye-(staff['salary_deductions'] or 0)
+
             cur.execute("""
-                INSERT INTO salary_payments (
-                    staff_id, payroll_id, month_year, basic, allowances, deductions, 
-                    gross_salary, nssf_employee, paye_tax, net_salary, approval_code, recorded_by
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                staff['id'], payroll_id, month_year, 
-                staff['salary_basic'] or 0, 
+                INSERT INTO salary_payments
+                (staff_id,payroll_id,month_year,basic,allowances,deductions,gross_salary,nssf_employee,paye_tax,net_salary,approval_code,recorded_by)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+            """,(
+                staff['id'],
+                payroll_id,
+                month_year,
+                staff['salary_basic'] or 0,
                 staff['salary_allowances'] or 0,
-                staff['salary_deductions'] or 0, 
-                gross, nssf, paye, net_salary, 
-                approval_code, session.get('username')
+                staff['salary_deductions'] or 0,
+                gross,
+                nssf,
+                paye,
+                net_salary,
+                approval_code,
+                session.get('username')
             ))
-        
+
         db.commit()
         cur.close()
-        
-        approval_link = url_for('headteacher_approval_access', token=token, _external=True)
-        cur = get_db().cursor()
+
+        approval_link=url_for('headteacher_approval_access',token=token,_external=True)
+
+        cur=get_db_dict().cursor()
         cur.execute("SELECT phone FROM users WHERE role='headteacher' AND status=1 LIMIT 1")
-        headteacher = cur.fetchone()
+        headteacher=cur.fetchone()
         cur.close()
-        
-        if headteacher:
-            phone = headteacher[0] if isinstance(headteacher, (tuple, list)) else headteacher.get('phone')
-            if phone:
-                send_sms(phone, ...)
-        
-        add_notification('headteacher', f"Payroll {payroll_no} needs approval. Code: {approval_code}", f"/headteacher/approval/{token}")
-        flash(f'Payroll {payroll_no} created. Approval link sent to Headteacher.', 'success')
+
+        if headteacher and headteacher.get('phone'):
+            send_sms(headteacher['phone'],f"Payroll {payroll_no} awaiting approval. Link: {approval_link}")
+
+        add_notification('headteacher',f"Payroll {payroll_no} needs approval. Code: {approval_code}",f"/headteacher/approval/{token}")
+
+        flash(f'Payroll {payroll_no} created. Approval link sent to Headteacher.','success')
         return redirect(url_for('bursar_payroll_list'))
-    
-    # GET request - FIXED: Get rates and bank details
-    db = get_db_dict()
-    cur = db.cursor()
-    
-    # Get rates from school settings to pass to template
-    cur.execute("SELECT nssf_employee_rate, paye_rate, paye_threshold FROM school_settings WHERE id=1")
-    rates = cur.fetchone()
-    
+
+    db=get_db_dict()
+    cur=db.cursor()
+
+    cur.execute("SELECT nssf_employee_rate,paye_rate,paye_threshold FROM school_settings WHERE id=1")
+    rates=cur.fetchone()
+
     if rates:
-        if isinstance(rates, dict):
-            nssf_rate = rates.get('nssf_employee_rate', 5.0)
-            paye_rate = rates.get('paye_rate', 10.0)
-            paye_threshold = rates.get('paye_threshold', 235000)
-        else:
-            nssf_rate = rates[0] if len(rates) > 0 else 5.0
-            paye_rate = rates[1] if len(rates) > 1 else 10.0
-            paye_threshold = rates[2] if len(rates) > 2 else 235000
+        nssf_rate=rates.get('nssf_employee_rate',5.0)
+        paye_rate=rates.get('paye_rate',10.0)
+        paye_threshold=rates.get('paye_threshold',235000)
     else:
-        nssf_rate = 5.0
-        paye_rate = 10.0
-        paye_threshold = 235000
-    
-    # Get staff list with bank details (not SELECT *)
+        nssf_rate=5.0
+        paye_rate=10.0
+        paye_threshold=235000
+
     cur.execute("""
-        SELECT id, full_name, position, salary_basic, salary_allowances, 
-               salary_deductions, bank_name, bank_account, phone 
-        FROM staff 
-        WHERE status='active' 
+        SELECT id,full_name,position,salary_basic,salary_allowances,salary_deductions,bank_name,bank_account,phone
+        FROM staff
+        WHERE status='active'
         ORDER BY full_name
     """)
-    staff_list = cur.fetchall()
+
+    staff_list=cur.fetchall()
     cur.close()
-    
-    return render_template('bursar/generate_payroll.html', 
-                         staff_list=staff_list,
-                         nssf_rate=nssf_rate,
-                         paye_rate=paye_rate,
-                         paye_threshold=paye_threshold)
+
+    return render_template('bursar/generate_payroll.html',
+                           staff_list=staff_list,
+                           nssf_rate=nssf_rate,
+                           paye_rate=paye_rate,
+                           paye_threshold=paye_threshold)
 
 @app.route('/bursar/payroll/list')
 def bursar_payroll_list():
     if not check_permission(['bursar']):
         abort(403)
-    db = get_db_dict()
-    cur = db.cursor()
-    cur.execute("SELECT p.*, COUNT(sp.id) as staff_count FROM payroll p LEFT JOIN salary_payments sp ON p.id = sp.payroll_id GROUP BY p.id ORDER BY p.created_at DESC")
-    payrolls = cur.fetchall()
+    db=get_db_dict()
+    cur=db.cursor()
+    cur.execute("""
+        SELECT p.*, COUNT(sp.id) AS staff_count
+        FROM payroll p
+        LEFT JOIN salary_payments sp ON p.id=sp.payroll_id
+        GROUP BY p.id
+        ORDER BY p.created_at DESC
+    """)
+    payrolls=cur.fetchall()
     cur.close()
-    return render_template('bursar/payroll_list.html', payrolls=payrolls)
+    return render_template('bursar/payroll_list.html',payrolls=payrolls)
+
 
 @app.route('/bursar/delete_payroll/<int:payroll_id>')
 def bursar_delete_payroll(payroll_id):
     if not check_permission(['bursar']):
         abort(403)
-    cur = get_db().cursor()
-    cur.execute("SELECT approval_status FROM payroll WHERE id=?", (payroll_id,))
-    payroll = cur.fetchone()
+
+    db=get_db_dict()
+    cur=db.cursor()
+    cur.execute("SELECT approval_status FROM payroll WHERE id=%s",(payroll_id,))
+    payroll=cur.fetchone()
     cur.close()
+
     if not payroll:
-        flash('Payroll not found.', 'danger')
+        flash('Payroll not found.','danger')
         return redirect(url_for('bursar_payroll_list'))
-    if payroll[0] != 'pending':
-        flash('Only pending payrolls can be deleted.', 'warning')
+
+    if payroll['approval_status']!='pending':
+        flash('Only pending payrolls can be deleted.','warning')
         return redirect(url_for('bursar_payroll_list'))
+
     try:
-        execute_db("DELETE FROM salary_payments WHERE payroll_id=?", (payroll_id,))
-        execute_db("DELETE FROM payroll WHERE id=?", (payroll_id,))
-        flash('Payroll deleted successfully.', 'success')
+        execute_db("DELETE FROM salary_payments WHERE payroll_id=%s",(payroll_id,))
+        execute_db("DELETE FROM payroll WHERE id=%s",(payroll_id,))
+        flash('Payroll deleted successfully.','success')
     except Exception as e:
-        flash(f'Error deleting payroll: {str(e)}', 'danger')
+        flash(f'Error deleting payroll: {str(e)}','danger')
+
     return redirect(url_for('bursar_payroll_list'))
+
 
 @app.route('/bursar/view_payroll/<int:payroll_id>')
 def bursar_view_payroll(payroll_id):
     if not check_permission(['bursar']):
         abort(403)
-    db = get_db_dict()
-    cur = db.cursor()
-    cur.execute("SELECT * FROM payroll WHERE id=?", (payroll_id,))
-    payroll = cur.fetchone()
+
+    db=get_db_dict()
+    cur=db.cursor()
+
+    cur.execute("SELECT * FROM payroll WHERE id=%s",(payroll_id,))
+    payroll=cur.fetchone()
+
     if not payroll:
-        flash('Payroll not found.', 'danger')
+        flash('Payroll not found.','danger')
         return redirect(url_for('bursar_payroll_list'))
-    cur.execute("""SELECT sp.*, s.full_name, s.position, s.bank_account, s.bank_name, s.phone, s.staff_no
-                   FROM salary_payments sp JOIN staff s ON sp.staff_id = s.id WHERE sp.payroll_id = ?""", (payroll_id,))
-    staff_list = cur.fetchall()
+
+    cur.execute("""
+        SELECT sp.*,s.full_name,s.position,s.bank_account,s.bank_name,s.phone,s.staff_no
+        FROM salary_payments sp
+        JOIN staff s ON sp.staff_id=s.id
+        WHERE sp.payroll_id=%s
+    """,(payroll_id,))
+
+    staff_list=cur.fetchall()
     cur.close()
-    total_basic = sum(s['basic'] for s in staff_list) if staff_list else 0
-    total_allowances = sum(s['allowances'] for s in staff_list) if staff_list else 0
-    total_deductions = sum(s['deductions'] for s in staff_list) if staff_list else 0
-    return render_template('bursar/view_payroll.html', payroll=payroll, staff_list=staff_list,
-                          total_basic=total_basic, total_allowances=total_allowances, total_deductions=total_deductions)
-    
+
+    total_basic=sum(s['basic'] or 0 for s in staff_list)
+    total_allowances=sum(s['allowances'] or 0 for s in staff_list)
+    total_deductions=sum(s['deductions'] or 0 for s in staff_list)
+
+    return render_template(
+        'bursar/view_payroll.html',
+        payroll=payroll,
+        staff_list=staff_list,
+        total_basic=total_basic,
+        total_allowances=total_allowances,
+        total_deductions=total_deductions
+    )
+
+
 @app.route('/bursar/print_payroll')
 def bursar_print_payroll():
     if not check_permission(['bursar']):
         abort(403)
-    
+
+    db=get_db_dict()
+    cur=db.cursor()
+
+    cur.execute("SELECT nssf_employee_rate,paye_rate,paye_threshold FROM school_settings WHERE id=1")
+    rates=cur.fetchone()
+
+    if rates:
+        nssf_rate=rates.get('nssf_employee_rate',5.0)
+        paye_rate=rates.get('paye_rate',10.0)
+        paye_threshold=rates.get('paye_threshold',235000)
+    else:
+        nssf_rate=5.0
+        paye_rate=10.0
+        paye_threshold=235000
+
+    cur.execute("""
+        SELECT staff_no,full_name,position,salary_basic,salary_allowances,
+        salary_deductions,bank_name,bank_account,phone
+        FROM staff
+        ORDER BY full_name
+    """)
+
+    staff_list=cur.fetchall()
+    cur.close()
+
+    total_basic=0
+    total_allowances=0
+    total_gross=0
+    total_nssf=0
+    total_paye=0
+    total_deductions=0
+    total_net=0
+
+    for staff in staff_list:
+        gross=(staff['salary_basic'] or 0)+(staff['salary_allowances'] or 0)
+        nssf=(gross*nssf_rate)/100
+        taxable=max(0,gross-paye_threshold)
+        paye=(taxable*paye_rate)/100
+        net=gross-nssf-paye-(staff['salary_deductions'] or 0)
+
+        staff['gross']=gross
+        staff['nssf']=round(nssf,2)
+        staff['paye']=round(paye,2)
+        staff['salary_net']=round(net,2)
+
+        total_basic+=staff['salary_basic'] or 0
+        total_allowances+=staff['salary_allowances'] or 0
+        total_gross+=gross
+        total_nssf+=nssf
+        total_paye+=paye
+        total_deductions+=staff['salary_deductions'] or 0
+        total_net+=net
+
+    return render_template(
+        'bursar/print_payroll.html',
+        staff_list=staff_list,
+        total_basic=total_basic,
+        total_allowances=total_allowances,
+        total_gross=total_gross,
+        total_nssf=total_nssf,
+        total_paye=total_paye,
+        total_deductions=total_deductions,
+        total_net=total_net,
+        nssf_rate=nssf_rate,
+        paye_rate=paye_rate,
+        paye_threshold=paye_threshold
+    )
+
+# ==================== BURSAR MODULE ====================
+
+def generate_receipt_number():
+    return generate_unique_number('RCP', 'payments', 'receipt_no', year_format=True)
+
+def send_fee_sms(phone_number, student_name, amount, balance):
+    if not phone_number:
+        return False
+    message = f"Payment of UGX {amount:,.2f} received for {student_name}. Balance: UGX {balance:,.2f}. Thank you."
+    return send_sms(phone_number, message)
+
+def calculate_nssf_and_paye(gross_salary):
+    cur = get_db_dict().cursor()
+    cur.execute("""
+        SELECT nssf_employee_rate, paye_rate, paye_threshold 
+        FROM school_settings 
+        WHERE id=1
+    """)
+    rates = cur.fetchone()
+    cur.close()
+
+    nssf_employee_rate = rates['nssf_employee_rate'] if rates else 5.0
+    paye_rate = rates['paye_rate'] if rates else 10.0
+    paye_threshold = rates['paye_threshold'] if rates else 235000
+
+    nssf_employee = (gross_salary * nssf_employee_rate) / 100
+    taxable_amount = max(0, gross_salary - paye_threshold)
+    paye_tax = (taxable_amount * paye_rate) / 100
+
+    return {
+        'nssf_employee': round(nssf_employee, 2),
+        'paye_tax': round(paye_tax, 2)
+    }
+
+
+@app.route('/bursar/dashboard')
+def bursar_dashboard():
+    if not check_permission(['bursar']):
+        abort(403)
+
     db = get_db_dict()
     cur = db.cursor()
-    
-    # Get tax rates
-    cur.execute("SELECT nssf_employee_rate, paye_rate, paye_threshold FROM school_settings WHERE id=1")
+
+    cur.execute("""
+        SELECT 
+            COALESCE(SUM(fees_total),0) AS total_fees,
+            COALESCE(SUM(fees_paid),0) AS total_paid,
+            COALESCE(SUM(fees_balance),0) AS total_balance
+        FROM students
+    """)
+    totals = cur.fetchone()
+
+    cur.execute("""
+        SELECT COUNT(*) AS count 
+        FROM students 
+        WHERE fees_balance > 0
+    """)
+    defaulter_count = cur.fetchone()['count']
+
+    cur.execute("""
+        SELECT COUNT(*) AS count 
+        FROM students
+    """)
+    total_students = cur.fetchone()['count']
+
+    cur.execute("""
+        SELECT p.*, s.full_name, s.class
+        FROM payments p
+        JOIN students s 
+        ON p.student_id = s.student_id
+        ORDER BY p.payment_date DESC
+        LIMIT 10
+    """)
+    recent_payments = cur.fetchall()
+
+    cur.close()
+
+    return render_template(
+        'bursar/dashboard.html',
+        totals=totals,
+        defaulter_count=defaulter_count,
+        total_students=total_students,
+        recent_payments=recent_payments
+    )
+
+
+@app.route('/bursar/students')
+def bursar_students():
+    if not check_permission(['bursar']):
+        abort(403)
+
+    search = request.args.get('search', '').strip()
+    class_filter = request.args.get('class', '').strip()
+
+    db = get_db_dict()
+    cur = db.cursor()
+
+    query = """
+        SELECT student_id, full_name, class, parent_phone,
+               fees_total, fees_paid, fees_balance
+        FROM students
+        WHERE 1=1
+    """
+
+    params = []
+
+    if search:
+        query += """
+            AND (
+                student_id ILIKE %s 
+                OR full_name ILIKE %s
+            )
+        """
+        pattern = f"%{search}%"
+        params.extend([pattern, pattern])
+
+    if class_filter:
+        query += " AND class = %s"
+        params.append(class_filter)
+
+    query += " ORDER BY full_name"
+
+    cur.execute(query, params)
+    students = cur.fetchall()
+
+    cur.execute("""
+        SELECT DISTINCT class 
+        FROM students
+        WHERE class IS NOT NULL 
+        AND class <> ''
+        ORDER BY class
+    """)
+
+    classes = [row['class'] for row in cur.fetchall()]
+
+    cur.close()
+
+    return render_template(
+        'bursar/students.html',
+        students=students,
+        classes=classes,
+        search=search,
+        class_filter=class_filter
+    )
+
+@app.route('/bursar/student/<student_id>')
+def bursar_student_detail(student_id):
+    if not check_permission(['bursar']):
+        abort(403)
+
+    db = get_db_dict()
+    cur = db.cursor()
+
+    cur.execute("""
+        SELECT student_id, full_name, class, parent_phone,
+               fees_total, fees_paid, fees_balance
+        FROM students
+        WHERE student_id=%s
+    """, (student_id,))
+
+    student = cur.fetchone()
+
+    if not student:
+        cur.close()
+        flash('Student not found.', 'danger')
+        return redirect(url_for('bursar_students'))
+
+    cur.execute("""
+        SELECT *
+        FROM payments
+        WHERE student_id=%s
+        ORDER BY payment_date DESC
+    """, (student_id,))
+
+    payments = cur.fetchall()
+    cur.close()
+
+    return render_template(
+        'bursar/student_detail.html',
+        student=student,
+        payments=payments
+    )
+
+
+@app.route('/bursar/record_payment', methods=['POST'])
+def bursar_record_payment():
+    if not check_permission(['bursar']):
+        abort(403)
+
+    student_id = request.form['student_id']
+    amount = float(request.form['amount'])
+    payment_method = request.form.get('payment_method', 'Cash')
+    notes = request.form.get('notes', '')
+    receipt_no = generate_receipt_number()
+
+    db = get_db_dict()
+    cur = db.cursor()
+
+    cur.execute("""
+        SELECT full_name, parent_phone, fees_paid, fees_balance
+        FROM students
+        WHERE student_id=%s
+    """, (student_id,))
+
+    student = cur.fetchone()
+
+    if not student:
+        cur.close()
+        flash('Student not found.', 'danger')
+        return redirect(url_for('bursar_students'))
+
+    cur.execute("""
+        INSERT INTO payments
+        (
+            student_id,
+            amount,
+            payment_date,
+            receipt_no,
+            payment_method,
+            notes,
+            recorded_by
+        )
+        VALUES
+        (
+            %s,
+            %s,
+            CURRENT_DATE,
+            %s,
+            %s,
+            %s,
+            %s
+        )
+    """, (
+        student_id,
+        amount,
+        receipt_no,
+        payment_method,
+        notes,
+        session.get('username')
+    ))
+
+    new_paid = (student['fees_paid'] or 0) + amount
+    new_balance = (student['fees_balance'] or 0) - amount
+
+    cur.execute("""
+        UPDATE students
+        SET fees_paid=%s,
+            fees_balance=%s
+        WHERE student_id=%s
+    """, (
+        new_paid,
+        new_balance,
+        student_id
+    ))
+
+    db.commit()
+    cur.close()
+
+    if student['parent_phone']:
+        send_fee_sms(
+            student['parent_phone'],
+            student['full_name'],
+            amount,
+            new_balance
+        )
+
+    flash(f'Payment recorded. Receipt: {receipt_no}', 'success')
+
+    return redirect(
+        url_for(
+            'bursar_student_detail',
+            student_id=student_id
+        )
+    )
+
+
+@app.route('/bursar/print_receipts')
+def bursar_print_receipts():
+    if not check_permission(['bursar']):
+        abort(403)
+
+    receipt_ids = request.args.get('ids', '')
+    receipts = []
+
+    if receipt_ids:
+        ids = [
+            int(x)
+            for x in receipt_ids.split(',')
+            if x.isdigit()
+        ]
+
+        if ids:
+            placeholders = ','.join(['%s'] * len(ids))
+
+            db = get_db_dict()
+            cur = db.cursor()
+
+            cur.execute(
+                f"""
+                SELECT p.*, s.full_name, s.class
+                FROM payments p
+                JOIN students s
+                ON p.student_id=s.student_id
+                WHERE p.id IN ({placeholders})
+                ORDER BY p.payment_date DESC
+                """,
+                ids
+            )
+
+            receipts = cur.fetchall()
+            cur.close()
+
+    return render_template(
+        'bursar/print_receipts.html',
+        receipts=receipts
+    )
+
+
+@app.route('/bursar/send_reminder/<student_id>')
+def bursar_send_reminder(student_id):
+    if not check_permission(['bursar']):
+        abort(403)
+
+    db = get_db_dict()
+    cur = db.cursor()
+
+    cur.execute("""
+        SELECT full_name, parent_phone, fees_balance
+        FROM students
+        WHERE student_id=%s
+    """, (student_id,))
+
+    student = cur.fetchone()
+    cur.close()
+
+    if student and student['parent_phone']:
+        send_sms(
+            student['parent_phone'],
+            f"Fees reminder: UGX {student['fees_balance']:,.2f} outstanding for {student['full_name']}."
+        )
+
+        flash('Reminder sent.', 'success')
+    else:
+        flash('No parent phone.', 'warning')
+
+    return redirect(
+        url_for(
+            'bursar_student_detail',
+            student_id=student_id
+        )
+    )
+
+@app.route('/bursar/bulk_reminder', methods=['POST'])
+def bursar_bulk_reminder():
+    if not check_permission(['bursar']):
+        abort(403)
+
+    class_filter = request.form.get('class', '')
+
+    db = get_db_dict()
+    cur = db.cursor()
+
+    query = """
+        SELECT full_name, parent_phone, fees_balance
+        FROM students
+        WHERE fees_balance > 0
+    """
+
+    params = []
+
+    if class_filter:
+        query += " AND class=%s"
+        params.append(class_filter)
+
+    cur.execute(query, params)
+    students = cur.fetchall()
+    cur.close()
+
+    sent = 0
+
+    for student in students:
+        if student['parent_phone']:
+            send_sms(
+                student['parent_phone'],
+                f"Fees reminder: UGX {student['fees_balance']:,.2f} outstanding for {student['full_name']}."
+            )
+            sent += 1
+
+    flash(f'{sent} reminders sent.', 'success')
+
+    return redirect(url_for('bursar_students'))
+
+
+@app.route('/bursar/clearance/<student_id>')
+def bursar_clearance(student_id):
+    if not check_permission(['bursar']):
+        abort(403)
+
+    db = get_db_dict()
+    cur = db.cursor()
+
+    cur.execute("""
+        SELECT student_id, full_name, class,
+               parent_phone, fees_balance,
+               fees_total, fees_paid,
+               photo_path
+        FROM students
+        WHERE student_id=%s
+    """, (student_id,))
+
+    student = cur.fetchone()
+    cur.close()
+
+    if not student:
+        flash('Student not found.', 'danger')
+        return redirect(url_for('bursar_students'))
+
+    student['fees_total'] = student.get('fees_total') or 0
+    student['fees_paid'] = student.get('fees_paid') or 0
+    student['fees_balance'] = student.get('fees_balance') or 0
+    student['photo_url'] = get_photo_url(student.get('photo_path'))
+
+    return render_template(
+        'bursar/clearance.html',
+        student=student
+    )
+
+
+@app.route('/bursar/bulk_clearance')
+def bursar_bulk_clearance():
+    if not check_permission(['bursar']):
+        abort(403)
+
+    class_filter = request.args.get('class', '')
+
+    db = get_db_dict()
+    cur = db.cursor()
+
+    query = """
+        SELECT student_id, full_name, class,
+               parent_phone, fees_balance,
+               fees_total, fees_paid,
+               photo_path
+        FROM students
+        WHERE fees_balance <= 0
+    """
+
+    params = []
+
+    if class_filter:
+        query += " AND class=%s"
+        params.append(class_filter)
+
+    cur.execute(query, params)
+
+    students = cur.fetchall()
+    cur.close()
+
+    for student in students:
+        student['fees_total'] = student.get('fees_total') or 0
+        student['fees_paid'] = student.get('fees_paid') or 0
+        student['fees_balance'] = student.get('fees_balance') or 0
+        student['photo_url'] = get_photo_url(student.get('photo_path'))
+
+    return render_template(
+        'bursar/bulk_clearance.html',
+        students=students
+    )
+
+
+@app.route('/bursar/webhook/process')
+def bursar_process_webhooks():
+    if not check_permission(['bursar']):
+        abort(403)
+
+    db = get_db_dict()
+    cur = db.cursor()
+
+    cur.execute("""
+        SELECT *
+        FROM payment_webhooks
+        WHERE processed=0
+    """)
+
+    webhooks = cur.fetchall()
+    processed = 0
+
+    for webhook in webhooks:
+
+        if webhook.get('student_id'):
+
+            cur.execute("""
+                SELECT full_name, parent_phone,
+                       fees_paid, fees_balance
+                FROM students
+                WHERE student_id=%s
+            """, (webhook['student_id'],))
+
+            student = cur.fetchone()
+
+            if student:
+
+                receipt_no = generate_receipt_number()
+
+                cur.execute("""
+                    INSERT INTO payments
+                    (
+                        student_id,
+                        amount,
+                        payment_date,
+                        receipt_no,
+                        payment_method,
+                        notes,
+                        recorded_by
+                    )
+                    VALUES
+                    (
+                        %s,
+                        %s,
+                        CURRENT_DATE,
+                        %s,
+                        %s,
+                        %s,
+                        %s
+                    )
+                """, (
+                    webhook['student_id'],
+                    webhook['amount'],
+                    receipt_no,
+                    webhook.get('payment_method', 'Mobile Money'),
+                    f"Auto from webhook: {webhook.get('transaction_id','')}",
+                    'System'
+                ))
+
+                new_paid = (student['fees_paid'] or 0) + webhook['amount']
+                new_balance = (student['fees_balance'] or 0) - webhook['amount']
+
+                cur.execute("""
+                    UPDATE students
+                    SET fees_paid=%s,
+                        fees_balance=%s
+                    WHERE student_id=%s
+                """, (
+                    new_paid,
+                    new_balance,
+                    webhook['student_id']
+                ))
+
+                if student.get('parent_phone'):
+                    send_fee_sms(
+                        student['parent_phone'],
+                        student['full_name'],
+                        webhook['amount'],
+                        new_balance
+                    )
+
+        cur.execute("""
+            UPDATE payment_webhooks
+            SET processed=1
+            WHERE id=%s
+        """, (webhook['id'],))
+
+        processed += 1
+
+    db.commit()
+    cur.close()
+
+    flash(
+        f'Processed {processed} pending webhooks.',
+        'success'
+    )
+
+    return redirect(url_for('bursar_dashboard'))
+
+
+@app.route('/bursar/webhook/payment', methods=['POST'])
+def bursar_payment_webhook():
+
+    data = request.get_json()
+
+    if not data:
+        return jsonify({'error': 'Invalid data'}), 400
+
+    execute_db("""
+        INSERT INTO payment_webhooks
+        (
+            transaction_id,
+            amount,
+            phone_number,
+            student_id,
+            reference,
+            payment_method,
+            raw_data,
+            status,
+            processed
+        )
+        VALUES
+        (
+            %s,%s,%s,%s,%s,%s,%s,'received',0
+        )
+    """, (
+        data.get('transaction_id'),
+        data.get('amount'),
+        data.get('phone_number'),
+        data.get('student_id'),
+        data.get('reference'),
+        data.get('payment_method'),
+        json.dumps(data)
+    ))
+
+    return jsonify({'status':'received'}), 200
+
+# ==================== STAFF PAYROLL ====================
+
+def generate_staff_no():
+    return generate_unique_number('STF', 'staff', 'staff_no', year_format=True)
+
+
+def generate_payroll_no():
+    year_month = datetime.now().strftime("%Y%m")
+
+    cur = get_db().cursor()
+
+    cur.execute("""
+        SELECT payroll_no
+        FROM payroll
+        WHERE payroll_no ILIKE %s
+        ORDER BY payroll_no DESC
+        LIMIT 1
+    """, (f'PR-{year_month}-%',))
+
+    last = cur.fetchone()
+    cur.close()
+
+    if last:
+        last_no = last[0].split('-')[-1]
+        new_num = int(last_no) + 1
+    else:
+        new_num = 1
+
+    return f"PR-{year_month}-{new_num:04d}"
+
+
+@app.route('/bursar/staff')
+def bursar_staff():
+    if not check_permission(['bursar']):
+        abort(403)
+
+    db = get_db_dict()
+    cur = db.cursor()
+
+    cur.execute("""
+        SELECT *
+        FROM staff
+        ORDER BY full_name
+    """)
+
+    staff = cur.fetchall()
+
+    cur.execute("""
+        SELECT nssf_employee_rate,
+               paye_rate,
+               paye_threshold
+        FROM school_settings
+        WHERE id=1
+    """)
+
     rates = cur.fetchone()
-    
+
     if rates:
-        if isinstance(rates, dict):
-            nssf_rate = rates.get('nssf_employee_rate', 5.0)
-            paye_rate = rates.get('paye_rate', 10.0)
-            paye_threshold = rates.get('paye_threshold', 235000)
-        else:
-            nssf_rate = rates[0] if len(rates) > 0 else 5.0
-            paye_rate = rates[1] if len(rates) > 1 else 10.0
-            paye_threshold = rates[2] if len(rates) > 2 else 235000
+        nssf_rate = rates.get('nssf_employee_rate', 5.0)
+        paye_rate = rates.get('paye_rate', 10.0)
+        paye_threshold = rates.get('paye_threshold', 235000)
     else:
         nssf_rate = 5.0
         paye_rate = 10.0
         paye_threshold = 235000
-    
-    # Get all staff
-    cur.execute("""
-        SELECT staff_no, full_name, position, salary_basic, salary_allowances, salary_deductions,
-               bank_name, bank_account, phone
-        FROM staff 
-        ORDER BY full_name
-    """)
-    staff_list = cur.fetchall()
-    cur.close()
-    
-    # Calculate all values for each staff member
+
     total_basic = 0
     total_allowances = 0
     total_gross = 0
@@ -4948,405 +7411,1003 @@ def bursar_print_payroll():
     total_paye = 0
     total_deductions = 0
     total_net = 0
-    
-    for staff in staff_list:
-        gross = (staff['salary_basic'] or 0) + (staff['salary_allowances'] or 0)
+
+    for s in staff:
+
+        gross = (s.get('salary_basic') or 0) + (s.get('salary_allowances') or 0)
+
         nssf = (gross * nssf_rate) / 100
+
         taxable = max(0, gross - paye_threshold)
+
         paye = (taxable * paye_rate) / 100
-        net = gross - nssf - paye - (staff['salary_deductions'] or 0)
-        
-        staff['gross'] = gross
-        staff['nssf'] = round(nssf, 2)
-        staff['paye'] = round(paye, 2)
-        staff['salary_net'] = round(net, 2)
-        
-        total_basic += (staff['salary_basic'] or 0)
-        total_allowances += (staff['salary_allowances'] or 0)
+
+        net = gross - nssf - paye - (s.get('salary_deductions') or 0)
+
+        s['gross'] = float(gross)
+        s['nssf'] = round(nssf, 2)
+        s['paye'] = round(paye, 2)
+        s['salary_net'] = round(net, 2)
+
+        total_basic += s.get('salary_basic') or 0
+        total_allowances += s.get('salary_allowances') or 0
         total_gross += gross
         total_nssf += nssf
         total_paye += paye
-        total_deductions += (staff['salary_deductions'] or 0)
+        total_deductions += s.get('salary_deductions') or 0
         total_net += net
-    
-    return render_template('bursar/print_payroll.html', 
-                         staff_list=staff_list,
-                         total_basic=total_basic,
-                         total_allowances=total_allowances,
-                         total_gross=total_gross,
-                         total_nssf=total_nssf,
-                         total_paye=total_paye,
-                         total_deductions=total_deductions,
-                         total_net=total_net,
-                         nssf_rate=nssf_rate,
-                         paye_rate=paye_rate,
-                         paye_threshold=paye_threshold)
+
+    cur.close()
+
+    return render_template(
+        'bursar/staff.html',
+        staff=staff,
+        total_basic=total_basic,
+        total_allowances=total_allowances,
+        total_gross=total_gross,
+        total_nssf=total_nssf,
+        total_paye=total_paye,
+        total_deductions=total_deductions,
+        total_net=total_net,
+        nssf_rate=nssf_rate,
+        paye_rate=paye_rate,
+        paye_threshold=paye_threshold
+    )
+
+@app.route('/bursar/staff/add', methods=['GET', 'POST'])
+def bursar_staff_add():
+    if not check_permission(['bursar']):
+        abort(403)
+
+    if request.method == 'POST':
+
+        full_name = request.form['full_name'].strip()
+        position = request.form['position'].strip()
+        department = request.form.get('department', '').strip()
+
+        phone = validate_and_format_phone(
+            request.form.get('phone', '')
+        )
+
+        email = request.form.get('email', '').strip()
+        nssf_number = request.form.get('nssf_number', '').strip()
+        tin_number = request.form.get('tin_number', '').strip()
+        bank_account = request.form.get('bank_account', '').strip()
+        bank_name = request.form.get('bank_name', '').strip()
+
+        salary_basic = float(request.form.get('salary_basic', 0))
+        salary_allowances = float(request.form.get('salary_allowances', 0))
+        salary_deductions = float(request.form.get('salary_deductions', 0))
+
+        staff_no = generate_staff_no()
+
+        execute_db("""
+            INSERT INTO staff
+            (
+                staff_no,
+                full_name,
+                position,
+                department,
+                phone,
+                email,
+                nssf_number,
+                tin_number,
+                bank_account,
+                bank_name,
+                salary_basic,
+                salary_allowances,
+                salary_deductions
+            )
+            VALUES
+            (
+                %s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s
+            )
+        """, (
+            staff_no,
+            full_name,
+            position,
+            department,
+            phone,
+            email,
+            nssf_number,
+            tin_number,
+            bank_account,
+            bank_name,
+            salary_basic,
+            salary_allowances,
+            salary_deductions
+        ))
+
+        flash(
+            f'Staff {full_name} added. Staff No: {staff_no}',
+            'success'
+        )
+
+        return redirect(url_for('bursar_staff'))
+
+    return render_template('bursar/staff_add.html')
+
+
+@app.route('/bursar/payroll/generate', methods=['GET', 'POST'])
+def bursar_generate_payroll():
+
+    if not check_permission(['bursar']):
+        abort(403)
+
+    db = get_db_dict()
+    cur = db.cursor()
+
+    if request.method == 'POST':
+
+        month_year = request.form['month_year']
+
+        selected_staff = request.form.getlist('staff_ids')
+
+        if not selected_staff:
+            flash('No staff selected.', 'danger')
+            return redirect(url_for('bursar_generate_payroll'))
+
+        cur.execute("""
+            SELECT nssf_employee_rate,
+                   paye_rate,
+                   paye_threshold
+            FROM school_settings
+            WHERE id=1
+        """)
+
+        rates = cur.fetchone()
+
+        nssf_rate = rates.get('nssf_employee_rate',5.0) if rates else 5.0
+        paye_rate = rates.get('paye_rate',10.0) if rates else 10.0
+        paye_threshold = rates.get('paye_threshold',235000) if rates else 235000
+
+        placeholders = ','.join(
+            ['%s'] * len(selected_staff)
+        )
+
+        cur.execute(
+            f"""
+            SELECT id,
+                   full_name,
+                   salary_basic,
+                   salary_allowances,
+                   salary_deductions
+            FROM staff
+            WHERE id IN ({placeholders})
+            """,
+            selected_staff
+        )
+
+        staff_list = cur.fetchall()
+
+        total_amount = 0
+
+        for staff in staff_list:
+
+            gross = (
+                staff['salary_basic'] or 0
+            ) + (
+                staff['salary_allowances'] or 0
+            )
+
+            nssf = (gross * nssf_rate) / 100
+
+            taxable = max(
+                0,
+                gross - paye_threshold
+            )
+
+            paye = (
+                taxable * paye_rate
+            ) / 100
+
+            net = (
+                gross -
+                nssf -
+                paye -
+                (staff['salary_deductions'] or 0)
+            )
+
+            total_amount += net
+
+
+        payroll_no = generate_payroll_no()
+
+        approval_code = generate_approval_code()
+
+        token, expires_at = generate_secure_token(2)
+
+
+        cur.execute("""
+            INSERT INTO payroll
+            (
+                payroll_no,
+                month_year,
+                total_amount,
+                approval_code,
+                headteacher_access_token,
+                token_expires_at,
+                recorded_by,
+                approval_status
+            )
+            VALUES
+            (
+                %s,%s,%s,%s,%s,%s,%s,%s
+            )
+            RETURNING id
+        """, (
+            payroll_no,
+            month_year,
+            total_amount,
+            approval_code,
+            token,
+            expires_at,
+            session.get('username'),
+            'pending'
+        ))
+
+        payroll_id = cur.fetchone()['id']
+
+
+        for staff in staff_list:
+
+            gross = (
+                staff['salary_basic'] or 0
+            ) + (
+                staff['salary_allowances'] or 0
+            )
+
+            nssf = (gross * nssf_rate) / 100
+
+            taxable = max(
+                0,
+                gross - paye_threshold
+            )
+
+            paye = (
+                taxable * paye_rate
+            ) / 100
+
+            net_salary = (
+                gross -
+                nssf -
+                paye -
+                (staff['salary_deductions'] or 0)
+            )
+
+            cur.execute("""
+                INSERT INTO salary_payments
+                (
+                    staff_id,
+                    payroll_id,
+                    month_year,
+                    basic,
+                    allowances,
+                    deductions,
+                    gross_salary,
+                    nssf_employee,
+                    paye_tax,
+                    net_salary,
+                    approval_code,
+                    recorded_by
+                )
+                VALUES
+                (
+                    %s,%s,%s,%s,%s,%s,
+                    %s,%s,%s,%s,%s,%s
+                )
+            """, (
+                staff['id'],
+                payroll_id,
+                month_year,
+                staff['salary_basic'] or 0,
+                staff['salary_allowances'] or 0,
+                staff['salary_deductions'] or 0,
+                gross,
+                nssf,
+                paye,
+                net_salary,
+                approval_code,
+                session.get('username')
+            ))
+
+        db.commit()
+        cur.close()
+
+        flash(
+            f'Payroll {payroll_no} created successfully.',
+            'success'
+        )
+
+        return redirect(
+            url_for('bursar_payroll_list')
+        )
+
+@app.route('/bursar/payroll/list')
+def bursar_payroll_list():
+    if not check_permission(['bursar']):
+        abort(403)
+
+    db = get_db_dict()
+    cur = db.cursor()
+
+    cur.execute("""
+        SELECT 
+            p.*,
+            COUNT(sp.id) AS staff_count
+        FROM payroll p
+        LEFT JOIN salary_payments sp
+        ON p.id = sp.payroll_id
+        GROUP BY p.id
+        ORDER BY p.created_at DESC
+    """)
+
+    payrolls = cur.fetchall()
+
+    cur.close()
+
+    return render_template(
+        'bursar/payroll_list.html',
+        payrolls=payrolls
+    )
+
+
+@app.route('/bursar/delete_payroll/<int:payroll_id>')
+def bursar_delete_payroll(payroll_id):
+
+    if not check_permission(['bursar']):
+        abort(403)
+
+    db = get_db_dict()
+    cur = db.cursor()
+
+    cur.execute("""
+        SELECT approval_status
+        FROM payroll
+        WHERE id=%s
+    """, (payroll_id,))
+
+    payroll = cur.fetchone()
+
+    cur.close()
+
+    if not payroll:
+        flash('Payroll not found.', 'danger')
+        return redirect(url_for('bursar_payroll_list'))
+
+    if payroll['approval_status'] != 'pending':
+        flash(
+            'Only pending payrolls can be deleted.',
+            'warning'
+        )
+        return redirect(url_for('bursar_payroll_list'))
+
+    try:
+
+        execute_db("""
+            DELETE FROM salary_payments
+            WHERE payroll_id=%s
+        """, (payroll_id,))
+
+        execute_db("""
+            DELETE FROM payroll
+            WHERE id=%s
+        """, (payroll_id,))
+
+        flash(
+            'Payroll deleted successfully.',
+            'success'
+        )
+
+    except Exception as e:
+
+        flash(
+            f'Error deleting payroll: {str(e)}',
+            'danger'
+        )
+
+    return redirect(
+        url_for('bursar_payroll_list')
+    )
+
+
+@app.route('/bursar/view_payroll/<int:payroll_id>')
+def bursar_view_payroll(payroll_id):
+
+    if not check_permission(['bursar']):
+        abort(403)
+
+    db = get_db_dict()
+    cur = db.cursor()
+
+    cur.execute("""
+        SELECT *
+        FROM payroll
+        WHERE id=%s
+    """, (payroll_id,))
+
+    payroll = cur.fetchone()
+
+    if not payroll:
+        cur.close()
+        flash(
+            'Payroll not found.',
+            'danger'
+        )
+        return redirect(
+            url_for('bursar_payroll_list')
+        )
+
+    cur.execute("""
+        SELECT 
+            sp.*,
+            s.full_name,
+            s.position,
+            s.bank_account,
+            s.bank_name,
+            s.phone,
+            s.staff_no
+        FROM salary_payments sp
+        JOIN staff s
+        ON sp.staff_id=s.id
+        WHERE sp.payroll_id=%s
+    """, (payroll_id,))
+
+    staff_list = cur.fetchall()
+
+    cur.close()
+
+    total_basic = sum(
+        s['basic'] or 0 
+        for s in staff_list
+    )
+
+    total_allowances = sum(
+        s['allowances'] or 0 
+        for s in staff_list
+    )
+
+    total_deductions = sum(
+        s['deductions'] or 0 
+        for s in staff_list
+    )
+
+    return render_template(
+        'bursar/view_payroll.html',
+        payroll=payroll,
+        staff_list=staff_list,
+        total_basic=total_basic,
+        total_allowances=total_allowances,
+        total_deductions=total_deductions
+    )
+
+@app.route('/bursar/print_payroll')
+def bursar_print_payroll():
+
+    if not check_permission(['bursar']):
+        abort(403)
+
+    db = get_db_dict()
+    cur = db.cursor()
+
+    cur.execute("""
+        SELECT 
+            nssf_employee_rate,
+            paye_rate,
+            paye_threshold
+        FROM school_settings
+        WHERE id=1
+    """)
+
+    rates = cur.fetchone()
+
+    if rates:
+        nssf_rate = rates.get('nssf_employee_rate', 5.0)
+        paye_rate = rates.get('paye_rate', 10.0)
+        paye_threshold = rates.get('paye_threshold', 235000)
+    else:
+        nssf_rate = 5.0
+        paye_rate = 10.0
+        paye_threshold = 235000
+
+    cur.execute("""
+        SELECT 
+            staff_no,
+            full_name,
+            position,
+            salary_basic,
+            salary_allowances,
+            salary_deductions,
+            bank_name,
+            bank_account,
+            phone
+        FROM staff
+        ORDER BY full_name
+    """)
+
+    staff_list = cur.fetchall()
+
+    cur.close()
+
+    total_basic = 0
+    total_allowances = 0
+    total_gross = 0
+    total_nssf = 0
+    total_paye = 0
+    total_deductions = 0
+    total_net = 0
+
+    for staff in staff_list:
+
+        gross = (
+            staff['salary_basic'] or 0
+        ) + (
+            staff['salary_allowances'] or 0
+        )
+
+        nssf = (
+            gross * nssf_rate
+        ) / 100
+
+        taxable = max(
+            0,
+            gross - paye_threshold
+        )
+
+        paye = (
+            taxable * paye_rate
+        ) / 100
+
+        net = (
+            gross -
+            nssf -
+            paye -
+            (staff['salary_deductions'] or 0)
+        )
+
+        staff['gross'] = gross
+        staff['nssf'] = round(nssf,2)
+        staff['paye'] = round(paye,2)
+        staff['salary_net'] = round(net,2)
+
+        total_basic += staff['salary_basic'] or 0
+        total_allowances += staff['salary_allowances'] or 0
+        total_gross += gross
+        total_nssf += nssf
+        total_paye += paye
+        total_deductions += staff['salary_deductions'] or 0
+        total_net += net
+
+    return render_template(
+        'bursar/print_payroll.html',
+        staff_list=staff_list,
+        total_basic=total_basic,
+        total_allowances=total_allowances,
+        total_gross=total_gross,
+        total_nssf=total_nssf,
+        total_paye=total_paye,
+        total_deductions=total_deductions,
+        total_net=total_net,
+        nssf_rate=nssf_rate,
+        paye_rate=paye_rate,
+        paye_threshold=paye_threshold
+    )
+
 
 @app.route('/bursar/print_fees_list')
 def bursar_print_fees_list():
+
     if not check_permission(['bursar']):
         abort(403)
-    class_filter = request.args.get('class', '')
-    status_filter = request.args.get('status', '')
+
+    class_filter = request.args.get('class','')
+    status_filter = request.args.get('status','')
+
     db = get_db_dict()
     cur = db.cursor()
+
+    params = []
+
     if status_filter == 'defaulters':
-        query = "SELECT student_id, full_name, class, fees_paid, fees_balance FROM students WHERE fees_balance > 0"
-        params = []
-        if class_filter:
-            query += " AND class = ?"
-            params.append(class_filter)
-        query += " ORDER BY class, full_name"
-        cur.execute(query, params)
+
+        query = """
+            SELECT 
+                student_id,
+                full_name,
+                class,
+                fees_paid,
+                fees_balance
+            FROM students
+            WHERE fees_balance > 0
+        """
+
     else:
-        query = "SELECT student_id, full_name, class, fees_paid, fees_balance FROM students WHERE 1=1"
-        params = []
-        if class_filter:
-            query += " AND class = ?"
-            params.append(class_filter)
-        query += " ORDER BY class, full_name"
-        cur.execute(query, params)
+
+        query = """
+            SELECT 
+                student_id,
+                full_name,
+                class,
+                fees_paid,
+                fees_balance
+            FROM students
+            WHERE 1=1
+        """
+
+    if class_filter:
+        query += " AND class=%s"
+        params.append(class_filter)
+
+    query += """
+        ORDER BY class, full_name
+    """
+
+    cur.execute(query, params)
+
     students = cur.fetchall()
+
     cur.close()
-    total_paid = sum(s['fees_paid'] for s in students) if students else 0
-    total_balance = sum(s['fees_balance'] for s in students) if students else 0
-    return render_template('bursar/print_fees_list.html', students=students, class_filter=class_filter,
-                          status_filter=status_filter, total_paid=total_paid, total_balance=total_balance)
 
-@app.route('/bursar/budget')
-def bursar_budget():
-    if not check_permission(['bursar']):
-        abort(403)
-    year = request.args.get('year', datetime.now().year)
-    db = get_db_dict()
-    cur = db.cursor()
-    cur.execute("SELECT * FROM budget_categories WHERE year=? ORDER BY code", (year,))
-    categories = cur.fetchall()
-    cur.execute("""SELECT c.code, c.name, c.allocated_amount, SUM(e.amount) as spent FROM budget_categories c 
-                   LEFT JOIN expenditures e ON c.id = e.category_id AND e.status='paid' WHERE c.year=? GROUP BY c.id""", (year,))
-    summary = cur.fetchall()
-    cur.close()
-    return render_template('bursar/budget.html', categories=categories, summary=summary, year=year)
+    total_paid = sum(
+        s['fees_paid'] or 0
+        for s in students
+    )
 
-@app.route('/bursar/budget/add', methods=['POST'])
-def bursar_budget_add():
-    if not check_permission(['bursar']):
-        abort(403)
-    execute_db("INSERT INTO budget_categories (code, name, description, allocated_amount, year) VALUES (?, ?, ?, ?, ?)",
-               (request.form['code'], request.form['name'], request.form.get('description', ''), float(request.form['allocated_amount']), request.form['year']))
-    flash('Budget category added.', 'success')
-    return redirect(url_for('bursar_budget', year=request.form['year']))
+    total_balance = sum(
+        s['fees_balance'] or 0
+        for s in students
+    )
 
-@app.route('/bursar/expenditure')
-def bursar_expenditure():
-    if not check_permission(['bursar']):
-        abort(403)
-    db = get_db_dict()
-    cur = db.cursor()
-    cur.execute("SELECT e.*, c.code, c.name as category_name FROM expenditures e JOIN budget_categories c ON e.category_id = c.id ORDER BY e.expenditure_date DESC")
-    expenditures = cur.fetchall()
-    cur.execute("SELECT id, code, name FROM budget_categories ORDER BY code")
-    categories = cur.fetchall()
-    cur.close()
-    return render_template('bursar/expenditure.html', expenditures=expenditures, categories=categories)
+    return render_template(
+        'bursar/print_fees_list.html',
+        students=students,
+        class_filter=class_filter,
+        status_filter=status_filter,
+        total_paid=total_paid,
+        total_balance=total_balance
+    )
 
-@app.route('/bursar/expenditure/add', methods=['POST'])
-def bursar_expenditure_add():
-    if not check_permission(['bursar']):
-        abort(403)
-    voucher_no = generate_unique_number('VCH', 'expenditures', 'voucher_no', year_format=True)
-    execute_db("""INSERT INTO expenditures (voucher_no, category_id, description, amount, expenditure_date, payment_method, payee_name, payee_phone, status, recorded_by)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-               (voucher_no, request.form['category_id'], request.form['description'], float(request.form['amount']), request.form['expenditure_date'],
-                request.form.get('payment_method', 'Cash'), request.form.get('payee_name', ''),
-                validate_and_format_phone(request.form.get('payee_phone', '')), request.form.get('status', 'paid'), session.get('username')))
-    flash(f'Expenditure recorded. Voucher: {voucher_no}', 'success')
-    return redirect(url_for('bursar_expenditure'))
 
 @app.route('/bursar/income_report')
 def bursar_income_report():
-    if not check_permission(['bursar']):
-        abort(403)
-    start = request.args.get('start_date', datetime.now().replace(day=1).strftime('%Y-%m-%d'))
-    end = request.args.get('end_date', datetime.now().strftime('%Y-%m-%d'))
-    db = get_db_dict()
-    cur = db.cursor()
-    cur.execute("SELECT DATE(payment_date) as date, SUM(amount) as total FROM payments WHERE payment_date BETWEEN ? AND ? GROUP BY DATE(payment_date) ORDER BY date DESC", (start, end))
-    daily = cur.fetchall()
-    cur.execute("SELECT payment_method, SUM(amount) as total FROM payments WHERE payment_date BETWEEN ? AND ? GROUP BY payment_method", (start, end))
-    by_method = cur.fetchall()
-    cur.execute("SELECT SUM(amount) as total_income FROM payments WHERE payment_date BETWEEN ? AND ?", (start, end))
-    total = cur.fetchone()
-    cur.close()
-    return render_template('bursar/income_report.html', daily=daily, by_method=by_method, total=total, start_date=start, end_date=end)
 
-@app.route('/bursar/expenditure_report')
-def bursar_expenditure_report():
     if not check_permission(['bursar']):
         abort(403)
-    start = request.args.get('start_date', datetime.now().replace(day=1).strftime('%Y-%m-%d'))
-    end = request.args.get('end_date', datetime.now().strftime('%Y-%m-%d'))
+
+    start = request.args.get(
+        'start_date',
+        datetime.now().replace(day=1).strftime('%Y-%m-%d')
+    )
+
+    end = request.args.get(
+        'end_date',
+        datetime.now().strftime('%Y-%m-%d')
+    )
+
     db = get_db_dict()
     cur = db.cursor()
-    cur.execute("""SELECT c.code, c.name, SUM(e.amount) as total_spent FROM expenditures e 
-                   JOIN budget_categories c ON e.category_id = c.id 
-                   WHERE e.expenditure_date BETWEEN ? AND ? AND e.status='paid' 
-                   GROUP BY c.id ORDER BY total_spent DESC""", (start, end))
-    by_category = cur.fetchall()
-    cur.execute("SELECT SUM(amount) as total_expenditure FROM expenditures WHERE expenditure_date BETWEEN ? AND ? AND status='paid'", (start, end))
+
+    cur.execute("""
+        SELECT 
+            DATE(payment_date) AS date,
+            SUM(amount) AS total
+        FROM payments
+        WHERE payment_date BETWEEN %s AND %s
+        GROUP BY DATE(payment_date)
+        ORDER BY date DESC
+    """,(start,end))
+
+    daily = cur.fetchall()
+
+
+    cur.execute("""
+        SELECT 
+            payment_method,
+            SUM(amount) AS total
+        FROM payments
+        WHERE payment_date BETWEEN %s AND %s
+        GROUP BY payment_method
+    """,(start,end))
+
+    by_method = cur.fetchall()
+
+
+    cur.execute("""
+        SELECT 
+            COALESCE(SUM(amount),0) AS total_income
+        FROM payments
+        WHERE payment_date BETWEEN %s AND %s
+    """,(start,end))
+
     total = cur.fetchone()
+
     cur.close()
-    return render_template('bursar/expenditure_report.html', by_category=by_category, total=total, start_date=start, end_date=end)
+
+    return render_template(
+        'bursar/income_report.html',
+        daily=daily,
+        by_method=by_method,
+        total=total,
+        start_date=start,
+        end_date=end
+    )
 
 @app.route('/bursar/school_pay/config', methods=['GET', 'POST'])
 def bursar_school_pay_config():
     if not check_permission(['bursar']):
         abort(403)
+
     if request.method == 'POST':
-        execute_db("UPDATE payment_gateway_config SET api_key=?, api_secret=?, webhook_secret=?, callback_url=?, status=? WHERE id=1",
-                   (request.form['api_key'], request.form['api_secret'], request.form['webhook_secret'], request.form['callback_url'], request.form.get('status', 'inactive')))
+        execute_db("""
+            UPDATE payment_gateway_config 
+            SET api_key=%s, api_secret=%s, webhook_secret=%s, callback_url=%s, status=%s
+            WHERE id=1
+        """, (
+            request.form['api_key'],
+            request.form['api_secret'],
+            request.form['webhook_secret'],
+            request.form['callback_url'],
+            request.form.get('status', 'inactive')
+        ))
         flash('Configuration saved.', 'success')
-    cur = get_db().cursor()
+
+    db = get_db_dict()
+    cur = db.cursor()
     cur.execute("SELECT * FROM payment_gateway_config WHERE id=1")
     config = cur.fetchone()
     cur.close()
+
     return render_template('bursar/school_pay_config.html', config=config)
+
+
+@app.route('/bursar/payment_gateway/test', methods=['POST'])
+def bursar_payment_gateway_test():
+    if not check_permission(['bursar']):
+        abort(403)
+
+    db = get_db_dict()
+    cur = db.cursor()
+
+    cur.execute("""
+        SELECT status 
+        FROM payment_gateway_config 
+        WHERE id=1
+    """)
+    config = cur.fetchone()
+    cur.close()
+
+    if not config:
+        flash('Payment gateway not configured.', 'danger')
+        return redirect(url_for('bursar_school_pay_config'))
+
+    flash('Payment gateway connection tested successfully.', 'success')
+    return redirect(url_for('bursar_school_pay_config'))
+
+
+@app.route('/bursar/settings')
+def bursar_settings():
+    if not check_permission(['bursar']):
+        abort(403)
+
+    db = get_db_dict()
+    cur = db.cursor()
+
+    cur.execute("""
+        SELECT * FROM school_settings 
+        WHERE id=1
+    """)
+    settings = cur.fetchone()
+
+    cur.close()
+
+    return render_template(
+        'bursar/settings.html',
+        settings=settings
+    )
+
+
+@app.route('/bursar/settings/update', methods=['POST'])
+def bursar_settings_update():
+    if not check_permission(['bursar']):
+        abort(403)
+
+    execute_db("""
+        UPDATE school_settings SET
+        nssf_employee_rate=%s,
+        paye_rate=%s,
+        paye_threshold=%s
+        WHERE id=1
+    """, (
+        float(request.form.get('nssf_employee_rate', 5)),
+        float(request.form.get('paye_rate', 10)),
+        float(request.form.get('paye_threshold', 235000))
+    ))
+
+    flash('Settings updated successfully.', 'success')
+
+    return redirect(url_for('bursar_settings'))
+
 
 # ==================== HEADTEACHER & MANAGEMENT APPROVAL ====================
 @app.route('/headteacher/approvals')
 def headteacher_approvals():
     if not check_permission(['headteacher']):
         abort(403)
-    
     db = get_db_dict()
     cur = db.cursor()
     cur.execute("""
-        SELECT id, payroll_no, month_year, total_amount, approval_status, 
+        SELECT id, payroll_no, month_year, total_amount, approval_status,
                approval_code, created_at, recorded_by
-        FROM payroll 
-        WHERE approval_status = 'pending' 
+        FROM payroll
+        WHERE approval_status = 'pending'
         ORDER BY created_at DESC
     """)
     pending = cur.fetchall()
     cur.close()
-    
     return render_template('headteacher/approvals.html', pending=pending)
 
 @app.route('/headteacher/approval/<token>', methods=['GET', 'POST'])
 def headteacher_approval_access(token):
     if not check_permission(['headteacher']):
         abort(403)
-    
     db = get_db_dict()
     cur = db.cursor()
-    cur.execute("SELECT * FROM payroll WHERE headteacher_access_token=? AND approval_status='pending'", (token,))
+    cur.execute("SELECT * FROM payroll WHERE headteacher_access_token=%s AND approval_status='pending'", (token,))
     payroll = cur.fetchone()
-    
     if not payroll:
         flash('Invalid approval link.', 'danger')
         return redirect(url_for('headteacher_approvals'))
-    
-    # FIXED: Get columns from salary_payments, not staff
     cur.execute("""
         SELECT sp.*, s.full_name, s.position
         FROM salary_payments sp
-        JOIN staff s ON sp.staff_id = s.id
-        WHERE sp.payroll_id = ?
+        JOIN staff s ON sp.staff_id=s.id
+        WHERE sp.payroll_id=%s
     """, (payroll['id'],))
     staff_list = cur.fetchall()
-    
-    if payroll['approval_status'] != 'pending':
-        flash(f'This payroll has already been {payroll["approval_status"]}.', 'warning')
-        return redirect(url_for('headteacher_approvals'))
-    
-    if payroll.get('token_expires_at'):
-        from datetime import datetime
-        expires_value = payroll['token_expires_at']
-        
-        if isinstance(expires_value, str):
-            # Handle milliseconds by splitting at the dot
-            if '.' in expires_value:
-                expires_value = expires_value.split('.')[0]
-            expires_dt = datetime.strptime(expires_value, '%Y-%m-%d %H:%M:%S')
-        else:
-            expires_dt = expires_value
-        
+    if payroll['token_expires_at']:
+        expires_dt = payroll['token_expires_at']
+        if isinstance(expires_dt, str):
+            expires_dt = datetime.strptime(expires_dt.split('.')[0], '%Y-%m-%d %H:%M:%S')
         if expires_dt <= datetime.now():
-            flash('This approval link has expired. Please request a new link.', 'danger')
+            flash('This approval link has expired.', 'danger')
             return redirect(url_for('headteacher_approvals'))
-    
     if request.method == 'POST':
         approval_code = request.form.get('approval_code')
         action = request.form.get('action')
-        
         if payroll['approval_code'] != approval_code:
             flash('Invalid approval code.', 'danger')
             return redirect(url_for('headteacher_approval_access', token=token))
-        
         if action == 'approve':
             mgmt_code = generate_approval_code()
             mgmt_token, mgmt_expires = generate_secure_token(2)
-            
-            cur.execute("""UPDATE payroll SET approval_status='approved', approved_by=?, approved_at=CURRENT_TIMESTAMP, 
-                           management_approval_code=?, management_access_token=?, management_token_expires_at=?, 
-                           management_approval_status='pending' WHERE id=?""",
-                       ('Headteacher', mgmt_code, mgmt_token, mgmt_expires, payroll['id']))
-            cur.execute("UPDATE salary_payments SET approval_status='approved' WHERE payroll_id=?", (payroll['id'],))
+            cur.execute("""
+                UPDATE payroll SET approval_status='approved',
+                approved_by=%s,
+                approved_at=CURRENT_TIMESTAMP,
+                management_approval_code=%s,
+                management_access_token=%s,
+                management_token_expires_at=%s,
+                management_approval_status='pending'
+                WHERE id=%s
+            """, ('Headteacher', mgmt_code, mgmt_token, mgmt_expires, payroll['id']))
+            cur.execute("UPDATE salary_payments SET approval_status='approved' WHERE payroll_id=%s", (payroll['id'],))
             db.commit()
-            
-            management_link = url_for('management_authorization_access', token=mgmt_token, _external=True)
-            expires_str = mgmt_expires.strftime('%Y-%m-%d %H:%M:%S')
+            management_link=url_for('management_authorization_access',token=mgmt_token,_external=True)
             cur.execute("SELECT phone FROM users WHERE role='management' AND status=1")
-            management_users = cur.fetchall()
-            for mgmt in management_users:
-                phone = mgmt['phone'] if isinstance(mgmt, dict) else mgmt[0]
+            managers=cur.fetchall()
+            for manager in managers:
+                phone=manager['phone']
                 if phone:
-                    send_sms(phone, f"BANK AUTHORIZATION NEEDED: Payroll {payroll['payroll_no']} - UGX {payroll['total_amount']:,.2f}. Code: {mgmt_code}. Expires: {expires_str}. Link: {management_link}")
-            add_notification('management', f"Payroll {payroll['payroll_no']} needs bank authorization. Code: {mgmt_code}", f"/management/authorization/{mgmt_token}")
-            flash('Payroll approved. Management notified for bank authorization.', 'success')
-            
-        elif action == 'reject':
-            cur.execute("UPDATE payroll SET approval_status='rejected', approved_by=?, approved_at=CURRENT_TIMESTAMP WHERE id=?", ('Headteacher', payroll['id']))
-            cur.execute("UPDATE salary_payments SET approval_status='rejected' WHERE payroll_id=?", (payroll['id'],))
+                    send_sms(phone,f"Payroll {payroll['payroll_no']} needs authorization. Code:{mgmt_code} Link:{management_link}")
+            add_notification('management',f"Payroll {payroll['payroll_no']} needs bank authorization.",f"/management/authorization/{mgmt_token}")
+            flash('Payroll approved. Management notified.','success')
+        elif action=='reject':
+            cur.execute("""
+                UPDATE payroll SET approval_status='rejected',
+                approved_by=%s,
+                approved_at=CURRENT_TIMESTAMP
+                WHERE id=%s
+            """,('Headteacher',payroll['id']))
+            cur.execute("UPDATE salary_payments SET approval_status='rejected' WHERE payroll_id=%s",(payroll['id'],))
             db.commit()
-            add_notification('bursar', f"Payroll {payroll['payroll_no']} was REJECTED by Headteacher.", '/bursar/payroll/list')
-            flash('Payroll rejected.', 'warning')
-        
+            add_notification('bursar',f"Payroll {payroll['payroll_no']} rejected by Headteacher.",'/bursar/payroll/list')
+            flash('Payroll rejected.','warning')
         cur.close()
         return redirect(url_for('headteacher_approvals'))
-    
-    remaining_minutes = None
-    if payroll.get('token_expires_at'):
-        from datetime import datetime
-        expires_value = payroll['token_expires_at']
-        if '.' in expires_value:
-            expires_value = expires_value.split('.')[0]
-        try:
-            remaining = datetime.strptime(expires_value, '%Y-%m-%d %H:%M:%S') - datetime.now()
-            remaining_minutes = int(remaining.total_seconds() / 60)
-        except:
-            remaining_minutes = None
-    
+    remaining_minutes=None
+    if payroll['token_expires_at']:
+        expires=payroll['token_expires_at']
+        if isinstance(expires,str):
+            expires=datetime.strptime(expires.split('.')[0],'%Y-%m-%d %H:%M:%S')
+        remaining_minutes=int((expires-datetime.now()).total_seconds()/60)
     cur.close()
-    return render_template('headteacher/approve_payroll_secure.html', 
-                          payroll=payroll, 
-                          remaining_minutes=remaining_minutes,
-                          staff_list=staff_list)
+    return render_template('headteacher/approve_payroll_secure.html',
+                           payroll=payroll,
+                           remaining_minutes=remaining_minutes,
+                           staff_list=staff_list)
 
 @app.route('/headteacher/reject_payroll/<int:payroll_id>')
 def headteacher_reject_payroll(payroll_id):
     if not check_permission(['headteacher']):
         abort(403)
-    cur = get_db().cursor()
-    cur.execute("SELECT * FROM payroll WHERE id=? AND approval_status='pending'", (payroll_id,))
-    payroll = cur.fetchone()
+    db=get_db_dict()
+    cur=db.cursor()
+    cur.execute("SELECT * FROM payroll WHERE id=%s AND approval_status='pending'",(payroll_id,))
+    payroll=cur.fetchone()
     cur.close()
     if not payroll:
-        flash('Payroll not found or already processed.', 'danger')
+        flash('Payroll not found or already processed.','danger')
         return redirect(url_for('headteacher_approvals'))
-    try:
-        execute_db("UPDATE payroll SET approval_status='rejected', approved_by=?, approved_at=CURRENT_TIMESTAMP WHERE id=?", ('Headteacher', payroll_id))
-        execute_db("UPDATE salary_payments SET approval_status='rejected' WHERE payroll_id=?", (payroll_id,))
-        add_notification('bursar', f"Payroll {payroll[1]} has been REJECTED by Headteacher.", '/bursar/payroll/list')
-        flash(f'Payroll {payroll[1]} has been rejected.', 'warning')
-    except Exception as e:
-        flash(f'Error rejecting payroll: {str(e)}', 'danger')
-    return redirect(url_for('headteacher_approvals'))
-
-@app.route('/headteacher/resend_token/<int:payroll_id>')
-def headteacher_resend_token(payroll_id):
-    if not check_permission(['headteacher']):
-        abort(403)
-    cur = get_db().cursor()
-    cur.execute("SELECT * FROM payroll WHERE id=? AND approval_status='pending'", (payroll_id,))
-    payroll = cur.fetchone()
-    cur.close()
-    if not payroll:
-        flash('Payroll not found or already processed.', 'danger')
-        return redirect(url_for('headteacher_approvals'))
-    if payroll.get('token_resend_count', 0) >= 3:
-        flash('Maximum token resend limit reached (3). Please create a new payroll.', 'danger')
-        return redirect(url_for('headteacher_approvals'))
-    new_token, new_expires = generate_secure_token(2)
-    execute_db("UPDATE payroll SET headteacher_access_token=?, token_expires_at=?, token_resend_count=token_resend_count+1, last_resend_at=CURRENT_TIMESTAMP WHERE id=?",
-               (new_token, new_expires, payroll_id))
-    approval_link = url_for('headteacher_approval_access', token=new_token, _external=True)
-    expires_str = new_expires.strftime('%Y-%m-%d %H:%M:%S')
-    cur = get_db().cursor()
-    cur.execute("SELECT phone FROM users WHERE role='headteacher' AND status=1 LIMIT 1")
-    headteacher = cur.fetchone()
-    cur.close()
-    if headteacher and headteacher[0]:
-        send_sms(headteacher[0], f"NEW LINK: Payroll {payroll[1]} - UGX {payroll[4]:,.2f}. Code: {payroll[5]}. Expires: {expires_str}. Link: {approval_link}")
-    flash(f'New approval link sent! Expires at {expires_str}.', 'success')
+    execute_db("""
+        UPDATE payroll SET approval_status='rejected',
+        approved_by=%s,
+        approved_at=CURRENT_TIMESTAMP
+        WHERE id=%s
+    """,('Headteacher',payroll_id))
+    execute_db("UPDATE salary_payments SET approval_status='rejected' WHERE payroll_id=%s",(payroll_id,))
+    add_notification('bursar',f"Payroll {payroll['payroll_no']} rejected by Headteacher.",'/bursar/payroll/list')
+    flash('Payroll rejected.','warning')
     return redirect(url_for('headteacher_approvals'))
 
 @app.route('/headteacher/view_payroll/<int:payroll_id>')
 def headteacher_view_payroll(payroll_id):
     if not check_permission(['headteacher']):
         abort(403)
-    db = get_db_dict()
-    cur = db.cursor()
-    cur.execute("SELECT * FROM payroll WHERE id=?", (payroll_id,))
-    payroll = cur.fetchone()
+    db=get_db_dict()
+    cur=db.cursor()
+    cur.execute("SELECT * FROM payroll WHERE id=%s",(payroll_id,))
+    payroll=cur.fetchone()
     if not payroll:
-        flash('Payroll not found.', 'danger')
+        flash('Payroll not found.','danger')
         return redirect(url_for('headteacher_approvals'))
-    cur.execute("SELECT sp.*, s.full_name, s.position FROM salary_payments sp JOIN staff s ON sp.staff_id = s.id WHERE sp.payroll_id=?", (payroll_id,))
-    staff_list = cur.fetchall()
+    cur.execute("""
+        SELECT sp.*,s.full_name,s.position
+        FROM salary_payments sp
+        JOIN staff s ON sp.staff_id=s.id
+        WHERE sp.payroll_id=%s
+    """,(payroll_id,))
+    staff_list=cur.fetchall()
     cur.close()
-    return render_template('headteacher/view_payroll.html', payroll=payroll, staff_list=staff_list)
+    return render_template('headteacher/view_payroll.html',payroll=payroll,staff_list=staff_list)
+
 @app.route('/headteacher/students')
 def headteacher_students():
     if not check_permission(['headteacher']):
         abort(403)
-    
-    db = get_db_dict()
-    cur = db.cursor()
-    
-    # Get all students with their details
+    db=get_db_dict()
+    cur=db.cursor()
     cur.execute("""
-        SELECT student_id, full_name, class, parent_phone, admission_status, fees_balance 
-        FROM students 
-        WHERE admission_status = 'approved'
-        ORDER BY class, full_name
+        SELECT student_id,full_name,class,parent_phone,admission_status,fees_balance
+        FROM students
+        WHERE admission_status='approved'
+        ORDER BY class,full_name
     """)
-    students = cur.fetchall()
-    
-    # Get distinct classes for filtering
-    cur.execute("SELECT DISTINCT class FROM students WHERE class IS NOT NULL AND class != '' ORDER BY class")
-    rows = cur.fetchall()
-    classes = []
-    for row in rows:
-        if isinstance(row, dict):
-            classes.append(row.get('class'))
-        else:
-            classes.append(row[0])
-    
+    students=cur.fetchall()
+    cur.execute("SELECT DISTINCT class FROM students WHERE class IS NOT NULL AND class!='' ORDER BY class")
+    classes=[row['class'] for row in cur.fetchall()]
     cur.close()
-    return render_template('headteacher/students.html', students=students, classes=classes)
+    return render_template('headteacher/students.html',students=students,classes=classes)
 
-@app.route('/headteacher/update_comment', methods=['POST'])
+@app.route('/headteacher/update_comment',methods=['POST'])
 def headteacher_update_comment():
     if not check_permission(['headteacher']):
         abort(403)
-    student_id = request.form['student_id']
-    term = request.form['term']
-    year = request.form['year']
-    comment = request.form.get('comment', '').strip()
-    custom_comment = request.form.get('custom_comment', '').strip()
-    final_comment = custom_comment if custom_comment else comment
-    cur = get_db().cursor()
-    cur.execute("SELECT headteacher_comment_locked FROM teacher_comments WHERE student_id=? AND term=? AND year=?", (student_id, term, year))
-    existing = cur.fetchone()
-    cur.close()
-    if existing and existing[0] == 1:
-        flash('Comment cannot be edited as it has been locked.', 'danger')
-        return redirect(url_for('teacher_report_card', student_id=student_id, term=term, year=year))
-    execute_db("INSERT INTO teacher_comments (student_id, term, year, headteacher_comment, headteacher_comment_locked) VALUES (?, ?, ?, ?, 1) ON CONFLICT(student_id, term, year) DO UPDATE SET headteacher_comment=?, headteacher_comment_locked=1",
-               (student_id, term, year, final_comment, final_comment))
-    flash('Headteacher comment saved and locked.', 'success')
-    return redirect(url_for('teacher_report_card', student_id=student_id, term=term, year=year))
+    student_id=request.form['student_id']
+    term=request.form['term']
+    year=request.form['year']
+    comment=request.form.get('comment','').strip()
+    custom=request.form.get('custom_comment','').strip()
+    final_comment=custom if custom else comment
+    execute_db("""
+        INSERT INTO teacher_comments
+        (student_id,term,year,headteacher_comment,headteacher_comment_locked)
+        VALUES (%s,%s,%s,%s,1)
+        ON CONFLICT(student_id,term,year)
+        DO UPDATE SET headteacher_comment=%s,
+        headteacher_comment_locked=1
+    """,(student_id,term,year,final_comment,final_comment))
+    flash('Headteacher comment saved and locked.','success')
+    return redirect(url_for('teacher_report_card',student_id=student_id,term=term,year=year))
 
 @app.route('/management/pending')
 def management_pending_authorizations():
@@ -5354,8 +8415,15 @@ def management_pending_authorizations():
         abort(403)
     db = get_db_dict()
     cur = db.cursor()
-    cur.execute("""SELECT p.*, COUNT(sp.id) as staff_count FROM payroll p LEFT JOIN salary_payments sp ON p.id = sp.payroll_id 
-                   WHERE p.management_approval_status = 'pending' AND p.approval_status = 'approved' GROUP BY p.id ORDER BY p.created_at DESC""")
+    cur.execute("""
+        SELECT p.*, COUNT(sp.id) AS staff_count
+        FROM payroll p
+        LEFT JOIN salary_payments sp ON p.id=sp.payroll_id
+        WHERE p.management_approval_status='pending'
+        AND p.approval_status='approved'
+        GROUP BY p.id
+        ORDER BY p.created_at DESC
+    """)
     pending = cur.fetchall()
     cur.close()
     return render_template('management/pending.html', pending=pending)
@@ -5364,342 +8432,1050 @@ def management_pending_authorizations():
 def management_authorization_access(token):
     if not check_permission(['management']):
         abort(403)
+
     db = get_db_dict()
     cur = db.cursor()
-    cur.execute("SELECT * FROM payroll WHERE management_access_token=? AND management_approval_status='pending' AND approval_status='approved'", (token,))
+
+    cur.execute("""
+        SELECT *
+        FROM payroll
+        WHERE management_access_token=%s
+        AND management_approval_status='pending'
+        AND approval_status='approved'
+    """, (token,))
     payroll = cur.fetchone()
+
     if not payroll:
         flash('Invalid authorization link.', 'danger')
         return redirect(url_for('management_pending_authorizations'))
-    if payroll['management_approval_status'] != 'pending':
-        flash(f'This authorization has already been {payroll["management_approval_status"]}.', 'warning')
+
+    if payroll['management_token_expires_at'] and payroll['management_token_expires_at'] <= datetime.now():
+        flash('Authorization link expired.', 'danger')
         return redirect(url_for('management_pending_authorizations'))
-    if payroll['approval_status'] != 'approved':
-        flash('Payroll has not been approved by Headteacher yet.', 'warning')
-        return redirect(url_for('management_pending_authorizations'))
-    if payroll.get('management_token_expires_at') and payroll['management_token_expires_at'] <= datetime.now():
-        flash('This authorization link has expired. Please request a new link.', 'danger')
-        return redirect(url_for('management_pending_authorizations'))
+
     if request.method == 'POST':
         auth_code = request.form.get('auth_code')
         action = request.form.get('action')
+
         if payroll['management_approval_code'] != auth_code:
             flash('Invalid authorization code.', 'danger')
             return redirect(url_for('management_authorization_access', token=token))
+
         if action == 'authorize':
             result = process_bank_payment(payroll)
+
             if result['success']:
-                cur.execute("""UPDATE payroll SET management_approval_status='approved', management_approved_by='Management', 
-                               management_approved_at=CURRENT_TIMESTAMP, bank_authorization_token=?, bank_transaction_ref=?, 
-                               bank_payment_status='completed' WHERE id=?""", (result['token'], result['reference'], payroll['id']))
-                cur.execute("UPDATE salary_payments SET approval_status='paid', payment_date=DATE('now'), transaction_ref=? WHERE payroll_id=?", 
-                           (result['reference'], payroll['id']))
+                cur.execute("""
+                    UPDATE payroll
+                    SET management_approval_status='approved',
+                        management_approved_by='Management',
+                        management_approved_at=CURRENT_TIMESTAMP,
+                        bank_authorization_token=%s,
+                        bank_transaction_ref=%s,
+                        bank_payment_status='completed'
+                    WHERE id=%s
+                """, (
+                    result['token'],
+                    result['reference'],
+                    payroll['id']
+                ))
+
+                cur.execute("""
+                    UPDATE salary_payments
+                    SET approval_status='paid',
+                        payment_date=CURRENT_DATE,
+                        transaction_ref=%s
+                    WHERE payroll_id=%s
+                """, (
+                    result['reference'],
+                    payroll['id']
+                ))
+
                 db.commit()
-                add_notification('bursar', f"Payroll {payroll['payroll_no']} has been paid. Reference: {result['reference']}", '/bursar/payroll/list')
-                flash(f'Payment authorized and processed! Reference: {result["reference"]}', 'success')
+
+                add_notification(
+                    'bursar',
+                    f"Payroll {payroll['payroll_no']} has been paid. Ref: {result['reference']}",
+                    '/bursar/payroll/list'
+                )
+
+                flash(f"Payment authorized. Reference: {result['reference']}", 'success')
+
             else:
-                cur.execute("UPDATE payroll SET bank_payment_status='failed', bank_payment_response=? WHERE id=?", (result['error'], payroll['id']))
+                cur.execute("""
+                    UPDATE payroll
+                    SET bank_payment_status='failed',
+                        bank_payment_response=%s
+                    WHERE id=%s
+                """, (
+                    result['error'],
+                    payroll['id']
+                ))
+
                 db.commit()
-                flash(f'Payment failed: {result["error"]}', 'danger')
+
+                flash(f"Payment failed: {result['error']}", 'danger')
+
         elif action == 'reject':
-            cur.execute("UPDATE payroll SET management_approval_status='rejected', management_approved_by='Management', management_approved_at=CURRENT_TIMESTAMP WHERE id=?", (payroll['id'],))
-            cur.execute("UPDATE salary_payments SET approval_status='rejected' WHERE payroll_id=?", (payroll['id'],))
+
+            cur.execute("""
+                UPDATE payroll
+                SET management_approval_status='rejected',
+                    management_approved_by='Management',
+                    management_approved_at=CURRENT_TIMESTAMP
+                WHERE id=%s
+            """, (payroll['id'],))
+
+            cur.execute("""
+                UPDATE salary_payments
+                SET approval_status='rejected'
+                WHERE payroll_id=%s
+            """, (payroll['id'],))
+
             db.commit()
-            add_notification('headteacher', f"Payroll {payroll['payroll_no']} authorization was REJECTED by Management.", '/headteacher/approvals')
-            add_notification('bursar', f"Payroll {payroll['payroll_no']} was REJECTED by Management.", '/bursar/payroll/list')
+
+            add_notification(
+                'headteacher',
+                f"Payroll {payroll['payroll_no']} was rejected by Management.",
+                '/headteacher/approvals'
+            )
+
+            add_notification(
+                'bursar',
+                f"Payroll {payroll['payroll_no']} was rejected by Management.",
+                '/bursar/payroll/list'
+            )
+
             flash('Payment authorization rejected.', 'warning')
+
         cur.close()
         return redirect(url_for('management_pending_authorizations'))
-    
+
     remaining_minutes = None
-    if payroll.get('management_token_expires_at'):
+    if payroll['management_token_expires_at']:
         remaining = payroll['management_token_expires_at'] - datetime.now()
         remaining_minutes = int(remaining.total_seconds() / 60)
+
     cur.close()
-    return render_template('management/authorize_payment_secure.html', payroll=payroll, remaining_minutes=remaining_minutes)
+
+    return render_template(
+        'management/authorize_payment_secure.html',
+        payroll=payroll,
+        remaining_minutes=remaining_minutes
+    )
 
 @app.route('/management/view_payroll/<int:payroll_id>')
 def management_view_payroll(payroll_id):
     if not check_permission(['management']):
         abort(403)
+
     db = get_db_dict()
     cur = db.cursor()
-    cur.execute("SELECT * FROM payroll WHERE id=?", (payroll_id,))
+
+    cur.execute("SELECT * FROM payroll WHERE id=%s", (payroll_id,))
     payroll = cur.fetchone()
+
     if not payroll:
         flash('Payroll not found.', 'danger')
         return redirect(url_for('management_pending_authorizations'))
-    cur.execute("""SELECT sp.*, s.full_name, s.position, s.bank_account, s.bank_name, s.phone, s.nssf_number, s.tin_number
-                   FROM salary_payments sp JOIN staff s ON sp.staff_id = s.id WHERE sp.payroll_id = ?""", (payroll_id,))
+
+    cur.execute("""
+        SELECT sp.*, s.full_name, s.position,
+               s.bank_account, s.bank_name,
+               s.phone, s.nssf_number, s.tin_number
+        FROM salary_payments sp
+        JOIN staff s ON sp.staff_id=s.id
+        WHERE sp.payroll_id=%s
+    """, (payroll_id,))
+
     staff_list = cur.fetchall()
+
     cur.close()
-    return render_template('management/view_payroll.html', payroll=payroll, staff_list=staff_list)
+
+    return render_template(
+        'management/view_payroll.html',
+        payroll=payroll,
+        staff_list=staff_list
+    )
 
 @app.route('/management/reject_authorization/<int:payroll_id>')
 def management_reject_authorization(payroll_id):
     if not check_permission(['management']):
         abort(403)
-    cur = get_db().cursor()
-    cur.execute("SELECT * FROM payroll WHERE id=? AND management_approval_status='pending' AND approval_status='approved'", (payroll_id,))
+
+    db = get_db_dict()
+    cur = db.cursor()
+
+    cur.execute("""
+        SELECT *
+        FROM payroll
+        WHERE id=%s
+        AND management_approval_status='pending'
+        AND approval_status='approved'
+    """, (payroll_id,))
+
     payroll = cur.fetchone()
     cur.close()
+
     if not payroll:
         flash('Payroll not found or already processed.', 'danger')
         return redirect(url_for('management_pending_authorizations'))
-    try:
-        execute_db("UPDATE payroll SET management_approval_status='rejected', management_approved_by='Management', management_approved_at=CURRENT_TIMESTAMP WHERE id=?", (payroll_id,))
-        execute_db("UPDATE salary_payments SET approval_status='rejected' WHERE payroll_id=?", (payroll_id,))
-        add_notification('headteacher', f"Payroll {payroll[1]} authorization has been REJECTED by Management.", '/headteacher/approvals')
-        add_notification('bursar', f"Payroll {payroll[1]} authorization has been REJECTED by Management.", '/bursar/payroll/list')
-        flash(f'Payroll {payroll[1]} authorization has been rejected.', 'warning')
-    except Exception as e:
-        flash(f'Error rejecting authorization: {str(e)}', 'danger')
+
+    execute_db("""
+        UPDATE payroll
+        SET management_approval_status='rejected',
+            management_approved_by='Management',
+            management_approved_at=CURRENT_TIMESTAMP
+        WHERE id=%s
+    """, (payroll_id,))
+
+    execute_db("""
+        UPDATE salary_payments
+        SET approval_status='rejected'
+        WHERE payroll_id=%s
+    """, (payroll_id,))
+
+    add_notification(
+        'headteacher',
+        f"Payroll {payroll['payroll_no']} authorization rejected by Management.",
+        '/headteacher/approvals'
+    )
+
+    add_notification(
+        'bursar',
+        f"Payroll {payroll['payroll_no']} authorization rejected by Management.",
+        '/bursar/payroll/list'
+    )
+
+    flash('Payroll authorization rejected.', 'warning')
+
     return redirect(url_for('management_pending_authorizations'))
 
 @app.route('/management/resend_token/<int:payroll_id>')
 def management_resend_token(payroll_id):
     if not check_permission(['management']):
         abort(403)
-    cur = get_db().cursor()
-    cur.execute("SELECT * FROM payroll WHERE id=? AND management_approval_status='pending' AND approval_status='approved'", (payroll_id,))
+
+    db = get_db_dict()
+    cur = db.cursor()
+
+    cur.execute("""
+        SELECT *
+        FROM payroll
+        WHERE id=%s
+        AND management_approval_status='pending'
+        AND approval_status='approved'
+    """, (payroll_id,))
+
     payroll = cur.fetchone()
     cur.close()
+
     if not payroll:
         flash('Payroll not found or already authorized.', 'danger')
         return redirect(url_for('management_pending_authorizations'))
+
     if payroll.get('token_resend_count', 0) >= 3:
-        flash('Maximum token resend limit reached (3). Please contact headteacher.', 'danger')
+        flash('Maximum resend limit reached.', 'danger')
         return redirect(url_for('management_pending_authorizations'))
+
     new_token, new_expires = generate_secure_token(2)
-    execute_db("UPDATE payroll SET management_access_token=?, management_token_expires_at=?, token_resend_count=token_resend_count+1, last_resend_at=CURRENT_TIMESTAMP WHERE id=?",
-               (new_token, new_expires, payroll_id))
-    auth_link = url_for('management_authorization_access', token=new_token, _external=True)
+
+    execute_db("""
+        UPDATE payroll
+        SET management_access_token=%s,
+            management_token_expires_at=%s,
+            token_resend_count=token_resend_count+1,
+            last_resend_at=CURRENT_TIMESTAMP
+        WHERE id=%s
+    """, (
+        new_token,
+        new_expires,
+        payroll_id
+    ))
+
+    auth_link = url_for(
+        'management_authorization_access',
+        token=new_token,
+        _external=True
+    )
+
     expires_str = new_expires.strftime('%Y-%m-%d %H:%M:%S')
-    cur = get_db().cursor()
-    cur.execute("SELECT phone FROM users WHERE role='management' AND status=1 LIMIT 1")
-    management_user = cur.fetchone()
+
+    db = get_db_dict()
+    cur = db.cursor()
+
+    cur.execute("""
+        SELECT phone
+        FROM users
+        WHERE role='management'
+        AND status=1
+        LIMIT 1
+    """)
+
+    manager = cur.fetchone()
     cur.close()
-    if management_user and management_user[0]:
-        send_sms(management_user[0], f"NEW LINK: Authorize Payroll {payroll[1]} - UGX {payroll[4]:,.2f}. Code: {payroll[8]}. Expires: {expires_str}. Link: {auth_link}")
-    flash(f'New authorization link sent! Expires at {expires_str}.', 'success')
+
+    if manager and manager['phone']:
+        send_sms(
+            manager['phone'],
+            f"NEW LINK: Payroll {payroll['payroll_no']} Code:{payroll['management_approval_code']} Expires:{expires_str} Link:{auth_link}"
+        )
+
+    flash('New authorization link sent successfully.', 'success')
+
     return redirect(url_for('management_pending_authorizations'))
 
-# ==================== INVENTORY MODULE ====================
+
+# ==================== inventory_routes.py ====================
+
+from flask import (
+    Blueprint, render_template, request, redirect,
+    url_for, flash, abort, jsonify, session
+)
+from datetime import datetime
+import os
+
+# Import your existing helpers
+from database import get_db, get_db_dict, execute_db
+from auth import check_permission
+from notifications import add_notification
+from uploads import allowed_file, ALLOWED_IMAGE_EXTENSIONS
+from werkzeug.utils import secure_filename
+
+
+inventory_bp = Blueprint(
+    'inventory',
+    __name__,
+    url_prefix='/inventory'
+)
+
+
+# ==================== INVENTORY HELPERS ====================
+
 def generate_item_code(category_name):
+    """
+    Generate unique inventory item code.
+    Example: FUR-2026-0001
+    """
+
     prefix = category_name[:3].upper()
     year = datetime.now().strftime("%Y")
-    cur = get_db().cursor()
-    cur.execute("SELECT item_code FROM inventory_items WHERE item_code LIKE ? ORDER BY item_code DESC LIMIT 1", (f'{prefix}-{year}-%',))
+
+    db = get_db()
+    cur = db.cursor()
+
+    cur.execute(
+        """
+        SELECT item_code 
+        FROM inventory_items 
+        WHERE item_code LIKE ?
+        ORDER BY item_code DESC 
+        LIMIT 1
+        """,
+        (f'{prefix}-{year}-%',)
+    )
+
     last = cur.fetchone()
     cur.close()
+
     if last:
-        last_num = int(last[0].split('-')[-1])
-        new_num = last_num + 1
+        last_code = last[0]
+        number = int(last_code.split('-')[-1])
+        number += 1
     else:
-        new_num = 1
-    return f"{prefix}-{year}-{new_num:04d}"
+        number = 1
+
+    return f"{prefix}-{year}-{number:04d}"
+
+
 
 def check_low_stock_alerts():
-    db = get_db_dict()
-    cur = db.cursor()
-    cur.execute("""SELECT i.*, c.name as category_name, c.warning_level FROM inventory_items i 
-                   JOIN inventory_categories c ON i.category_id = c.id WHERE i.quantity <= i.reorder_level AND i.status = 'working'""")
-    low_stock_items = cur.fetchall()
-    for item in low_stock_items:
-        cur.execute("SELECT id FROM inventory_alerts WHERE item_id=? AND alert_type='low_stock' AND is_read=0", (item['id'],))
-        existing = cur.fetchone()
-        if not existing:
-            execute_db("INSERT INTO inventory_alerts (item_id, alert_type, message) VALUES (?, 'low_stock', ?)",
-                       (item['id'], f"Stock for {item['name']} is low! Current: {item['quantity']}, Reorder level: {item['reorder_level']}"))
-            add_notification('stores_keeper', f"LOW STOCK ALERT: {item['name']} has only {item['quantity']} {item['unit']} left!", '/inventory/items')
-            add_notification('admin', f"LOW STOCK ALERT: {item['name']} needs reordering!", '/inventory/items')
-            add_notification('bursar', f"LOW STOCK ALERT: {item['name']} needs reordering!", '/inventory/items')
-    cur.close()
 
-@app.route('/inventory/dashboard')
-def inventory_dashboard():
-    if not check_permission(['admin', 'bursar', 'dos', 'stores_keeper']):
-        abort(403)
     db = get_db_dict()
     cur = db.cursor()
-    cur.execute("SELECT COUNT(*) as total_items FROM inventory_items")
-    total_items = cur.fetchone()
-    cur.execute("SELECT COUNT(*) as low_stock FROM inventory_items WHERE quantity <= reorder_level AND status='working'")
-    low_stock = cur.fetchone()
-    cur.execute("SELECT COUNT(*) as spoilt FROM inventory_items WHERE status='spoilt'")
-    spoilt = cur.fetchone()
-    cur.execute("SELECT COUNT(*) as under_repair FROM inventory_items WHERE status='under_repair'")
-    under_repair = cur.fetchone()
-    cur.execute("SELECT SUM(quantity) as total_quantity FROM inventory_items WHERE status='working'")
-    total_quantity = cur.fetchone()
-    cur.execute("SELECT SUM(current_value) as total_value FROM inventory_items")
-    total_value = cur.fetchone()
-    cur.execute("""SELECT t.*, i.name as item_name, i.item_code FROM inventory_transactions t 
-                   JOIN inventory_items i ON t.item_id = i.id ORDER BY t.created_at DESC LIMIT 10""")
-    recent_transactions = cur.fetchall()
-    cur.execute("""SELECT a.*, i.name as item_name, i.quantity, i.reorder_level FROM inventory_alerts a 
-                   JOIN inventory_items i ON a.item_id = i.id WHERE a.is_read = 0 ORDER BY a.created_at DESC""")
-    alerts = cur.fetchall()
-    cur.close()
-    return render_template('inventory/dashboard.html', total_items=total_items, low_stock=low_stock, spoilt=spoilt,
-                          under_repair=under_repair, total_quantity=total_quantity, total_value=total_value,
-                          recent_transactions=recent_transactions, alerts=alerts)
 
-@app.route('/inventory/items')
-def inventory_items():
-    if not check_permission(['admin', 'bursar', 'dos', 'stores_keeper']):
-        abort(403)
-    category = request.args.get('category', '')
-    status = request.args.get('status', '')
-    search = request.args.get('search', '')
-    db = get_db_dict()
-    cur = db.cursor()
-    query = """SELECT i.*, c.name as category_name FROM inventory_items i JOIN inventory_categories c ON i.category_id = c.id WHERE 1=1"""
-    params = []
-    if category:
-        query += " AND c.name = ?"
-        params.append(category)
-    if status:
-        query += " AND i.status = ?"
-        params.append(status)
-    if search:
-        query += " AND (i.name LIKE ? OR i.item_code LIKE ?)"
-        pattern = f"%{search}%"
-        params.extend([pattern, pattern])
-    query += " ORDER BY i.category_id, i.name"
-    cur.execute(query, params)
+    cur.execute("""
+        SELECT 
+            i.id,
+            i.name,
+            i.quantity,
+            i.unit,
+            i.reorder_level,
+            c.name AS category_name
+        FROM inventory_items i
+        JOIN inventory_categories c
+        ON i.category_id = c.id
+        WHERE i.quantity <= i.reorder_level
+        AND i.status='working'
+    """)
+
     items = cur.fetchall()
-    cur.execute("SELECT * FROM inventory_categories ORDER BY name")
-    categories = cur.fetchall()
-    cur.close()
-    return render_template('inventory/items.html', items=items, categories=categories, category=category, status=status, search=search)
 
-@app.route('/inventory/item/add', methods=['GET', 'POST'])
-def inventory_item_add():
-    if not check_permission(['admin', 'bursar', 'stores_keeper']):
+
+    for item in items:
+
+        cur.execute("""
+            SELECT id 
+            FROM inventory_alerts
+            WHERE item_id=?
+            AND alert_type='low_stock'
+            AND is_read=0
+        """,
+        (item['id'],))
+
+        exists = cur.fetchone()
+
+
+        if not exists:
+
+            execute_db(
+                """
+                INSERT INTO inventory_alerts
+                (
+                    item_id,
+                    alert_type,
+                    message
+                )
+                VALUES
+                (?, ?, ?)
+                """,
+                (
+                    item['id'],
+                    'low_stock',
+                    f"{item['name']} stock is low. "
+                    f"Available: {item['quantity']} {item['unit']}"
+                )
+            )
+
+
+            add_notification(
+                'stores_keeper',
+                f"LOW STOCK: {item['name']} only has {item['quantity']} left",
+                '/inventory/items'
+            )
+
+
+            add_notification(
+                'admin',
+                f"LOW STOCK ALERT: {item['name']} requires ordering",
+                '/inventory/items'
+            )
+
+
+    cur.close()
+
+
+
+# ==================== DASHBOARD ====================
+
+
+@inventory_bp.route('/dashboard')
+def inventory_dashboard():
+
+    if not check_permission(
+        ['admin','bursar','dos','stores_keeper']
+    ):
         abort(403)
-    
+
+
     db = get_db_dict()
     cur = db.cursor()
-    
+
+
+    cur.execute(
+        "SELECT COUNT(*) AS total FROM inventory_items"
+    )
+    total_items = cur.fetchone()
+
+
+    cur.execute("""
+        SELECT COUNT(*) AS total
+        FROM inventory_items
+        WHERE quantity <= reorder_level
+        AND status='working'
+    """)
+    low_stock = cur.fetchone()
+
+
+    cur.execute("""
+        SELECT COUNT(*) AS total
+        FROM inventory_items
+        WHERE status='spoilt'
+    """)
+    spoilt = cur.fetchone()
+
+
+    cur.execute("""
+        SELECT COUNT(*) AS total
+        FROM inventory_items
+        WHERE status='under_repair'
+    """)
+    repair = cur.fetchone()
+
+
+    cur.execute("""
+        SELECT SUM(quantity) AS total
+        FROM inventory_items
+        WHERE status='working'
+    """)
+    quantity = cur.fetchone()
+
+
+    cur.execute("""
+        SELECT SUM(current_value) AS total
+        FROM inventory_items
+    """)
+    value = cur.fetchone()
+
+
+
+    cur.execute("""
+        SELECT 
+            t.*,
+            i.name AS item_name,
+            i.item_code
+        FROM inventory_transactions t
+        JOIN inventory_items i
+        ON t.item_id=i.id
+        ORDER BY t.created_at DESC
+        LIMIT 10
+    """)
+    transactions = cur.fetchall()
+
+
+
+    cur.execute("""
+        SELECT 
+            a.*,
+            i.name AS item_name,
+            i.quantity,
+            i.reorder_level
+        FROM inventory_alerts a
+        JOIN inventory_items i
+        ON a.item_id=i.id
+        WHERE a.is_read=0
+        ORDER BY a.created_at DESC
+    """)
+
+    alerts = cur.fetchall()
+
+
+    cur.close()
+
+
+    return render_template(
+        'inventory/dashboard.html',
+        total_items=total_items,
+        low_stock=low_stock,
+        spoilt=spoilt,
+        repair=repair,
+        quantity=quantity,
+        value=value,
+        transactions=transactions,
+        alerts=alerts
+    )
+
+
+
+# ==================== ITEMS LIST ====================
+
+
+@inventory_bp.route('/items')
+def inventory_items():
+
+    if not check_permission(
+        ['admin','bursar','dos','stores_keeper']
+    ):
+        abort(403)
+
+
+    category = request.args.get('category','')
+    status = request.args.get('status','')
+    search = request.args.get('search','')
+
+
+    db = get_db_dict()
+    cur = db.cursor()
+
+
+    query = """
+        SELECT 
+            i.*,
+            c.name AS category_name
+        FROM inventory_items i
+        JOIN inventory_categories c
+        ON i.category_id=c.id
+        WHERE 1=1
+    """
+
+    params=[]
+
+
+    if category:
+        query += " AND c.name=?"
+        params.append(category)
+
+
+    if status:
+        query += " AND i.status=?"
+        params.append(status)
+
+
+    if search:
+        query += """
+        AND (
+            i.name LIKE ?
+            OR i.item_code LIKE ?
+        )
+        """
+        params.extend([
+            f"%{search}%",
+            f"%{search}%"
+        ])
+
+
+    query += """
+        ORDER BY i.category_id,i.name
+    """
+
+
+    cur.execute(query,params)
+
+    items = cur.fetchall()
+
+
+
+    cur.execute("""
+        SELECT *
+        FROM inventory_categories
+        ORDER BY name
+    """)
+
+    categories = cur.fetchall()
+
+
+    cur.close()
+
+
+    return render_template(
+        'inventory/items.html',
+        items=items,
+        categories=categories,
+        category=category,
+        status=status,
+        search=search
+    )
+
+# ==================== ADD INVENTORY ITEM ====================
+
+@inventory_bp.route('/item/add', methods=['GET', 'POST'])
+def inventory_item_add():
+
+    if not check_permission(['admin','bursar','stores_keeper']):
+        abort(403)
+
+
+    db = get_db_dict()
+    cur = db.cursor()
+
+
     if request.method == 'POST':
+
         try:
+
             category_id = request.form.get('category_id')
+
             if not category_id:
                 flash('Please select a category.', 'danger')
-                return redirect(url_for('inventory_item_add'))
-            
-            name = request.form.get('name', '').strip()
+                return redirect(url_for('inventory.inventory_item_add'))
+
+
+            name = request.form.get('name','').strip()
+
             if not name:
                 flash('Item name is required.', 'danger')
-                return redirect(url_for('inventory_item_add'))
-            
-            unit = request.form.get('unit', 'pieces')
-            
-            # Handle numeric values with defaults
+                return redirect(url_for('inventory.inventory_item_add'))
+
+
+            unit = request.form.get('unit','pieces')
+
+            quantity = int(request.form.get('quantity',0))
+
+            minimum_quantity = int(
+                request.form.get('minimum_quantity',10)
+            )
+
+            reorder_level = int(
+                request.form.get('reorder_level',5)
+            )
+
+
+            location = request.form.get('location','')
+            supplier = request.form.get('supplier','')
+
+
             try:
-                quantity = int(request.form.get('quantity', 0))
-            except:
-                quantity = 0
-            
-            try:
-                minimum_quantity = int(request.form.get('minimum_quantity', 10))
-            except:
-                minimum_quantity = 10
-            
-            try:
-                reorder_level = int(request.form.get('reorder_level', 5))
-            except:
-                reorder_level = 5
-            
-            location = request.form.get('location', '')
-            supplier = request.form.get('supplier', '')
-            
-            # Handle purchase price - convert empty string to 0
-            purchase_price_str = request.form.get('purchase_price', '0')
-            try:
-                purchase_price = float(purchase_price_str) if purchase_price_str else 0
+                purchase_price = float(
+                    request.form.get('purchase_price',0)
+                )
             except:
                 purchase_price = 0
-            
+
+
+
             current_value = quantity * purchase_price
-            status = request.form.get('status', 'working')
-            responsible_person = request.form.get('responsible_person', '')
-            responsible_role = request.form.get('responsible_role', '')
-            
-            # Get category name for item code
-            cur.execute("SELECT name FROM inventory_categories WHERE id=?", (category_id,))
+
+
+            status = request.form.get(
+                'status',
+                'working'
+            )
+
+
+            responsible_person = request.form.get(
+                'responsible_person',
+                ''
+            )
+
+            responsible_role = request.form.get(
+                'responsible_role',
+                ''
+            )
+
+
+
+            # Get category
+
+            cur.execute(
+                """
+                SELECT name
+                FROM inventory_categories
+                WHERE id=?
+                """,
+                (category_id,)
+            )
+
             category = cur.fetchone()
+
+
             if not category:
-                flash('Invalid category selected.', 'danger')
-                return redirect(url_for('inventory_item_add'))
-            
-            # Generate item code
-            prefix = category['name'][:3].upper()
-            year = datetime.now().strftime("%Y")
-            cur.execute("SELECT item_code FROM inventory_items WHERE item_code LIKE ? ORDER BY item_code DESC LIMIT 1", (f'{prefix}-{year}-%',))
-            last = cur.fetchone()
-            if last:
-                last_num = int(last['item_code'].split('-')[-1])
-                new_num = last_num + 1
-            else:
-                new_num = 1
-            item_code = f"{prefix}-{year}-{new_num:04d}"
-            
-            # Handle image upload
-            image_file = request.files.get('image')
+                flash(
+                    'Invalid category.',
+                    'danger'
+                )
+
+                return redirect(
+                    url_for('inventory.inventory_item_add')
+                )
+
+
+
+            item_code = generate_item_code(
+                category['name']
+            )
+
+
+
+            # Image upload
+
             image_path = None
+
+            image_file = request.files.get('image')
+
+
             if image_file and image_file.filename:
-                if allowed_file(image_file.filename, ALLOWED_IMAGE_EXTENSIONS):
-                    filename = secure_filename(f"item_{item_code}_{image_file.filename}")
-                    image_file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+
+                if allowed_file(
+                    image_file.filename,
+                    ALLOWED_IMAGE_EXTENSIONS
+                ):
+
+                    filename = secure_filename(
+                        f"{item_code}_{image_file.filename}"
+                    )
+
+
+                    upload_path = os.path.join(
+                        'uploads',
+                        filename
+                    )
+
+
+                    image_file.save(upload_path)
+
                     image_path = filename
-            
+
+
+
             cur.execute("""
-                INSERT INTO inventory_items 
-                (item_code, name, category_id, unit, quantity, minimum_quantity, reorder_level, 
-                 location, supplier, purchase_price, current_value, status, responsible_person, 
-                 responsible_role, image_path, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-            """, (item_code, name, category_id, unit, quantity, minimum_quantity, reorder_level,
-                  location, supplier, purchase_price, current_value, status, responsible_person,
-                  responsible_role, image_path))
-            
+                INSERT INTO inventory_items
+                (
+                    item_code,
+                    name,
+                    category_id,
+                    unit,
+                    quantity,
+                    minimum_quantity,
+                    reorder_level,
+                    location,
+                    supplier,
+                    purchase_price,
+                    current_value,
+                    status,
+                    responsible_person,
+                    responsible_role,
+                    image_path,
+                    created_at,
+                    updated_at
+                )
+                VALUES
+                (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,
+                CURRENT_TIMESTAMP,
+                CURRENT_TIMESTAMP)
+            """,
+            (
+                item_code,
+                name,
+                category_id,
+                unit,
+                quantity,
+                minimum_quantity,
+                reorder_level,
+                location,
+                supplier,
+                purchase_price,
+                current_value,
+                status,
+                responsible_person,
+                responsible_role,
+                image_path
+            ))
+
+
+
             item_id = cur.lastrowid
-            
-            # Record initial stock transaction
+
+
+
+            # Record opening stock
+
             cur.execute("""
-                INSERT INTO inventory_transactions 
-                (item_id, transaction_type, quantity, unit_price, total_amount, transaction_date, recorded_by, notes)
-                VALUES (?, 'purchase', ?, ?, ?, DATE('now'), ?, 'Initial stock')
-            """, (item_id, quantity, purchase_price, current_value, session.get('username')))
-            
+                INSERT INTO inventory_transactions
+                (
+                    item_id,
+                    transaction_type,
+                    quantity,
+                    unit_price,
+                    total_amount,
+                    transaction_date,
+                    recorded_by,
+                    notes
+                )
+                VALUES
+                (?,?,?,?,?,
+                DATE('now'),
+                ?,
+                ?)
+            """,
+            (
+                item_id,
+                'purchase',
+                quantity,
+                purchase_price,
+                current_value,
+                session.get('username'),
+                'Initial stock'
+            ))
+
+
+
             db.commit()
-            flash(f'Item {name} added successfully. Code: {item_code}', 'success')
-            
+
+
+            flash(
+                f'Item added successfully. Code: {item_code}',
+                'success'
+            )
+
+
         except Exception as e:
+
             db.rollback()
-            flash(f'Error: {str(e)}', 'danger')
-            import traceback
-            traceback.print_exc()
+
+            flash(
+                f'Error adding item: {str(e)}',
+                'danger'
+            )
+
+
         finally:
             cur.close()
-        
-        return redirect(url_for('inventory_items'))
-    
-    # GET request - show form
-    cur.execute("SELECT * FROM inventory_categories ORDER BY name")
+
+
+
+        return redirect(
+            url_for('inventory.inventory_items')
+        )
+
+
+
+    # GET
+
+    cur.execute(
+        """
+        SELECT *
+        FROM inventory_categories
+        ORDER BY name
+        """
+    )
+
     categories = cur.fetchall()
+
     cur.close()
-    return render_template('inventory/item_add.html', categories=categories)
+
+
+    return render_template(
+        'inventory/item_add.html',
+        categories=categories
+    )
+
+
+
+# ==================== EDIT INVENTORY ITEM ====================
+
+
+@inventory_bp.route(
+    '/item/edit/<int:item_id>',
+    methods=['GET','POST']
+)
+def inventory_item_edit(item_id):
+
+    if not check_permission(
+        ['admin','bursar','stores_keeper']
+    ):
+        abort(403)
+
+
+
+    if request.method == 'POST':
+
+        execute_db(
+            """
+            UPDATE inventory_items SET
+
+            name=?,
+            unit=?,
+            minimum_quantity=?,
+            reorder_level=?,
+            location=?,
+            supplier=?,
+            status=?,
+            responsible_person=?,
+            responsible_role=?,
+            updated_at=CURRENT_TIMESTAMP
+
+            WHERE id=?
+
+            """,
+            (
+                request.form['name'],
+                request.form['unit'],
+                int(request.form.get(
+                    'minimum_quantity',
+                    0
+                )),
+                int(request.form.get(
+                    'reorder_level',
+                    5
+                )),
+                request.form.get(
+                    'location',
+                    ''
+                ),
+                request.form.get(
+                    'supplier',
+                    ''
+                ),
+                request.form.get(
+                    'status',
+                    'working'
+                ),
+                request.form.get(
+                    'responsible_person',
+                    ''
+                ),
+                request.form.get(
+                    'responsible_role',
+                    ''),
+                item_id
+            )
+        )
+
+
+        flash(
+            'Item updated successfully.',
+            'success'
+        )
+
+
+        return redirect(
+            url_for('inventory.inventory_items')
+        )
+
+
+
+    db = get_db_dict()
+    cur = db.cursor()
+
+
+    cur.execute("""
+        SELECT 
+            i.*,
+            c.name AS category_name
+
+        FROM inventory_items i
+
+        JOIN inventory_categories c
+        ON i.category_id=c.id
+
+        WHERE i.id=?
+    """,
+    (item_id,))
+
+
+    item = cur.fetchone()
+
+
+    cur.execute(
+        """
+        SELECT *
+        FROM inventory_categories
+        ORDER BY name
+        """
+    )
+
+    categories = cur.fetchall()
+
+
+    cur.close()
+
+
+    return render_template(
+        'inventory/item_edit.html',
+        item=item,
+        categories=categories
+    )
+
+# ==================== INVENTORY ITEM EDIT ====================
 
 @app.route('/inventory/item/edit/<int:item_id>', methods=['GET', 'POST'])
 def inventory_item_edit(item_id):
     if not check_permission(['admin', 'bursar', 'stores_keeper']):
         abort(403)
+
     if request.method == 'POST':
-        name = request.form['name']
-        unit = request.form['unit']
+        name = request.form.get('name')
+        unit = request.form.get('unit')
         minimum_quantity = int(request.form.get('minimum_quantity', 0))
         reorder_level = int(request.form.get('reorder_level', 5))
         location = request.form.get('location', '')
@@ -5707,377 +9483,1131 @@ def inventory_item_edit(item_id):
         status = request.form.get('status', 'working')
         responsible_person = request.form.get('responsible_person', '')
         responsible_role = request.form.get('responsible_role', '')
-        execute_db("""UPDATE inventory_items SET name=?, unit=?, minimum_quantity=?, reorder_level=?, location=?, supplier=?, status=?,
-                       responsible_person=?, responsible_role=?, updated_at=CURRENT_TIMESTAMP WHERE id=?""",
-                   (name, unit, minimum_quantity, reorder_level, location, supplier, status, responsible_person, responsible_role, item_id))
+
+        execute_db("""
+            UPDATE inventory_items 
+            SET name=%s,
+                unit=%s,
+                minimum_quantity=%s,
+                reorder_level=%s,
+                location=%s,
+                supplier=%s,
+                status=%s,
+                responsible_person=%s,
+                responsible_role=%s,
+                updated_at=CURRENT_TIMESTAMP
+            WHERE id=%s
+        """,
+        (
+            name,
+            unit,
+            minimum_quantity,
+            reorder_level,
+            location,
+            supplier,
+            status,
+            responsible_person,
+            responsible_role,
+            item_id
+        ))
+
         flash('Item updated successfully.', 'success')
         return redirect(url_for('inventory_items'))
+
     db = get_db_dict()
     cur = db.cursor()
-    cur.execute("SELECT i.*, c.name as category_name FROM inventory_items i JOIN inventory_categories c ON i.category_id = c.id WHERE i.id=?", (item_id,))
+
+    cur.execute("""
+        SELECT i.*, c.name AS category_name
+        FROM inventory_items i
+        JOIN inventory_categories c 
+        ON i.category_id = c.id
+        WHERE i.id=%s
+    """, (item_id,))
+
     item = cur.fetchone()
-    cur.execute("SELECT * FROM inventory_categories ORDER BY name")
+
+    cur.execute("""
+        SELECT *
+        FROM inventory_categories
+        ORDER BY name
+    """)
+
     categories = cur.fetchall()
+
     cur.close()
-    return render_template('inventory/item_edit.html', item=item, categories=categories)
+
+    return render_template(
+        'inventory/item_edit.html',
+        item=item,
+        categories=categories
+    )
+
+
+# ==================== ISSUE INVENTORY ITEM ====================
 
 @app.route('/inventory/issue/<int:item_id>', methods=['POST'])
 def inventory_issue_item(item_id):
+
     if not check_permission(['admin', 'bursar', 'dos', 'stores_keeper']):
         abort(403)
-    quantity = int(request.form['quantity'])
-    issued_to = request.form['issued_to']
-    issued_to_role = request.form['issued_to_role']
-    purpose = request.form['purpose']
+
+    quantity = int(request.form.get('quantity', 0))
+    issued_to = request.form.get('issued_to')
+    issued_to_role = request.form.get('issued_to_role')
+    purpose = request.form.get('purpose')
     notes = request.form.get('notes', '')
+
     db = get_db_dict()
     cur = db.cursor()
-    cur.execute("SELECT name, quantity, current_value, unit FROM inventory_items WHERE id=?", (item_id,))
+
+    cur.execute("""
+        SELECT name, quantity, unit
+        FROM inventory_items
+        WHERE id=%s
+    """, (item_id,))
+
     item = cur.fetchone()
+
     if not item:
         flash('Item not found.', 'danger')
         return redirect(url_for('inventory_items'))
+
     if item['quantity'] < quantity:
-        flash(f'Insufficient stock! Available: {item["quantity"]} {item["unit"]}', 'danger')
+        flash(
+            f"Insufficient stock! Available: {item['quantity']} {item['unit']}",
+            'danger'
+        )
         return redirect(url_for('inventory_items'))
+
     new_quantity = item['quantity'] - quantity
-    cur.execute("UPDATE inventory_items SET quantity=?, updated_at=CURRENT_TIMESTAMP WHERE id=?", (new_quantity, item_id))
-    cur.execute("""INSERT INTO inventory_transactions (item_id, transaction_type, quantity, transaction_date, issued_to, issued_to_role, purpose, notes, recorded_by)
-                   VALUES (?, 'issued', ?, DATE('now'), ?, ?, ?, ?, ?)""",
-               (item_id, quantity, issued_to, issued_to_role, purpose, notes, session.get('username')))
+
+    cur.execute("""
+        UPDATE inventory_items
+        SET quantity=%s,
+            updated_at=CURRENT_TIMESTAMP
+        WHERE id=%s
+    """,
+    (
+        new_quantity,
+        item_id
+    ))
+
+    cur.execute("""
+        INSERT INTO inventory_transactions
+        (
+            item_id,
+            transaction_type,
+            quantity,
+            transaction_date,
+            issued_to,
+            issued_to_role,
+            purpose,
+            notes,
+            recorded_by
+        )
+        VALUES
+        (
+            %s,
+            'issued',
+            %s,
+            CURRENT_DATE,
+            %s,
+            %s,
+            %s,
+            %s,
+            %s
+        )
+    """,
+    (
+        item_id,
+        quantity,
+        issued_to,
+        issued_to_role,
+        purpose,
+        notes,
+        session.get('username')
+    ))
+
     db.commit()
     cur.close()
+
     check_low_stock_alerts()
-    flash(f'{quantity} {item["unit"]} of {item["name"]} issued to {issued_to}.', 'success')
+
+    flash(
+        f"{quantity} {item['unit']} of {item['name']} issued to {issued_to}.",
+        'success'
+    )
+
     return redirect(url_for('inventory_items'))
+
+
+
+# ==================== RECEIVE INVENTORY ITEM ====================
 
 @app.route('/inventory/receive/<int:item_id>', methods=['POST'])
 def inventory_receive_item(item_id):
+
     if not check_permission(['admin', 'bursar', 'stores_keeper']):
         abort(403)
-    quantity = int(request.form['quantity'])
+
+    quantity = int(request.form.get('quantity', 0))
     unit_price = float(request.form.get('unit_price', 0))
     supplier = request.form.get('supplier', '')
     notes = request.form.get('notes', '')
+
     db = get_db_dict()
     cur = db.cursor()
-    cur.execute("SELECT name, quantity, current_value, unit FROM inventory_items WHERE id=?", (item_id,))
+
+    cur.execute("""
+        SELECT name, quantity, current_value, unit
+        FROM inventory_items
+        WHERE id=%s
+    """, (item_id,))
+
     item = cur.fetchone()
+
     if not item:
         flash('Item not found.', 'danger')
         return redirect(url_for('inventory_items'))
+
     new_quantity = item['quantity'] + quantity
+
     total_amount = quantity * unit_price
-    new_value = item['current_value'] + total_amount
-    cur.execute("UPDATE inventory_items SET quantity=?, current_value=?, updated_at=CURRENT_TIMESTAMP WHERE id=?", (new_quantity, new_value, item_id))
-    cur.execute("""INSERT INTO inventory_transactions (item_id, transaction_type, quantity, unit_price, total_amount, transaction_date, supplier, notes, recorded_by)
-                   VALUES (?, 'received', ?, ?, ?, DATE('now'), ?, ?, ?)""",
-               (item_id, quantity, unit_price, total_amount, supplier, notes, session.get('username')))
-    db.commit()
-    cur.execute("UPDATE inventory_alerts SET is_read=1 WHERE item_id=? AND alert_type='low_stock'", (item_id,))
+
+    new_value = (
+        item['current_value'] or 0
+    ) + total_amount
+
+
+    cur.execute("""
+        UPDATE inventory_items
+        SET quantity=%s,
+            current_value=%s,
+            updated_at=CURRENT_TIMESTAMP
+        WHERE id=%s
+    """,
+    (
+        new_quantity,
+        new_value,
+        item_id
+    ))
+
+
+    cur.execute("""
+        INSERT INTO inventory_transactions
+        (
+            item_id,
+            transaction_type,
+            quantity,
+            unit_price,
+            total_amount,
+            transaction_date,
+            supplier,
+            notes,
+            recorded_by
+        )
+        VALUES
+        (
+            %s,
+            'received',
+            %s,
+            %s,
+            %s,
+            CURRENT_DATE,
+            %s,
+            %s,
+            %s
+        )
+    """,
+    (
+        item_id,
+        quantity,
+        unit_price,
+        total_amount,
+        supplier,
+        notes,
+        session.get('username')
+    ))
+
+
+    cur.execute("""
+        UPDATE inventory_alerts
+        SET is_read=TRUE
+        WHERE item_id=%s
+        AND alert_type='low_stock'
+    """,
+    (item_id,))
+
+
     db.commit()
     cur.close()
-    flash(f'{quantity} {item["unit"]} of {item["name"]} received.', 'success')
+
+
+    flash(
+        f"{quantity} {item['unit']} of {item['name']} received.",
+        'success'
+    )
+
     return redirect(url_for('inventory_items'))
+
+
+
+# ==================== UPDATE INVENTORY STATUS ====================
 
 @app.route('/inventory/update_status/<int:item_id>', methods=['POST'])
 def inventory_update_status(item_id):
+
     if not check_permission(['admin', 'bursar', 'stores_keeper']):
         abort(403)
-    status = request.form['status']
+
+    status = request.form.get('status')
     condition_notes = request.form.get('condition_notes', '')
-    quantity_affected = int(request.form.get('quantity_affected', 0))
+    quantity_affected = int(
+        request.form.get('quantity_affected', 0)
+    )
+
     db = get_db_dict()
     cur = db.cursor()
-    cur.execute("SELECT name, quantity FROM inventory_items WHERE id=?", (item_id,))
+
+    cur.execute("""
+        SELECT name, quantity
+        FROM inventory_items
+        WHERE id=%s
+    """,
+    (item_id,))
+
+
     item = cur.fetchone()
+
+
     if not item:
         flash('Item not found.', 'danger')
         return redirect(url_for('inventory_items'))
+
+
     if status in ['spoilt', 'used_up'] and quantity_affected > 0:
+
         new_quantity = item['quantity'] - quantity_affected
-        cur.execute("UPDATE inventory_items SET quantity=?, status=?, condition_notes=?, updated_at=CURRENT_TIMESTAMP WHERE id=?", 
-                   (new_quantity, status, condition_notes, item_id))
-        cur.execute("INSERT INTO inventory_transactions (item_id, transaction_type, quantity, notes, recorded_by) VALUES (?, ?, ?, ?, ?)",
-                   (item_id, status, quantity_affected, condition_notes, session.get('username')))
+
+
+        cur.execute("""
+            UPDATE inventory_items
+            SET quantity=%s,
+                status=%s,
+                condition_notes=%s,
+                updated_at=CURRENT_TIMESTAMP
+            WHERE id=%s
+        """,
+        (
+            new_quantity,
+            status,
+            condition_notes,
+            item_id
+        ))
+
+
+        cur.execute("""
+            INSERT INTO inventory_transactions
+            (
+                item_id,
+                transaction_type,
+                quantity,
+                notes,
+                recorded_by
+            )
+            VALUES
+            (
+                %s,
+                %s,
+                %s,
+                %s,
+                %s
+            )
+        """,
+        (
+            item_id,
+            status,
+            quantity_affected,
+            condition_notes,
+            session.get('username')
+        ))
+
+
     else:
-        cur.execute("UPDATE inventory_items SET status=?, condition_notes=?, updated_at=CURRENT_TIMESTAMP WHERE id=?", 
-                   (status, condition_notes, item_id))
+
+        cur.execute("""
+            UPDATE inventory_items
+            SET status=%s,
+                condition_notes=%s,
+                updated_at=CURRENT_TIMESTAMP
+            WHERE id=%s
+        """,
+        (
+            status,
+            condition_notes,
+            item_id
+        ))
+
+
     db.commit()
     cur.close()
-    flash(f'Item status updated to {status}.', 'success')
+
+
+    flash(
+        f'Item status updated to {status}.',
+        'success'
+    )
+
     return redirect(url_for('inventory_items'))
+
+# ==================== INVENTORY TRANSACTIONS ====================
 
 @app.route('/inventory/transactions')
 def inventory_transactions():
+
     if not check_permission(['admin', 'bursar', 'dos', 'stores_keeper']):
         abort(403)
-    
+
     item_id = request.args.get('item_id', '')
+
     db = get_db_dict()
     cur = db.cursor()
-    
+
     if item_id:
+
         cur.execute("""
-            SELECT t.*, i.name as item_name, i.item_code
+            SELECT 
+                t.*,
+                i.name AS item_name,
+                i.item_code
             FROM inventory_transactions t
-            JOIN inventory_items i ON t.item_id = i.id
-            WHERE t.item_id = ?
+            JOIN inventory_items i
+            ON t.item_id = i.id
+            WHERE t.item_id=%s
             ORDER BY t.created_at DESC
-        """, (item_id,))
+        """,
+        (item_id,))
+
     else:
+
         cur.execute("""
-            SELECT t.*, i.name as item_name, i.item_code
+            SELECT 
+                t.*,
+                i.name AS item_name,
+                i.item_code
             FROM inventory_transactions t
-            JOIN inventory_items i ON t.item_id = i.id
+            JOIN inventory_items i
+            ON t.item_id = i.id
             ORDER BY t.created_at DESC
         """)
-    
+
+
     transactions = cur.fetchall()
-    
-    cur.execute("SELECT id, name, item_code FROM inventory_items ORDER BY name")
+
+
+    cur.execute("""
+        SELECT id, name, item_code
+        FROM inventory_items
+        ORDER BY name
+    """)
+
     items = cur.fetchall()
+
     cur.close()
-    
-    return render_template('inventory/transactions.html', 
-                          transactions=transactions, 
-                          items=items, 
-                          selected_item=item_id)
+
+
+    return render_template(
+        'inventory/transactions.html',
+        transactions=transactions,
+        items=items,
+        selected_item=item_id
+    )
+
+
+
+# ==================== INVENTORY ALERTS ====================
 
 @app.route('/inventory/alerts')
 def inventory_alerts():
+
     if not check_permission(['admin', 'bursar', 'dos', 'stores_keeper']):
         abort(403)
+
     db = get_db_dict()
     cur = db.cursor()
-    cur.execute("""SELECT a.*, i.name as item_name, i.quantity, i.reorder_level, i.unit FROM inventory_alerts a 
-                   JOIN inventory_items i ON a.item_id = i.id WHERE a.is_read = 0 ORDER BY a.created_at DESC""")
+
+
+    cur.execute("""
+        SELECT 
+            a.*,
+            i.name AS item_name,
+            i.quantity,
+            i.reorder_level,
+            i.unit
+
+        FROM inventory_alerts a
+
+        JOIN inventory_items i
+        ON a.item_id = i.id
+
+        WHERE a.is_read = FALSE
+
+        ORDER BY a.created_at DESC
+
+    """)
+
+
     alerts = cur.fetchall()
+
     cur.close()
-    return render_template('inventory/alerts.html', alerts=alerts)
+
+
+    return render_template(
+        'inventory/alerts.html',
+        alerts=alerts
+    )
+
+
+
+# ==================== MARK ALERT AS READ ====================
 
 @app.route('/inventory/alert/read/<int:alert_id>')
 def inventory_alert_read(alert_id):
+
     if not check_permission(['admin', 'bursar', 'dos', 'stores_keeper']):
         abort(403)
-    execute_db("UPDATE inventory_alerts SET is_read=1 WHERE id=?", (alert_id,))
-    flash('Alert acknowledged.', 'success')
-    return redirect(url_for('inventory_alerts'))
+
+
+    execute_db("""
+        UPDATE inventory_alerts
+        SET is_read=TRUE
+        WHERE id=%s
+    """,
+    (alert_id,))
+
+
+    flash(
+        'Alert acknowledged.',
+        'success'
+    )
+
+
+    return redirect(
+        url_for('inventory_alerts')
+    )
+
+
+
+# ==================== INVENTORY REPORTS ====================
 
 @app.route('/inventory/reports')
 def inventory_reports():
+
     if not check_permission(['admin', 'bursar', 'stores_keeper']):
         abort(403)
-    
-    # Initialize all variables with default values
+
+
     by_category = []
     by_status = []
     low_stock_items = []
     recent_issues = []
+
     total_items = 0
     total_quantity = 0
     low_stock_count = 0
     total_value = 0
-    
+
+
     try:
+
         db = get_db()
         cur = db.cursor()
-        
+
+
         # Total items
-        cur.execute("SELECT COUNT(*) FROM inventory_items")
-        row = cur.fetchone()
-        total_items = row[0] if row else 0
-        
+
+        cur.execute("""
+            SELECT COUNT(*)
+            FROM inventory_items
+        """)
+
+        total_items = cur.fetchone()[0] or 0
+
+
+
         # Total quantity
-        cur.execute("SELECT SUM(quantity) FROM inventory_items WHERE status='working'")
-        row = cur.fetchone()
-        total_quantity = row[0] if row and row[0] else 0
-        
-        # Low stock count
-        cur.execute("SELECT COUNT(*) FROM inventory_items WHERE quantity <= reorder_level AND status='working'")
-        row = cur.fetchone()
-        low_stock_count = row[0] if row else 0
-        
+
+        cur.execute("""
+            SELECT SUM(quantity)
+            FROM inventory_items
+            WHERE status='working'
+        """)
+
+        total_quantity = cur.fetchone()[0] or 0
+
+
+
+        # Low stock
+
+        cur.execute("""
+            SELECT COUNT(*)
+            FROM inventory_items
+            WHERE quantity <= reorder_level
+            AND status='working'
+        """)
+
+        low_stock_count = cur.fetchone()[0] or 0
+
+
+
         # Total value
-        cur.execute("SELECT SUM(current_value) FROM inventory_items")
-        row = cur.fetchone()
-        total_value = row[0] if row and row[0] else 0
-        
+
+        cur.execute("""
+            SELECT SUM(current_value)
+            FROM inventory_items
+        """)
+
+        total_value = cur.fetchone()[0] or 0
+
+
+
+
         # Stock by category
+
         cur.execute("""
-            SELECT c.name, COUNT(i.id), SUM(i.quantity), SUM(i.current_value)
+            SELECT
+                c.name,
+                COUNT(i.id),
+                COALESCE(SUM(i.quantity),0),
+                COALESCE(SUM(i.current_value),0)
+
             FROM inventory_categories c
-            LEFT JOIN inventory_items i ON c.id = i.category_id
-            GROUP BY c.id
+
+            LEFT JOIN inventory_items i
+
+            ON c.id=i.category_id
+
+            GROUP BY c.id,c.name
+
         """)
+
+
         rows = cur.fetchall()
+
+
         for row in rows:
+
             by_category.append({
+
                 'category': row[0] or 'Unknown',
+
                 'item_count': row[1] or 0,
+
                 'total_quantity': row[2] or 0,
+
                 'total_value': row[3] or 0
+
             })
-        
+
+
+
+
         # Stock by status
-        cur.execute("SELECT status, COUNT(*), SUM(quantity) FROM inventory_items GROUP BY status")
+
+        cur.execute("""
+            SELECT
+                status,
+                COUNT(*),
+                COALESCE(SUM(quantity),0)
+
+            FROM inventory_items
+
+            GROUP BY status
+        """)
+
+
         rows = cur.fetchall()
+
+
         for row in rows:
+
             by_status.append({
+
                 'status': row[0] or 'Unknown',
+
                 'count': row[1] or 0,
+
                 'quantity': row[2] or 0
+
             })
-        
+
+
+
+
+
         # Low stock items
+
         cur.execute("""
-            SELECT i.id, i.item_code, i.name, i.quantity, i.reorder_level, i.unit, c.name
+            SELECT
+                i.id,
+                i.item_code,
+                i.name,
+                i.quantity,
+                i.reorder_level,
+                i.unit,
+                c.name
+
             FROM inventory_items i
-            LEFT JOIN inventory_categories c ON i.category_id = c.id
-            WHERE i.quantity <= i.reorder_level AND i.status = 'working'
+
+            LEFT JOIN inventory_categories c
+
+            ON i.category_id=c.id
+
+            WHERE i.quantity <= i.reorder_level
+
+            AND i.status='working'
+
             ORDER BY i.quantity ASC
+
         """)
+
+
         rows = cur.fetchall()
+
+
         for row in rows:
+
             low_stock_items.append({
+
                 'id': row[0],
+
                 'item_code': row[1],
+
                 'name': row[2],
+
                 'quantity': row[3],
+
                 'reorder_level': row[4],
+
                 'unit': row[5],
+
                 'category_name': row[6] or 'Unknown'
+
             })
-        
+
+
+
+
+
         # Recent issues
+
         cur.execute("""
-            SELECT t.transaction_date, t.quantity, t.issued_to, t.purpose, t.recorded_by, i.name
+            SELECT
+
+                t.transaction_date,
+                t.quantity,
+                t.issued_to,
+                t.purpose,
+                t.recorded_by,
+                i.name
+
+
             FROM inventory_transactions t
-            LEFT JOIN inventory_items i ON t.item_id = i.id
-            WHERE t.transaction_type = 'issued'
-            ORDER BY t.created_at DESC LIMIT 20
+
+
+            LEFT JOIN inventory_items i
+
+            ON t.item_id=i.id
+
+
+            WHERE t.transaction_type='issued'
+
+
+            ORDER BY t.created_at DESC
+
+            LIMIT 20
+
         """)
+
+
         rows = cur.fetchall()
+
+
         for row in rows:
+
             recent_issues.append({
+
                 'transaction_date': row[0],
+
                 'quantity': row[1],
+
                 'issued_to': row[2],
+
                 'purpose': row[3],
+
                 'recorded_by': row[4],
+
                 'item_name': row[5] or 'Unknown'
+
             })
-        
+
+
         cur.close()
-        
+
+
+
     except Exception as e:
-        print(f"Error in inventory_reports: {str(e)}")
-        flash(f'Error loading reports: {str(e)}', 'danger')
-    
-    return render_template('inventory/reports.html',
-                          by_category=by_category,
-                          by_status=by_status,
-                          low_stock_items=low_stock_items,
-                          recent_issues=recent_issues,
-                          total_items=total_items,
-                          total_quantity=total_quantity,
-                          low_stock_count=low_stock_count,
-                          total_value=total_value)
+
+        print(
+            f"Error in inventory_reports: {str(e)}"
+        )
+
+        flash(
+            f'Error loading reports: {str(e)}',
+            'danger'
+        )
+
+
+
+    return render_template(
+        'inventory/reports.html',
+        by_category=by_category,
+        by_status=by_status,
+        low_stock_items=low_stock_items,
+        recent_issues=recent_issues,
+        total_items=total_items,
+        total_quantity=total_quantity,
+        low_stock_count=low_stock_count,
+        total_value=total_value
+    )
+
+
+
+# ==================== PRINT INVENTORY REPORT ====================
 
 @app.route('/inventory/print_report')
 def inventory_print_report():
+
     if not check_permission(['admin', 'bursar', 'stores_keeper']):
         abort(403)
-    category = request.args.get('category', '')
+
+
+    category = request.args.get('category','')
+
+
     db = get_db_dict()
     cur = db.cursor()
+
+
     if category:
-        cur.execute("SELECT i.*, c.name as category_name FROM inventory_items i JOIN inventory_categories c ON i.category_id = c.id WHERE c.name = ? ORDER BY i.name", (category,))
+
+        cur.execute("""
+            SELECT
+                i.*,
+                c.name AS category_name
+
+            FROM inventory_items i
+
+            JOIN inventory_categories c
+
+            ON i.category_id=c.id
+
+            WHERE c.name=%s
+
+            ORDER BY i.name
+
+        """,
+        (category,))
+
+
     else:
-        cur.execute("SELECT i.*, c.name as category_name FROM inventory_items i JOIN inventory_categories c ON i.category_id = c.id ORDER BY c.name, i.name")
+
+        cur.execute("""
+            SELECT
+                i.*,
+                c.name AS category_name
+
+            FROM inventory_items i
+
+            JOIN inventory_categories c
+
+            ON i.category_id=c.id
+
+            ORDER BY c.name,i.name
+
+        """)
+
+
+
     items = cur.fetchall()
+
     cur.close()
-    return render_template('inventory/print_report.html', items=items, category=category)
+
+
+    return render_template(
+        'inventory/print_report.html',
+        items=items,
+        category=category
+    )
+
+
+
+# ==================== ALERT COUNT API ====================
 
 @app.route('/inventory/alert/count')
 def inventory_alert_count():
+
     if not check_permission(['admin', 'bursar', 'dos', 'stores_keeper']):
-        return jsonify({'count': 0})
+        return jsonify({'count':0})
+
+
     cur = get_db().cursor()
-    cur.execute("SELECT COUNT(*) FROM inventory_alerts WHERE is_read = 0")
+
+
+    cur.execute("""
+        SELECT COUNT(*)
+        FROM inventory_alerts
+        WHERE is_read=FALSE
+    """)
+
+
     count = cur.fetchone()[0]
+
+
     cur.close()
-    return jsonify({'count': count})
+
+
+    return jsonify({
+        'count': count
+    })
 
 # ==================== UPLOADS & MISC ====================
+
 @app.route('/uploads/<filename>')
 def uploaded_file(filename):
-    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+    return send_from_directory(
+        app.config['UPLOAD_FOLDER'],
+        filename
+    )
+
 
 # ==================== MOBILE API ENDPOINTS ====================
+
 @app.route('/mobile/login', methods=['POST'])
 def mobile_login():
+
     data = request.get_json()
+
     username = data.get('username')
     password = data.get('password')
-    cur = get_db().cursor()
-    cur.execute("SELECT id, username, role, status FROM users WHERE username=? AND password=?", (username, password))
+
+    db = get_db()
+    cur = db.cursor()
+
+    cur.execute("""
+        SELECT id, username, role, status
+        FROM users
+        WHERE username=%s
+        AND password=%s
+    """,
+    (
+        username,
+        password
+    ))
+
     user = cur.fetchone()
+
     cur.close()
+
+
     if user and user[3] == 1:
+
         token, _ = generate_secure_token()
-        return jsonify({'success': True, 'token': token, 'role': user[2], 'username': user[1]})
-    return jsonify({'success': False, 'message': 'Invalid credentials'})
+
+        return jsonify({
+            'success': True,
+            'token': token,
+            'role': user[2],
+            'username': user[1]
+        })
+
+
+    return jsonify({
+        'success': False,
+        'message': 'Invalid credentials'
+    })
+
+
 
 @app.route('/mobile/dashboard', methods=['GET'])
 def mobile_dashboard():
-    token = request.headers.get('Authorization', '').replace('Bearer ', '')
+
+    token = request.headers.get(
+        'Authorization',
+        ''
+    ).replace(
+        'Bearer ',
+        ''
+    )
+
+
     role = session.get('role')
+
+
     if role == 'admin':
-        cur = get_db().cursor()
-        cur.execute("SELECT COUNT(*) as total_users FROM users")
+
+        db = get_db()
+        cur = db.cursor()
+
+
+        cur.execute("""
+            SELECT COUNT(*)
+            FROM users
+        """)
+
         users = cur.fetchone()
-        cur.execute("SELECT COUNT(*) as total_students FROM students")
+
+
+        cur.execute("""
+            SELECT COUNT(*)
+            FROM students
+        """)
+
         students = cur.fetchone()
+
+
         cur.close()
-        return jsonify({'total_users': users[0] if users else 0, 'total_students': students[0] if students else 0})
+
+
+        return jsonify({
+
+            'total_users':
+                users[0] if users else 0,
+
+            'total_students':
+                students[0] if students else 0
+
+        })
+
+
     return jsonify({})
 
 
+
+# ==================== DEBUG DATABASE ====================
+
 @app.route('/debug_db')
 def debug_db():
-    import sqlite3
-    conn = sqlite3.connect('school_system.db')
-    cur = conn.cursor()
-    cur.execute("SELECT id, username, role, status FROM users")
+
+    db = get_db()
+    cur = db.cursor()
+
+
+    cur.execute("""
+        SELECT id, username, role, status
+        FROM users
+        ORDER BY id
+    """)
+
+
     users = cur.fetchall()
-    conn.close()
-    
+
+    cur.close()
+
+
+
     if not users:
+
         return "No users found in database!"
-    
+
+
+
     result = "<h2>Users in Database:</h2>"
+
+
     for u in users:
-        result += f"<p>ID: {u[0]}, Username: {u[1]}, Role: {u[2]}, Status: {u[3]}</p>"
+
+        result += (
+            f"<p>ID: {u[0]}, "
+            f"Username: {u[1]}, "
+            f"Role: {u[2]}, "
+            f"Status: {u[3]}</p>"
+        )
+
+
     result += "<br><a href='/login'>Go to Login</a>"
+
+
     return result
+
+
+
+# ==================== FORCE ADMIN CREATION ====================
 
 @app.route('/force_admin')
 def force_admin():
-    import sqlite3
+
     from werkzeug.security import generate_password_hash
-    
-    conn = sqlite3.connect('school_system.db')
-    cur = conn.cursor()
-    
-    cur.execute("DELETE FROM users WHERE username = 'admin'")
-    hashed = generate_password_hash('admin123')
-    cur.execute("INSERT INTO users (username, password, role, status, phone, must_change_password) VALUES (?, ?, 'admin', 1, '0700000000', 0)", ('admin', hashed))
-    
-    conn.commit()
-    conn.close()
-    
-    return "Admin created! Username: admin, Password: admin123. <a href='/login'>Login here</a>"
+
+
+    db = get_db()
+    cur = db.cursor()
+
+
+    cur.execute("""
+        DELETE FROM users
+        WHERE username='admin'
+    """)
+
+
+
+    hashed = generate_password_hash(
+        'admin123'
+    )
+
+
+    cur.execute("""
+        INSERT INTO users
+        (
+            username,
+            password,
+            role,
+            status,
+            phone,
+            must_change_password
+        )
+        VALUES
+        (
+            %s,
+            %s,
+            'admin',
+            TRUE,
+            '0700000000',
+            FALSE
+        )
+    """,
+    (
+        'admin',
+        hashed
+    ))
+
+
+
+    db.commit()
+
+    cur.close()
+
+
+
+    return """
+    Admin created!
+    Username: admin
+    Password: admin123.
+    <a href='/login'>Login here</a>
+    """
+
+
 
 if __name__ == '__main__':
     app.run(debug=True)
