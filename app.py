@@ -584,7 +584,8 @@ def init_db():
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY(payroll_id)
                 REFERENCES payroll(id)
-                
+         )
+    """)
   
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS subjects (
