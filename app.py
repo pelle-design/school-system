@@ -49,9 +49,7 @@ def get_db():
             DATABASE_URL,
             cursor_factory=psycopg2.extras.RealDictCursor
         )
-
     return db
-
 
 @app.teardown_appcontext
 def close_connection(exception):
@@ -60,16 +58,12 @@ def close_connection(exception):
     if db is not None:
         db.close()
 
-
 def init_db():
     """Initialize PostgreSQL database with all tables"""
 
     db = get_db()
     cursor = db.cursor()
-
-
     # ==================== USERS TABLE ====================
-
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS users (
             id SERIAL PRIMARY KEY,
@@ -84,8 +78,6 @@ def init_db():
             must_change_password INTEGER DEFAULT 0
         )
     """)
-
-
     # ==================== ROLE LIMITS TABLE ====================
 
     cursor.execute("""
@@ -94,8 +86,6 @@ def init_db():
             max_count INTEGER DEFAULT 1
         )
     """)
-
-
     # ==================== ADMISSION SETTINGS ====================
 
     cursor.execute("""
@@ -110,10 +100,7 @@ def init_db():
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
-
-
     # ==================== STUDENTS TABLE ====================
-
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS students (
             student_id TEXT PRIMARY KEY,
@@ -140,8 +127,6 @@ def init_db():
             payment_date TIMESTAMP
         )
     """)
-
-
     # ==================== STAFF TABLE ====================
 
     cursor.execute("""
@@ -164,8 +149,6 @@ def init_db():
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
-
-
     # ==================== PAYROLL TABLE ====================
 
     cursor.execute("""
@@ -201,122 +184,76 @@ def init_db():
             last_resend_at TIMESTAMP
         )
     """)
-
-
     # ==================== SALARY PAYMENTS ====================
 
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS salary_payments (
             id SERIAL PRIMARY KEY,
-
             staff_id INTEGER,
             payroll_id INTEGER,
-
             month_year DATE,
-
             basic NUMERIC,
             allowances NUMERIC,
             deductions NUMERIC,
-
             gross_salary NUMERIC,
-
             nssf_employee NUMERIC,
             paye_tax NUMERIC,
-
             net_salary NUMERIC,
-
             payment_date DATE,
             payment_method TEXT,
-
             approval_code TEXT,
             approval_status TEXT DEFAULT 'pending',
-
             transaction_ref TEXT,
-
             recorded_by TEXT,
-
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-
             FOREIGN KEY(staff_id)
                 REFERENCES staff(id),
-
             FOREIGN KEY(payroll_id)
                 REFERENCES payroll(id)
         )
     """)
-
-
     # ==================== MARKS TABLE ====================
-
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS marks (
-
             id SERIAL PRIMARY KEY,
-
             student_id TEXT,
-
             subject TEXT,
-
             term TEXT,
-
             year INTEGER,
-
             ai1 NUMERIC,
             ai2 NUMERIC,
             ai3 NUMERIC,
-
             ai_average NUMERIC,
-
             ai_contribution NUMERIC,
-
             eot_score NUMERIC,
-
             total_score NUMERIC,
-
             grade TEXT,
-
             identifier NUMERIC,
-
             descriptor TEXT,
-
             teacher_initials TEXT,
-
             teacher_id INTEGER,
-
             paper1 NUMERIC,
-
             paper2 NUMERIC,
-
             points INTEGER,
-
-
             FOREIGN KEY(student_id)
                 REFERENCES students(student_id),
-
-
             UNIQUE(student_id, subject, term, year)
 
         )
     """)
         # ==================== ATTENDANCE TABLE ====================
-
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS attendance (
             id SERIAL PRIMARY KEY,
             student_id TEXT,
             date DATE,
             status TEXT,
-
             FOREIGN KEY(student_id)
                 REFERENCES students(student_id),
-
             UNIQUE(student_id, date)
         )
     """)
-
-
     # ==================== SCHEDULES TABLE ====================
-
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS schedules (
             id SERIAL PRIMARY KEY,
@@ -326,10 +263,7 @@ def init_db():
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
-
-
     # ==================== GRADING SYSTEM ====================
-
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS grading_system (
             id SERIAL PRIMARY KEY,
@@ -339,10 +273,7 @@ def init_db():
             descriptor TEXT
         )
     """)
-
-
     # ==================== A LEVEL GRADING ====================
-
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS alevel_grading (
             id SERIAL PRIMARY KEY,
@@ -353,10 +284,7 @@ def init_db():
             is_subsidiary INTEGER DEFAULT 0
         )
     """)
-
-
     # ==================== IDENTIFIER GRADING ====================
-
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS identifier_grading (
             id SERIAL PRIMARY KEY,
@@ -365,10 +293,7 @@ def init_db():
             descriptor TEXT
         )
     """)
-
-
     # ==================== TEACHER COMMENTS ====================
-
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS teacher_comments (
             id SERIAL PRIMARY KEY,
@@ -384,10 +309,7 @@ def init_db():
                 REFERENCES students(student_id)
         )
     """)
-
-
     # ==================== TEACHER CLASS ASSIGNMENTS ====================
-
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS teacher_class_assignments (
             id SERIAL PRIMARY KEY,
@@ -397,17 +319,12 @@ def init_db():
             assignment_type TEXT NOT NULL,
             assigned_by TEXT,
             assigned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-
             FOREIGN KEY(user_id)
                 REFERENCES users(id),
-
             UNIQUE(user_id, class_name, subject, assignment_type)
         )
     """)
-
-
     # ==================== NOTIFICATIONS ====================
-
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS notifications (
             id SERIAL PRIMARY KEY,
@@ -419,10 +336,7 @@ def init_db():
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
-
-
     # ==================== SCHOOL SETTINGS ====================
-
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS school_settings (
             id INTEGER PRIMARY KEY DEFAULT 1,
@@ -439,10 +353,7 @@ def init_db():
             paye_threshold NUMERIC DEFAULT 235000
         )
     """)
-
-
     # ==================== PREDEFINED COMMENTS ====================
-
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS predefined_comments (
             id SERIAL PRIMARY KEY,
@@ -452,10 +363,7 @@ def init_db():
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
-
-
     # ==================== PAYMENTS ====================
-
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS payments (
             id SERIAL PRIMARY KEY,
@@ -467,15 +375,11 @@ def init_db():
             notes TEXT,
             recorded_by TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-
             FOREIGN KEY(student_id)
                 REFERENCES students(student_id)
         )
     """)
-
-
     # ==================== BUDGET CATEGORIES ====================
-
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS budget_categories (
             id SERIAL PRIMARY KEY,
@@ -486,10 +390,7 @@ def init_db():
             year INTEGER
         )
     """)
-
-
     # ==================== EXPENDITURES ====================
-
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS expenditures (
             id SERIAL PRIMARY KEY,
@@ -504,13 +405,11 @@ def init_db():
             status TEXT,
             recorded_by TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-
             FOREIGN KEY(category_id)
                 REFERENCES budget_categories(id)
         )
     """)
         # ==================== INVENTORY CATEGORIES ====================
-
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS inventory_categories (
             id SERIAL PRIMARY KEY,
@@ -520,10 +419,7 @@ def init_db():
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
-
-
     # ==================== INVENTORY ITEMS ====================
-
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS inventory_items (
             id SERIAL PRIMARY KEY,
@@ -549,15 +445,11 @@ def init_db():
             image_path TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-
             FOREIGN KEY(category_id)
                 REFERENCES inventory_categories(id)
         )
     """)
-
-
     # ==================== INVENTORY TRANSACTIONS ====================
-
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS inventory_transactions (
             id SERIAL PRIMARY KEY,
@@ -575,15 +467,11 @@ def init_db():
             approved_by TEXT,
             notes TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-
             FOREIGN KEY(item_id)
                 REFERENCES inventory_items(id)
         )
     """)
-
-
     # ==================== INVENTORY ALERTS ====================
-
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS inventory_alerts (
             id SERIAL PRIMARY KEY,
@@ -592,15 +480,11 @@ def init_db():
             message TEXT,
             is_read INTEGER DEFAULT 0,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-
             FOREIGN KEY(item_id)
                 REFERENCES inventory_items(id)
         )
     """)
-
-
     # ==================== HOUSES ====================
-
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS houses (
             id SERIAL PRIMARY KEY,
@@ -609,20 +493,14 @@ def init_db():
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
-
-
     # ==================== SPORTS ACTIVITIES ====================
-
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS sports_activities (
             id SERIAL PRIMARY KEY,
             name TEXT UNIQUE
         )
     """)
-
-
     # ==================== PAYMENT WEBHOOKS ====================
-
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS payment_webhooks (
             id SERIAL PRIMARY KEY,
@@ -638,10 +516,7 @@ def init_db():
             received_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
-
-
     # ==================== PAYMENT GATEWAY CONFIG ====================
-
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS payment_gateway_config (
             id INTEGER PRIMARY KEY DEFAULT 1,
@@ -653,10 +528,7 @@ def init_db():
             status TEXT DEFAULT 'inactive'
         )
     """)
-
-
     # ==================== BANK TRANSACTION LOGS ====================
-
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS bank_transaction_logs (
             id SERIAL PRIMARY KEY,
@@ -669,18 +541,13 @@ def init_db():
             status TEXT,
             response TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-
             FOREIGN KEY(payroll_id)
                 REFERENCES payroll(id),
-
             FOREIGN KEY(staff_id)
                 REFERENCES staff(id)
         )
     """)
-
-
     # ==================== AUTHORIZATION LOGS ====================
-
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS authorization_logs (
             id SERIAL PRIMARY KEY,
@@ -690,64 +557,147 @@ def init_db():
             ip_address TEXT,
             details TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-
             FOREIGN KEY(payroll_id)
                 REFERENCES payroll(id)
         )
     """)
-
-
     # ==================== SAVE CHANGES ====================
 
     db.commit()
-    # Insert default data
-    cursor.execute("SELECT COUNT(*) FROM role_limits")
-    if cursor.fetchone()[0] == 0:
-        cursor.executemany("INSERT INTO role_limits (role_name, max_count) VALUES (?, ?)", 
-                          [('admin', 1), ('headteacher', 1), ('management', 1), ('bursar', 1), ('dos', 1)])
-    
-    cursor.execute("SELECT COUNT(*) FROM admission_settings")
-    if cursor.fetchone()[0] == 0:
-        cursor.execute("INSERT INTO admission_settings (id, is_open, fee_amount) VALUES (1, 1, 50000)")
-    
-    cursor.execute("SELECT COUNT(*) FROM users")
-    if cursor.fetchone()[0] == 0:
+        # Insert default data
+    cursor.execute("SELECT COUNT(*) AS count FROM role_limits")
+    if cursor.fetchone()['count'] == 0:
+        cursor.executemany(
+            "INSERT INTO role_limits (role_name, max_count) VALUES (%s, %s)",
+            [
+                ('admin', 1),
+                ('headteacher', 1),
+                ('management', 1),
+                ('bursar', 1),
+                ('dos', 1)
+            ]
+        )
+
+    cursor.execute("SELECT COUNT(*) AS count FROM admission_settings")
+    if cursor.fetchone()['count'] == 0:
+        cursor.execute(
+            "INSERT INTO admission_settings (id, is_open, fee_amount) VALUES (1, 1, 50000)"
+        )
+
+    cursor.execute("SELECT COUNT(*) AS count FROM users")
+    if cursor.fetchone()['count'] == 0:
         from werkzeug.security import generate_password_hash
+
         hashed = generate_password_hash('admin123')
-        cursor.execute("INSERT INTO users (username, password, full_name, role, status, phone, must_change_password) VALUES (?, ?, ?, 'admin', 1, '0700000000', 0)", 
-                      ('admin', hashed, 'Administrator'))
-    
-    cursor.execute("SELECT COUNT(*) FROM school_settings")
-    if cursor.fetchone()[0] == 0:
+
+        cursor.execute(
+            """
+            INSERT INTO users
+            (username, password, full_name, role, status, phone, must_change_password)
+            VALUES (%s, %s, %s, 'admin', 1, '0700000000', 0)
+            """,
+            ('admin', hashed, 'Administrator')
+        )
+
+    cursor.execute("SELECT COUNT(*) AS count FROM school_settings")
+    if cursor.fetchone()['count'] == 0:
         cursor.execute("INSERT INTO school_settings (id) VALUES (1)")
-    
-    cursor.execute("SELECT COUNT(*) FROM houses")
-    if cursor.fetchone()[0] == 0:
-        houses = [('AFRICA HOUSE', ''), ('EUROPE HOUSE', ''), ('NORTH AMERICA HOUSE', ''), ('SOUTH AMERICA HOUSE', ''),('ASIA HOUSE',''),('AUSTRALIA','')]
-        cursor.executemany("INSERT INTO houses (name, description) VALUES (?, ?)", houses)
-    
-    cursor.execute("SELECT COUNT(*) FROM sports_activities")
-    if cursor.fetchone()[0] == 0:
-        sports = ['Football', 'Basketball', 'Netball', 'Athletics', 'Swimming', 'Tennis', 'Table Tennis', 'Volleyball', 'Chess', 'Scouts']
-        cursor.executemany("INSERT INTO sports_activities (name) VALUES (?)", [(s,) for s in sports])
-    
-    cursor.execute("SELECT COUNT(*) FROM grading_system")
-    if cursor.fetchone()[0] == 0:
-        grading = [(80, 100, 'A', 'Excellent'), (70, 79, 'B', 'Very Good'), (60, 69, 'C', 'Good'), (50, 59, 'D', 'Pass'), (0, 49, 'E', 'Fail')]
-        cursor.executemany("INSERT INTO grading_system (min_score, max_score, grade, descriptor) VALUES (?, ?, ?, ?)", grading)
-    
-    cursor.execute("SELECT COUNT(*) FROM identifier_grading")
-    if cursor.fetchone()[0] == 0:
-        identifier = [(2.4, 3.0, 'Excellent'), (1.8, 2.39, 'Very Good'), (1.2, 1.79, 'Good'), (0.6, 1.19, 'Satisfactory'), (0.0, 0.59, 'Needs Improvement')]
-        cursor.executemany("INSERT INTO identifier_grading (min_value, max_value, descriptor) VALUES (?, ?, ?)", identifier)
-    
-    cursor.execute("SELECT COUNT(*) FROM alevel_grading")
-    if cursor.fetchone()[0] == 0:
-        alevel = [(80, 100, 'A', 5, 0), (70, 79, 'B', 4, 0), (60, 69, 'C', 3, 0), (50, 59, 'D', 2, 0), (0, 49, 'E', 1, 0)]
-        cursor.executemany("INSERT INTO alevel_grading (min_score, max_score, grade, points, is_subsidiary) VALUES (?, ?, ?, ?, ?)", alevel)
-    
-    cursor.execute("SELECT COUNT(*) FROM inventory_categories")
-    if cursor.fetchone()[0] == 0:
+
+    cursor.execute("SELECT COUNT(*) AS count FROM houses")
+    if cursor.fetchone()['count'] == 0:
+        houses = [
+            ('AFRICA HOUSE', ''),
+            ('EUROPE HOUSE', ''),
+            ('NORTH AMERICA HOUSE', ''),
+            ('SOUTH AMERICA HOUSE', ''),
+            ('ASIA HOUSE', ''),
+            ('AUSTRALIA', '')
+        ]
+
+        cursor.executemany(
+            "INSERT INTO houses (name, description) VALUES (%s, %s)",
+            houses
+        )
+
+    cursor.execute("SELECT COUNT(*) AS count FROM sports_activities")
+    if cursor.fetchone()['count'] == 0:
+        sports = [
+            'Football',
+            'Basketball',
+            'Netball',
+            'Athletics',
+            'Swimming',
+            'Tennis',
+            'Table Tennis',
+            'Volleyball',
+            'Chess',
+            'Scouts'
+        ]
+
+        cursor.executemany(
+            "INSERT INTO sports_activities (name) VALUES (%s)",
+            [(s,) for s in sports]
+        )
+
+    cursor.execute("SELECT COUNT(*) AS count FROM grading_system")
+    if cursor.fetchone()['count'] == 0:
+        grading = [
+            (80, 100, 'A', 'Excellent'),
+            (70, 79, 'B', 'Very Good'),
+            (60, 69, 'C', 'Good'),
+            (50, 59, 'D', 'Pass'),
+            (0, 49, 'E', 'Fail')
+        ]
+
+        cursor.executemany(
+            """
+            INSERT INTO grading_system
+            (min_score, max_score, grade, descriptor)
+            VALUES (%s, %s, %s, %s)
+            """,
+            grading
+        )
+
+    cursor.execute("SELECT COUNT(*) AS count FROM identifier_grading")
+    if cursor.fetchone()['count'] == 0:
+        identifier = [
+            (2.4, 3.0, 'Excellent'),
+            (1.8, 2.39, 'Very Good'),
+            (1.2, 1.79, 'Good'),
+            (0.6, 1.19, 'Satisfactory'),
+            (0.0, 0.59, 'Needs Improvement')
+        ]
+
+        cursor.executemany(
+            """
+            INSERT INTO identifier_grading
+            (min_value, max_value, descriptor)
+            VALUES (%s, %s, %s)
+            """,
+            identifier
+        )
+
+    cursor.execute("SELECT COUNT(*) AS count FROM alevel_grading")
+    if cursor.fetchone()['count'] == 0:
+        alevel = [
+            (80, 100, 'A', 5, 0),
+            (70, 79, 'B', 4, 0),
+            (60, 69, 'C', 3, 0),
+            (50, 59, 'D', 2, 0),
+            (0, 49, 'E', 1, 0)
+        ]
+
+        cursor.executemany(
+            """
+            INSERT INTO alevel_grading
+            (min_score, max_score, grade, points, is_subsidiary)
+            VALUES (%s, %s, %s, %s, %s)
+            """,
+            alevel
+        )
+
+    cursor.execute("SELECT COUNT(*) AS count FROM inventory_categories")
+    if cursor.fetchone()['count'] == 0:
         categories = [
             ('Furniture', 'Desks, chairs, tables, cabinets, etc.', 5),
             ('Equipment', 'Computers, projectors, lab equipment, etc.', 3),
@@ -760,744 +710,494 @@ def init_db():
             ('Books', 'Textbooks, library books, reference materials', 10),
             ('Maintenance', 'Tools, spare parts, repair items', 5)
         ]
-        cursor.executemany("INSERT INTO inventory_categories (name, description, warning_level) VALUES (?, ?, ?)", categories)
-    
+
+        cursor.executemany(
+            """
+            INSERT INTO inventory_categories
+            (name, description, warning_level)
+            VALUES (%s, %s, %s)
+            """,
+            categories
+        )
+
     db.commit()
+
     print("Database initialized successfully!")
+
 
 # Initialize database on startup
 with app.app_context():
-    if not os.path.exists(DATABASE):
-        init_db()
-    else:
-        # Verify tables exist, create if missing
-        init_db()
+    init_db()
 
 
-#csrf = CSRFProtect()
-#csrf.init_app(app)
+# csrf = CSRFProtect()
+# csrf.init_app(app)
 
 app.config.update(
-    SESSION_COOKIE_SECURE=True,      # Only send over HTTPS
-    SESSION_COOKIE_HTTPONLY=True,    # No JavaScript access
-    SESSION_COOKIE_SAMESITE='Lax',   # CSRF protection
+    SESSION_COOKIE_SECURE=True,
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE='Lax',
     PERMANENT_SESSION_LIFETIME=timedelta(hours=2)
 )
-
-@app.after_request
-def add_security_headers(response):
-    response.headers['X-Content-Type-Options'] = 'nosniff'
-    response.headers['X-Frame-Options'] = 'DENY'
-    response.headers['X-XSS-Protection'] = '1; mode=block'
-    response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
-    return response
-
-def validate_input(text, max_length=500, allow_html=False):
-    """Validate and sanitize user input"""
-    if not text:
-        return ''
-    
-    # Limit length
-    if len(text) > max_length:
-        text = text[:max_length]
-    
-    if not allow_html:
-        text = sanitize_input(text)
-    
-    return text
 # ==================== HELPER FUNCTIONS ====================
+
 def query_db(query, args=(), one=False):
     """Execute a query and return results"""
-    cur = get_db().cursor()
+    db = get_db()
+    cur = db.cursor()
+
     cur.execute(query, args)
+
     rv = cur.fetchall()
+
     cur.close()
-    return (rv[0] if rv else None) if one else rv
 
-def get_mtn_access_token():
-    """Get access token from MTN MoMo API"""
-    api_user = os.environ.get('MTN_API_USER', 'sandbox')
-    api_key = os.environ.get('MTN_API_KEY', '')
-    
-    # For sandbox testing
-    if api_key == '':
-        return 'sandbox_token'
-    
-    auth_string = f"{api_user}:{api_key}"
-    auth_bytes = auth_string.encode('ascii')
-    auth_b64 = base64.b64encode(auth_bytes).decode('ascii')
-    
-    url = "https://sandbox.mtn.com/collection/token/"
-    headers = {
-        'Authorization': f'Basic {auth_b64}',
-        'Ocp-Apim-Subscription-Key': os.environ.get('MTN_SUBSCRIPTION_KEY', '')
-    }
-    
-    response = requests.post(url, headers=headers)
-    if response.status_code == 200:
-        return response.json().get('access_token')
-    return None
+    if one:
+        return rv[0] if rv else None
 
-def request_momo_payment(phone_number, amount, reference, callback_url=None):
-    """Request payment from customer's mobile money"""
-    access_token = get_mtn_access_token()
-    if not access_token:
-        return {'success': False, 'message': 'Payment gateway unavailable'}
-    
-    # Format phone number (remove leading 0, add 256)
-    if phone_number.startswith('0'):
-        phone_number = '256' + phone_number[1:]
-    elif phone_number.startswith('+'):
-        phone_number = phone_number[1:]
-    
-    transaction_id = str(uuid.uuid4())
-    url = "https://sandbox.mtn.com/collection/v1_0/requesttopay"
-    
-    payload = {
-        "amount": str(amount),
-        "currency": "UGX",
-        "externalId": reference,
-        "payer": {
-            "partyIdType": "MSISDN",
-            "partyId": phone_number
-        },
-        "payerMessage": "School Admission Fee",
-        "payeeNote": "Payment for student admission"
-    }
-    
-    headers = {
-        'Authorization': f'Bearer {access_token}',
-        'X-Reference-Id': transaction_id,
-        'X-Target-Environment': 'sandbox',
-        'Content-Type': 'application/json',
-        'Ocp-Apim-Subscription-Key': os.environ.get('MTN_SUBSCRIPTION_KEY', '')
-    }
-    
-    try:
-        response = requests.post(url, json=payload, headers=headers)
-        if response.status_code == 202:
-            return {
-                'success': True, 
-                'transaction_id': transaction_id,
-                'message': 'Payment request sent. Check your phone to complete payment.'
-            }
-        else:
-            return {'success': False, 'message': f'Payment failed: {response.text}'}
-    except Exception as e:
-        return {'success': False, 'message': str(e)}
+    return rv
 
-def check_payment_status(transaction_id):
-    """Check status of a payment request"""
-    access_token = get_mtn_access_token()
-    if not access_token:
-        return 'pending'
-    
-    url = f"https://sandbox.mtn.com/collection/v1_0/requesttopay/{transaction_id}"
-    headers = {
-        'Authorization': f'Bearer {access_token}',
-        'X-Target-Environment': 'sandbox',
-        'Ocp-Apim-Subscription-Key': os.environ.get('MTN_SUBSCRIPTION_KEY', '')
-    }
-    
-    try:
-        response = requests.get(url, headers=headers)
-        if response.status_code == 200:
-            return response.json().get('status', 'pending').lower()
-        return 'pending'
-    except:
-        return 'pending'
 
 def execute_db(query, args=()):
     """Execute a query and commit"""
     db = get_db()
     cur = db.cursor()
+
     cur.execute(query, args)
+
     db.commit()
+
     cur.close()
-    return cur.lastrowid
+
+    return True
+
+
+def get_db_dict():
+    """Return PostgreSQL dictionary cursor connection"""
+    return get_db()
+
 
 def sanitize_input(text):
     """Remove dangerous characters and escape HTML"""
+
     if not text:
         return ''
-    # Remove script tags and javascript: URLs
-    text = re.sub(r'<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>', '', text, flags=re.IGNORECASE)
-    text = re.sub(r'javascript:', '', text, flags=re.IGNORECASE)
-    text = re.sub(r'on\w+\s*=', '', text, flags=re.IGNORECASE)
-    # Escape HTML entities
+
+    text = re.sub(
+        r'<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>',
+        '',
+        text,
+        flags=re.IGNORECASE
+    )
+
+    text = re.sub(
+        r'javascript:',
+        '',
+        text,
+        flags=re.IGNORECASE
+    )
+
+    text = re.sub(
+        r'on\w+\s*=',
+        '',
+        text,
+        flags=re.IGNORECASE
+    )
+
     return escape(text)
 
-def dict_factory(cursor, row):
-    """Convert row to dictionary"""
-    d = {}
-    for idx, col in enumerate(cursor.description):
-        d[col[0]] = row[idx]
-    return d
 
-def get_db_dict():
-    """Get database connection with dict factory"""
-    db = get_db()
-    db.row_factory = dict_factory
-    return db
+def validate_input(text, max_length=500, allow_html=False):
+    """Validate and sanitize user input"""
+
+    if not text:
+        return ''
+
+    if len(text) > max_length:
+        text = text[:max_length]
+
+    if not allow_html:
+        text = sanitize_input(text)
+
+    return text
+
 
 def allowed_file(filename, allowed_set):
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in allowed_set
+
+    return (
+        '.' in filename and
+        filename.rsplit('.', 1)[1].lower() in allowed_set
+    )
+
 
 def check_permission(allowed_roles):
-    """Check if logged-in user has one of the allowed roles"""
+
     if 'role' not in session:
         return False
+
     return session.get('role') in allowed_roles
 
+
 def login_required(f):
+
     @wraps(f)
     def decorated(*args, **kwargs):
+
         if 'user_id' not in session:
             flash('Please login first.', 'warning')
             return redirect(url_for('login'))
+
         return f(*args, **kwargs)
+
     return decorated
+
 
 def admin_required(f):
+
     @wraps(f)
     def decorated(*args, **kwargs):
+
         if not check_permission(['admin']):
             abort(403)
+
         return f(*args, **kwargs)
+
     return decorated
 
+
 def get_photo_url(photo_path):
+
     if photo_path and photo_path != 'default_avatar.png':
-        return url_for('static', filename='uploads/' + photo_path)
-    return url_for('static', filename='uploads/default_avatar.png')
+
+        return url_for(
+            'static',
+            filename='uploads/' + photo_path
+        )
+
+    return url_for(
+        'static',
+        filename='uploads/default_avatar.png'
+    )
+
 
 def validate_and_format_phone(phone):
+
     if not phone:
         return None
-    cleaned = re.sub(r'[^0-9+]', '', phone.strip())
+
+    cleaned = re.sub(
+        r'[^0-9+]',
+        '',
+        phone.strip()
+    )
+
     if cleaned.startswith('+'):
-        digits = re.sub(r'\D', '', cleaned)
+
+        digits = re.sub(
+            r'\D',
+            '',
+            cleaned
+        )
+
         if len(digits) >= 9:
             return cleaned
+
         return None
-    digits = re.sub(r'\D', '', cleaned)
+
+
+    digits = re.sub(
+        r'\D',
+        '',
+        cleaned
+    )
+
+
     if len(digits) == 9:
+
         return f'+256{digits}'
+
+
     elif len(digits) == 12 and digits.startswith('256'):
+
         return f'+{digits}'
+
+
     return None
-
-def generate_unique_number(prefix, table_name, column_name, year_format=False):
-    db = get_db_dict()
-    cur = db.cursor()
-    
-    # Fix: Use the correct column for ordering based on table
-    if table_name == 'students':
-        cur.execute(f"SELECT {column_name} FROM {table_name} ORDER BY {column_name} DESC LIMIT 1")
-    else:
-        cur.execute(f"SELECT {column_name} FROM {table_name} ORDER BY id DESC LIMIT 1")
-    
-    last = cur.fetchone()
-    cur.close()
-    
-    if year_format:
-        current_year = datetime.now().year
-        if last:
-            last_value = last[column_name] if isinstance(last, dict) else last[0]
-            if last_value and str(current_year) in str(last_value):
-                try:
-                    last_num = int(str(last_value).split('-')[-1])
-                    new_num = last_num + 1
-                except:
-                    new_num = 1
-            else:
-                new_num = 1
-        else:
-            new_num = 1
-        return f"{prefix}-{current_year}-{new_num:04d}"
-    else:
-        if last:
-            last_value = last[column_name] if isinstance(last, dict) else last[0]
-            try:
-                last_num = int(str(last_value).split('-')[-1])
-                new_num = last_num + 1
-            except:
-                new_num = 1
-        else:
-            new_num = 1
-        return f"{prefix}-{new_num:04d}"
-
-def generate_approval_code():
-    return ''.join(random.choices('0123456789', k=6))
-
-def generate_secure_token(hours=2):
-    token = secrets.token_urlsafe(32)
-    expires_at = datetime.now() + timedelta(hours=hours)
-    return token, expires_at
-
-def send_sms(phone_number, message):
-    print(f"[SMS] To: {phone_number} | {message}")
-    return True
-
-def send_email(recipient, subject, html_content):
-    print(f"[EMAIL] To: {recipient} | Subject: {subject}")
-    return True
-
-def calculate_age(birth_date):
-    today = datetime.now().date()
-    return today.year - birth_date.year - ((today.month, today.day) < (birth_date.month, birth_date.day))
-
-# ==================== NOTIFICATION FUNCTIONS ====================
+    # ==================== NOTIFICATION FUNCTIONS ====================
 
 def add_notification(user_role, message, link=None, title=None):
-    """Add a notification for a specific user role"""
     if title is None:
         title = "New Notification"
-    
     execute_db("""
-        INSERT INTO notifications (user_role, title, message, link, is_read, created_at) 
-        VALUES (?, ?, ?, ?, 0, ?)
-    """, (user_role, title, message, link, datetime.now()))
+        INSERT INTO notifications (user_role,title,message,link,is_read,created_at)
+        VALUES (%s,%s,%s,%s,0,%s)
+    """,(user_role,title,message,link,datetime.now()))
 
 def get_notification_count(user_role):
-    """Get count of unread notifications for a user role"""
-    db = get_db()
-    cur = db.cursor()
-    cur.execute("SELECT COUNT(*) FROM notifications WHERE user_role = ? AND is_read = 0", (user_role,))
-    result = cur.fetchone()
+    db=get_db()
+    cur=db.cursor()
+    cur.execute("SELECT COUNT(*) AS count FROM notifications WHERE user_role=%s AND is_read=0",(user_role,))
+    result=cur.fetchone()
     cur.close()
-    return result[0] if result else 0
+    return result['count'] if result else 0
 
 def mark_all_notifications_read(user_role):
-    """Mark all notifications as read for a user role"""
-    execute_db("UPDATE notifications SET is_read = 1 WHERE user_role = ?", (user_role,))
+    execute_db("UPDATE notifications SET is_read=1 WHERE user_role=%s",(user_role,))
 
 
-# ==================== NOTIFICATION API ENDPOINTS (Works for ALL ROLES) ====================
+# ==================== NOTIFICATION API ENDPOINTS ====================
 
 @app.route('/get_notifications')
 def get_notifications():
-    """Generic endpoint for all roles to get notifications"""
     if not session.get('user_id'):
         return jsonify([])
-    
-    user_role = session.get('role')
-    
-    db = get_db_dict()
-    cur = db.cursor()
+
+    user_role=session.get('role')
+    db=get_db()
+    cur=db.cursor()
     cur.execute("""
-        SELECT id, title, message, link, is_read, created_at 
-        FROM notifications 
-        WHERE user_role = ?
-        ORDER BY created_at DESC 
+        SELECT id,title,message,link,is_read,created_at
+        FROM notifications
+        WHERE user_role=%s
+        ORDER BY created_at DESC
         LIMIT 30
-    """, (user_role,))
-    
-    notifications = cur.fetchall()
+    """,(user_role,))
+
+    notifications=cur.fetchall()
     cur.close()
-    
-    result = []
+
+    result=[]
     for n in notifications:
         result.append({
-            'id': n['id'],
-            'title': n.get('title', 'Notification'),
-            'message': n['message'],
-            'link': n.get('link', ''),
-            'is_read': n['is_read'],
-            'created_at': n['created_at'][:19] if n['created_at'] else ''
+            'id':n['id'],
+            'title':n.get('title','Notification'),
+            'message':n['message'],
+            'link':n.get('link',''),
+            'is_read':n['is_read'],
+            'created_at':str(n['created_at'])[:19] if n['created_at'] else ''
         })
-    
+
     return jsonify(result)
 
 
-@app.route('/mark_notifications_read', methods=['POST'])
+@app.route('/mark_notifications_read',methods=['POST'])
 def mark_notifications_read():
-    """Generic endpoint for all roles to mark notifications as read"""
     if not session.get('user_id'):
-        return jsonify({'error': 'Not logged in'})
-    
-    user_role = session.get('role')
-    
+        return jsonify({'error':'Not logged in'})
+
     try:
-        execute_db("UPDATE notifications SET is_read = 1 WHERE user_role = ?", (user_role,))
-        return jsonify({'success': True})
+        execute_db(
+            "UPDATE notifications SET is_read=1 WHERE user_role=%s",
+            (session.get('role'),)
+        )
+        return jsonify({'success':True})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)})
+        return jsonify({'success':False,'error':str(e)})
 
-
-# ==================== DOS SPECIFIC ENDPOINTS (Keep for backward compatibility) ====================
 
 @app.route('/dos/get_notifications')
 def dos_get_notifications():
-    """DOS specific endpoint - redirects to generic"""
     return get_notifications()
 
-
-@app.route('/dos/mark_notifications_read', methods=['POST'])
+@app.route('/dos/mark_notifications_read',methods=['POST'])
 def dos_mark_notifications_read():
-    """DOS specific endpoint - redirects to generic"""
     return mark_notifications_read()
-
-
-# ==================== HEADTEACHER SPECIFIC ENDPOINTS ====================
 
 @app.route('/headteacher/get_notifications')
 def headteacher_get_notifications():
-    """Headteacher specific endpoint"""
     return get_notifications()
 
-
-@app.route('/headteacher/mark_notifications_read', methods=['POST'])
+@app.route('/headteacher/mark_notifications_read',methods=['POST'])
 def headteacher_mark_notifications_read():
-    """Headteacher specific endpoint"""
     return mark_notifications_read()
-
-
-# ==================== BURSAR SPECIFIC ENDPOINTS ====================
 
 @app.route('/bursar/get_notifications')
 def bursar_get_notifications():
-    """Bursar specific endpoint"""
     return get_notifications()
 
-
-@app.route('/bursar/mark_notifications_read', methods=['POST'])
+@app.route('/bursar/mark_notifications_read',methods=['POST'])
 def bursar_mark_notifications_read():
-    """Bursar specific endpoint"""
     return mark_notifications_read()
-
-
-# ==================== MANAGEMENT SPECIFIC ENDPOINTS ====================
 
 @app.route('/management/get_notifications')
 def management_get_notifications():
-    """Management specific endpoint"""
     return get_notifications()
 
-
-@app.route('/management/mark_notifications_read', methods=['POST'])
+@app.route('/management/mark_notifications_read',methods=['POST'])
 def management_mark_notifications_read():
-    """Management specific endpoint"""
     return mark_notifications_read()
-
-
-# ==================== STORES KEEPER SPECIFIC ENDPOINTS ====================
 
 @app.route('/stores/get_notifications')
 def stores_get_notifications():
-    """Stores Keeper specific endpoint"""
     return get_notifications()
 
-
-@app.route('/stores/mark_notifications_read', methods=['POST'])
+@app.route('/stores/mark_notifications_read',methods=['POST'])
 def stores_mark_notifications_read():
-    """Stores Keeper specific endpoint"""
     return mark_notifications_read()
+
+
 # ==================== GRADING HELPERS ====================
+
 def get_grade_and_descriptor(percentage):
-    db = get_db_dict()
-    cur = db.cursor()
-    cur.execute("SELECT grade, descriptor FROM grading_system WHERE ? BETWEEN min_score AND max_score", (percentage,))
-    result = cur.fetchone()
+    db=get_db()
+    cur=db.cursor()
+    cur.execute(
+        "SELECT grade,descriptor FROM grading_system WHERE %s BETWEEN min_score AND max_score",
+        (percentage,)
+    )
+    result=cur.fetchone()
     cur.close()
-    
+
     if result:
-        # Handle both dict and tuple
-        if isinstance(result, dict):
-            return result.get('grade', 'O'), result.get('descriptor', 'Fail')
-        else:
-            return result[0], result[1]
-    
-    return 'O', 'Fail'
+        return result['grade'],result['descriptor']
+
+    return 'O','Fail'
+
 
 def get_descriptor_by_identifier(identifier):
-    cur = get_db().cursor()
-    cur.execute("SELECT descriptor FROM identifier_grading WHERE ? BETWEEN min_value AND max_value LIMIT 1", (identifier,))
-    result = cur.fetchone()
+    db=get_db()
+    cur=db.cursor()
+    cur.execute(
+        "SELECT descriptor FROM identifier_grading WHERE %s BETWEEN min_value AND max_value LIMIT 1",
+        (identifier,)
+    )
+    result=cur.fetchone()
     cur.close()
+
     if result:
-        if isinstance(result, dict):
-            return result.get('descriptor', 'No descriptor defined')
-        else:
-            return result[0]
+        return result['descriptor']
+
     return 'No descriptor defined'
 
-def get_alevel_grade_and_points(score, is_subsidiary=False):
+
+def get_alevel_grade_and_points(score,is_subsidiary=False):
     if score is None:
-        return 'N/A', 0
+        return 'N/A',0
+
     if is_subsidiary:
-        points = 1 if score >= 50 else 0
-        grade = 'Pass' if points == 1 else 'Fail'
-        return grade, points
-    cur = get_db().cursor()
-    cur.execute("SELECT grade, points FROM alevel_grading WHERE ? BETWEEN min_score AND max_score AND is_subsidiary=0 LIMIT 1", (score,))
-    result = cur.fetchone()
+        return ('Pass',1) if score>=50 else ('Fail',0)
+
+    db=get_db()
+    cur=db.cursor()
+    cur.execute("""
+        SELECT grade,points
+        FROM alevel_grading
+        WHERE %s BETWEEN min_score AND max_score
+        AND is_subsidiary=0
+        LIMIT 1
+    """,(score,))
+
+    result=cur.fetchone()
     cur.close()
+
     if result:
-        return result[0], result[1]
-    return 'E', 1
+        return result['grade'],result['points']
+
+    return 'E',1
+
 
 def get_predefined_comments(comment_type):
-    db = get_db_dict()
-    cur = db.cursor()
-    cur.execute("SELECT id, comment_text FROM predefined_comments WHERE comment_type=? AND is_active=1 ORDER BY id", (comment_type,))
-    comments = cur.fetchall()
+    db=get_db()
+    cur=db.cursor()
+    cur.execute("""
+        SELECT id,comment_text
+        FROM predefined_comments
+        WHERE comment_type=%s AND is_active=1
+        ORDER BY id
+    """,(comment_type,))
+    comments=cur.fetchall()
     cur.close()
     return comments
 
 # ==================== TEACHER ASSIGNMENT HELPERS ====================
+
 def get_user_assignments(user_id=None):
     if user_id is None:
-        user_id = session.get('user_id')
-    db = get_db_dict()
-    cur = db.cursor()
-    cur.execute("SELECT * FROM teacher_class_assignments WHERE user_id = ? ORDER BY assignment_type, class_name, subject", (user_id,))
-    assignments = cur.fetchall()
+        user_id=session.get('user_id')
+    db=get_db()
+    cur=db.cursor()
+    cur.execute("""
+        SELECT *
+        FROM teacher_class_assignments
+        WHERE user_id=%s
+        ORDER BY assignment_type,class_name,subject
+    """,(user_id,))
+    assignments=cur.fetchall()
     cur.close()
     return assignments
 
-def get_user_classes(user_id=None, assignment_type=None):
+
+def get_user_classes(user_id=None,assignment_type=None):
     if user_id is None:
-        user_id = session.get('user_id')
-    db = get_db_dict()
-    cur = db.cursor()
+        user_id=session.get('user_id')
+
+    db=get_db()
+    cur=db.cursor()
+
     if assignment_type:
-        cur.execute("SELECT DISTINCT class_name FROM teacher_class_assignments WHERE user_id = ? AND assignment_type = ? ORDER BY class_name", 
-                    (user_id, assignment_type))
+        cur.execute("""
+            SELECT DISTINCT class_name
+            FROM teacher_class_assignments
+            WHERE user_id=%s AND assignment_type=%s
+            ORDER BY class_name
+        """,(user_id,assignment_type))
     else:
-        cur.execute("SELECT DISTINCT class_name FROM teacher_class_assignments WHERE user_id = ? ORDER BY class_name", (user_id,))
-    rows = cur.fetchall()
-    # Fix: Handle dictionary results
-    classes = [row['class_name'] if isinstance(row, dict) else row[0] for row in rows]
+        cur.execute("""
+            SELECT DISTINCT class_name
+            FROM teacher_class_assignments
+            WHERE user_id=%s
+            ORDER BY class_name
+        """,(user_id,))
+
+    rows=cur.fetchall()
     cur.close()
-    return classes
 
-# ==================== MARKS PROCESSING ====================
-def process_marks_upload(file, subject, term, year, assigned_class, teacher_id, level='olevel', is_subsidiary=False):
-    """Process marks upload using openpyxl (no pandas needed)"""
-    try:
-        from openpyxl import load_workbook
-        wb = load_workbook(file, data_only=True)
-        sheet = wb.active
-    except Exception as e:
-        flash(f'Error reading Excel file: {str(e)}', 'danger')
-        return 0
+    return [row['class_name'] for row in rows]
     
-    # Helper function to get value from fetchone result
-    def get_class_from_result(res):
-        if not res:
-            return None
-        if isinstance(res, dict):
-            return res.get('class')
-        return res[0]
-    
-    # Get headers from first row
-    headers = []
-    for cell in sheet[1]:
-        if cell.value:
-            headers.append(str(cell.value).strip().lower())
-        else:
-            headers.append('')
-    
-    # Find column indices
-    student_id_col = None
-    subject_col = None
-    eot_col = None
-    teacher_init_col = None
-    ai_columns = []
-    paper1_col = None
-    paper2_col = None
-    
-    for idx, h in enumerate(headers):
-        if h == 'student_id':
-            student_id_col = idx
-        elif h == 'subject':
-            subject_col = idx
-        elif h == 'eot_score':
-            eot_col = idx
-        elif h == 'teacher_initials':
-            teacher_init_col = idx
-        elif h == 'paper1':
-            paper1_col = idx
-        elif h == 'paper2':
-            paper2_col = idx
-        elif h and h.startswith('ai') and len(h) > 2 and h[2:].isdigit():
-            ai_columns.append((idx, h))
-    
-    if student_id_col is None:
-        flash('Missing student_id column', 'danger')
-        return 0
-    
-    count = 0
-    
-    if level == 'alevel':
-        # A-Level processing
-        if paper1_col is None or paper2_col is None:
-            flash('Missing paper1 or paper2 columns', 'danger')
-            return 0
-        
-        for row_idx in range(2, sheet.max_row + 1):
-            student_id = sheet.cell(row=row_idx, column=student_id_col + 1).value
-            if not student_id:
-                continue
-            student_id = str(student_id).strip()
-            
-            # Check if student belongs to assigned class
-            cur = get_db().cursor()
-            cur.execute("SELECT class FROM students WHERE student_id=?", (student_id,))
-            res = cur.fetchone()
-            cur.close()
-            
-            student_class = get_class_from_result(res)
-            if not student_class or student_class != assigned_class:
-                continue
-            
-            paper1_val = sheet.cell(row=row_idx, column=paper1_col + 1).value
-            paper2_val = sheet.cell(row=row_idx, column=paper2_col + 1).value
-            
-            paper1 = float(paper1_val) if paper1_val is not None else None
-            paper2 = float(paper2_val) if paper2_val is not None else None
-            
-            available = [s for s in [paper1, paper2] if s is not None]
-            if not available:
-                continue
-            
-            avg_score = sum(available) / len(available)
-            grade, points = get_alevel_grade_and_points(avg_score, is_subsidiary)
-            
-            teacher_init = ''
-            if teacher_init_col is not None:
-                init_val = sheet.cell(row=row_idx, column=teacher_init_col + 1).value
-                teacher_init = str(init_val).strip() if init_val else ''
-            
-            execute_db("""INSERT INTO marks (student_id, subject, term, year, paper1, paper2, total_score, grade, points, teacher_initials, teacher_id)
-                           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                           ON CONFLICT(student_id, subject, term, year) DO UPDATE SET 
-                           paper1=excluded.paper1, paper2=excluded.paper2, total_score=excluded.total_score, 
-                           grade=excluded.grade, points=excluded.points, teacher_initials=excluded.teacher_initials""",
-                        (student_id, subject, term, year, paper1, paper2, avg_score, grade, points, teacher_init, teacher_id))
-            count += 1
-    else:
-        # O-Level processing
-        for row_idx in range(2, sheet.max_row + 1):
-            student_id = sheet.cell(row=row_idx, column=student_id_col + 1).value
-            if not student_id:
-                continue
-            student_id = str(student_id).strip()
-            
-            # Check if student belongs to assigned class
-            cur = get_db().cursor()
-            cur.execute("SELECT class FROM students WHERE student_id=?", (student_id,))
-            res = cur.fetchone()
-            cur.close()
-            
-            student_class = get_class_from_result(res)
-            if not student_class or student_class != assigned_class:
-                continue
-            
-            # Collect AI scores
-            ai_scores = []
-            for col_idx, col_name in ai_columns:
-                val = sheet.cell(row=row_idx, column=col_idx + 1).value
-                if val is not None:
-                    try:
-                        score = float(val)
-                        if 0 <= score <= 3:
-                            ai_scores.append(score)
-                    except:
-                        pass
-            
-            # Get EOT score
-            eot = 0
-            if eot_col is not None:
-                eot_val = sheet.cell(row=row_idx, column=eot_col + 1).value
-                if eot_val is not None:
-                    try:
-                        eot = float(eot_val)
-                    except:
-                        eot = 0
-            
-            # Get teacher initials
-            teacher_init = ''
-            if teacher_init_col is not None:
-                init_val = sheet.cell(row=row_idx, column=teacher_init_col + 1).value
-                teacher_init = str(init_val).strip() if init_val else ''
-            
-            if not ai_scores:
-                continue
-            
-            ai_average = sum(ai_scores) / len(ai_scores)
-            ai_contribution = (ai_average / 3.0) * 20
-            eot_contribution = (eot / 100.0) * 80
-            total_score = ai_contribution + eot_contribution
-            grade, _ = get_grade_and_descriptor(total_score)
-            identifier = (total_score / 100.0) * 3
-            descriptor = get_descriptor_by_identifier(identifier)
-            
-            ai_values = [0] * 6
-            for i, (col_idx, col_name) in enumerate(ai_columns[:6]):
-                if i < len(ai_scores):
-                    ai_values[i] = ai_scores[i]
-            
-            execute_db("""INSERT INTO marks (student_id, subject, term, year, ai1, ai2, ai3, ai_average, ai_contribution, eot_score, total_score, grade, identifier, descriptor, teacher_initials, teacher_id)
-                           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                           ON CONFLICT(student_id, subject, term, year) DO UPDATE SET 
-                           ai1=excluded.ai1, ai2=excluded.ai2, ai3=excluded.ai3, 
-                           ai_average=excluded.ai_average, ai_contribution=excluded.ai_contribution, eot_score=excluded.eot_score,
-                           total_score=excluded.total_score, grade=excluded.grade, identifier=excluded.identifier,
-                           descriptor=excluded.descriptor, teacher_initials=excluded.teacher_initials""",
-                        (student_id, subject, term, year, ai_values[0], ai_values[1], ai_values[2],
-                         ai_average, ai_contribution, eot, total_score, grade, identifier, descriptor, teacher_init, teacher_id))
-            count += 1
-    
-    return count
-
 # ==================== BANK PAYMENT PROCESSING ====================
 def process_bank_payment(payroll):
     import random
-    results = {'success': False, 'token': None, 'reference': None, 'error': None}
-    if random.random() > 0.1:
-        results['success'] = True
-        results['token'] = f"TOKEN-{payroll['payroll_no']}"
-        results['reference'] = f"REF-{payroll['payroll_no']}-{int(time.time())}"
+    results={'success':False,'token':None,'reference':None,'error':None}
+    if random.random()>0.1:
+        results['success']=True
+        results['token']=f"TOKEN-{payroll['payroll_no']}"
+        results['reference']=f"REF-{payroll['payroll_no']}-{int(time.time())}"
     else:
-        results['error'] = "Bank API temporarily unavailable"
+        results['error']="Bank API temporarily unavailable"
     return results
 
 # ==================== CONTEXT PROCESSORS ====================
 @app.context_processor
 def inject_now():
-    return {'datetime': datetime}
-    
+    return {'datetime':datetime}
+
 @app.context_processor
 def inject_notifications():
     if 'user_id' in session:
-        role = session.get('role')
-        if role in ['headteacher', 'bursar', 'management', 'admin']:
+        role=session.get('role')
+        if role in ['headteacher','bursar','management','admin']:
             try:
-                db = get_db()
-                cur = db.cursor()
-                cur.execute("SELECT COUNT(*) FROM notifications WHERE user_role = ? AND is_read = 0", (role,))
-                count_row = cur.fetchone()
-                notification_count = count_row[0] if count_row else 0
-                
-                cur.execute("SELECT * FROM notifications WHERE user_role = ? AND is_read = 0 ORDER BY created_at DESC LIMIT 5", (role,))
-                rows = cur.fetchall()
-                notifications = []
-                for row in rows:
-                    notifications.append({
-                        'id': row[0],
-                        'user_role': row[1],
-                        'message': row[2],
-                        'link': row[3],
-                        'is_read': row[4],
-                        'created_at': row[5]
-                    })
+                db=get_db()
+                cur=db.cursor()
+                cur.execute("SELECT COUNT(*) AS count FROM notifications WHERE user_role=%s AND is_read=0",(role,))
+                count_row=cur.fetchone()
+                notification_count=count_row['count'] if count_row else 0
+                cur.execute("""
+                    SELECT id,user_role,message,link,is_read,created_at
+                    FROM notifications
+                    WHERE user_role=%s AND is_read=0
+                    ORDER BY created_at DESC
+                    LIMIT 5
+                """,(role,))
+                rows=cur.fetchall()
                 cur.close()
-                return {'notification_count': notification_count, 'notifications': notifications}
-            except:
-                return {'notification_count': 0, 'notifications': []}
-    return {'notification_count': 0, 'notifications': []}
+                return {
+                    'notification_count':notification_count,
+                    'notifications':rows
+                }
+            except Exception:
+                return {'notification_count':0,'notifications':[]}
+    return {'notification_count':0,'notifications':[]}
 
 # ==================== TEMPLATE FILTERS ====================
 @app.template_filter('currency')
@@ -1506,8 +1206,8 @@ def currency_filter(value):
 
 @app.template_filter('word_format')
 def word_format(value):
-    words = {1: 'One', 2: 'Two', 3: 'Three', 4: 'Four', 5: 'Five', 6: 'Six', 7: 'Seven', 8: 'Eight', 9: 'Nine', 10: 'Ten'}
-    return words.get(int(value), str(value)) if value else 'Zero'
+    words={1:'One',2:'Two',3:'Three',4:'Four',5:'Five',6:'Six',7:'Seven',8:'Eight',9:'Nine',10:'Ten'}
+    return words.get(int(value),str(value)) if value else 'Zero'
 
 # ==================== AUTHENTICATION ROUTES ====================
 @app.route('/')
@@ -1516,93 +1216,119 @@ def index():
 
 @app.after_request
 def add_security_headers(response):
-    response.headers['Content-Security-Policy'] = "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; font-src 'self' https://cdnjs.cloudflare.com; img-src 'self' data:;"
-    response.headers['X-Content-Type-Options'] = 'nosniff'
-    response.headers['X-Frame-Options'] = 'DENY'
-    response.headers['X-XSS-Protection'] = '1; mode=block'
+    response.headers['Content-Security-Policy']="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; font-src 'self' https://cdnjs.cloudflare.com; img-src 'self' data:;"
+    response.headers['X-Content-Type-Options']='nosniff'
+    response.headers['X-Frame-Options']='DENY'
+    response.headers['X-XSS-Protection']='1; mode=block'
     return response
 
-@app.route('/login', methods=['GET', 'POST'])
+@app.route('/login',methods=['GET','POST'])
 def login():
-    if request.method == 'POST':
-        username = sanitize_input(request.form['username'].strip())
-        password = request.form['password'].strip()
-        
-        cur = get_db().cursor()
-        cur.execute("SELECT id, username, role, status, phone, must_change_password, password FROM users WHERE username=?", (username,))
-        user = cur.fetchone()
+    if request.method=='POST':
+        username=sanitize_input(request.form['username'].strip())
+        password=request.form['password'].strip()
+
+        cur=get_db().cursor()
+        cur.execute("""
+            SELECT id,username,role,status,phone,must_change_password,password
+            FROM users
+            WHERE username=%s
+        """,(username,))
+        user=cur.fetchone()
         cur.close()
-        
-        if user and user[3] == 1:
-            stored_password = user[6]
-            if stored_password == password or check_password_hash(stored_password, password):
-                session['user_id'] = user[0]
-                session['username'] = user[1]
-                session['role'] = user[2]  # Make sure role is stored
-                session['phone'] = user[4]
-                
-                if user[5] == 1:
-                    flash('Please change your password.', 'warning')
+
+        if user and user['status']==1:
+            stored_password=user['password']
+
+            if stored_password==password or check_password_hash(stored_password,password):
+                session['user_id']=user['id']
+                session['username']=user['username']
+                session['role']=user['role']
+                session['phone']=user['phone']
+
+                if user['must_change_password']==1:
+                    flash('Please change your password.','warning')
                     return redirect(url_for('change_password'))
-                
-                flash(f'Welcome {username}!', 'success')
+
+                flash(f"Welcome {username}!",'success')
                 return redirect(url_for('dashboard'))
-        
-        flash('Invalid credentials.', 'danger')
+
+        flash('Invalid credentials.','danger')
         return redirect(url_for('login'))
-    
+
     return render_template('login.html')
 
-@app.route('/change_password', methods=['GET', 'POST'])
+
+@app.route('/change_password',methods=['GET','POST'])
 @login_required
 def change_password():
-    if request.method == 'POST':
-        new_pass = request.form['new_password'].strip()
-        confirm = request.form['confirm_password'].strip()
-        if new_pass != confirm:
-            flash('Passwords do not match.', 'danger')
+    if request.method=='POST':
+        new_pass=request.form['new_password'].strip()
+        confirm=request.form['confirm_password'].strip()
+
+        if new_pass!=confirm:
+            flash('Passwords do not match.','danger')
             return redirect(url_for('change_password'))
-        
-        # Hash the new password
-        hashed_password = generate_password_hash(new_pass)
-        execute_db("UPDATE users SET password=?, must_change_password=0 WHERE id=?", (hashed_password, session['user_id']))
-        flash('Password changed successfully!', 'success')
+
+        hashed_password=generate_password_hash(new_pass)
+
+        execute_db(
+            "UPDATE users SET password=%s,must_change_password=0 WHERE id=%s",
+            (hashed_password,session['user_id'])
+        )
+
+        flash('Password changed successfully!','success')
         return redirect(url_for('dashboard'))
+
     return render_template('change_password.html')
 
-@app.route('/forgot_password', methods=['GET', 'POST'])
+
+@app.route('/forgot_password',methods=['GET','POST'])
 def forgot_password():
-    if request.method == 'POST':
-        username = request.form['username'].strip()
-        phone = validate_and_format_phone(request.form['phone'].strip())
+    if request.method=='POST':
+        username=request.form['username'].strip()
+        phone=validate_and_format_phone(request.form['phone'].strip())
+
         if not phone:
-            flash('Invalid phone number format.', 'danger')
+            flash('Invalid phone number format.','danger')
             return redirect(url_for('forgot_password'))
-        new_pass = request.form['new_password'].strip()
-        confirm = request.form['confirm_password'].strip()
-        if new_pass != confirm:
-            flash('Passwords do not match.', 'danger')
+
+        new_pass=request.form['new_password'].strip()
+        confirm=request.form['confirm_password'].strip()
+
+        if new_pass!=confirm:
+            flash('Passwords do not match.','danger')
             return redirect(url_for('forgot_password'))
-        
-        cur = get_db().cursor()
-        cur.execute("SELECT id FROM users WHERE username=? AND phone=?", (username, phone))
-        user = cur.fetchone()
+
+        cur=get_db().cursor()
+        cur.execute(
+            "SELECT id FROM users WHERE username=%s AND phone=%s",
+            (username,phone)
+        )
+        user=cur.fetchone()
         cur.close()
-        
+
         if user:
-            hashed_password = generate_password_hash(new_pass)
-            execute_db("UPDATE users SET password=?, must_change_password=0 WHERE id=?", (hashed_password, user[0]))
-            flash('Password reset successfully.', 'success')
+            hashed_password=generate_password_hash(new_pass)
+            execute_db(
+                "UPDATE users SET password=%s,must_change_password=0 WHERE id=%s",
+                (hashed_password,user['id'])
+            )
+            flash('Password reset successfully.','success')
         else:
-            flash('Username and phone number do not match.', 'danger')
+            flash('Username and phone number do not match.','danger')
+
         return redirect(url_for('login'))
+
     return render_template('forgot_password.html')
+
 
 @app.route('/logout')
 def logout():
     session.clear()
-    flash('Logged out.', 'info')
+    flash('Logged out.','info')
     return redirect(url_for('login'))
+    
 
 # ==================== DASHBOARD ROUTES ====================
 @app.route('/dashboard')
@@ -1661,206 +1387,372 @@ def mark_all_notifications_read_route():
     flash('All notifications marked as read.', 'success')
     return redirect(request.referrer or url_for('dashboard'))
 
+# ==================== DASHBOARD ROUTES ====================
+
+@app.route('/dashboard')
+@login_required
+def dashboard():
+    role=session.get('role')
+
+    if role=='admin':
+        search=request.args.get('search','').strip()
+        page=request.args.get('page',1,type=int)
+        per_page=10
+
+        cur=get_db().cursor()
+
+        if search:
+            cur.execute(
+                "SELECT COUNT(*) AS count FROM users WHERE username ILIKE %s",
+                (f'%{search}%',)
+            )
+        else:
+            cur.execute("SELECT COUNT(*) AS count FROM users")
+
+        total=cur.fetchone()['count']
+
+        total_pages=(total+per_page-1)//per_page
+        offset=(page-1)*per_page
+
+        if search:
+            cur.execute("""
+                SELECT id,username,role,phone,status,profile_pic
+                FROM users
+                WHERE username ILIKE %s
+                ORDER BY id
+                LIMIT %s OFFSET %s
+            """,(f'%{search}%',per_page,offset))
+        else:
+            cur.execute("""
+                SELECT id,username,role,phone,status,profile_pic
+                FROM users
+                ORDER BY id
+                LIMIT %s OFFSET %s
+            """,(per_page,offset))
+
+        users=cur.fetchall()
+        cur.close()
+
+        return render_template(
+            'dashboard.html',
+            role=role,
+            data={
+                'users':users,
+                'total_pages':total_pages,
+                'current_page':page
+            },
+            search=search
+        )
+
+    elif role=='bursar':
+        return redirect(url_for('bursar_dashboard'))
+
+    else:
+        return render_template('dashboard.html',role=role)
+
+
+@app.route('/notifications')
+@login_required
+def view_all_notifications():
+    role=session.get('role')
+
+    db=get_db()
+    cur=db.cursor()
+
+    cur.execute("""
+        SELECT *
+        FROM notifications
+        WHERE user_role=%s
+        ORDER BY created_at DESC
+    """,(role,))
+
+    notifications=cur.fetchall()
+    cur.close()
+
+    return render_template(
+        'notifications.html',
+        notifications=notifications
+    )
+
+
+@app.route('/notification/mark_read/<int:notification_id>')
+@login_required
+def mark_notification_read_route(notification_id):
+    mark_notification_read(notification_id)
+    return redirect(request.referrer or url_for('dashboard'))
+
+
+@app.route('/notification/mark_all_read')
+@login_required
+def mark_all_notifications_read_route():
+    role=session.get('role')
+    mark_all_notifications_read(role)
+    flash('All notifications marked as read.','success')
+    return redirect(request.referrer or url_for('dashboard'))    
 # ==================== ADMIN ROUTES ====================
-@app.route('/admin/add_user', methods=['POST'])
+
+@app.route('/admin/add_user',methods=['POST'])
 @admin_required
 def add_user():
-    full_name = sanitize_input(request.form['full_name'].strip())
-    username = sanitize_input(request.form['username'].strip())
-    password = request.form['password'].strip()
-    role = request.form['role'].strip()
-    phone_raw = request.form.get('phone', '').strip()
-    phone = validate_and_format_phone(phone_raw) if phone_raw else None
-    child_id = request.form.get('child_id', '').strip() or None
-    
-    # Check if username already exists
-    db = get_db_dict()
-    cur = db.cursor()
-    cur.execute("SELECT id FROM users WHERE username = ?", (username,))
+    full_name=sanitize_input(request.form['full_name'].strip())
+    username=sanitize_input(request.form['username'].strip())
+    password=request.form['password'].strip()
+    role=request.form['role'].strip()
+    phone_raw=request.form.get('phone','').strip()
+    phone=validate_and_format_phone(phone_raw) if phone_raw else None
+    child_id=request.form.get('child_id','').strip() or None
+
+    db=get_db()
+    cur=db.cursor()
+
+    cur.execute("SELECT id FROM users WHERE username=%s",(username,))
     if cur.fetchone():
-        flash(f'Username "{username}" already exists! Please choose a different username.', 'danger')
+        flash(f'Username "{username}" already exists! Please choose a different username.','danger')
         cur.close()
         return redirect(url_for('dashboard'))
-    
-    # Check role limits
-    cur.execute("SELECT max_count FROM role_limits WHERE role_name = ?", (role,))
-    limit = cur.fetchone()
-    
+
+    cur.execute("SELECT max_count FROM role_limits WHERE role_name=%s",(role,))
+    limit=cur.fetchone()
+
     if limit:
-        limit_value = limit[0] if isinstance(limit, (list, tuple)) else limit.get('max_count', 0)
-        cur.execute("SELECT COUNT(*) as count FROM users WHERE role = ?", (role,))
-        count_result = cur.fetchone()
-        count = count_result[0] if isinstance(count_result, (list, tuple)) else count_result.get('count', 0)
-        if count >= limit_value:
-            flash(f'Cannot add. Only {limit_value} {role} allowed in the system.', 'danger')
+        cur.execute("SELECT COUNT(*) AS count FROM users WHERE role=%s",(role,))
+        count=cur.fetchone()['count']
+
+        if count>=limit['max_count']:
+            flash(f"Cannot add. Only {limit['max_count']} {role} allowed in the system.",'danger')
             cur.close()
             return redirect(url_for('dashboard'))
+
     cur.close()
-    
-    hashed_password = generate_password_hash(password)
-    
+
+    hashed_password=generate_password_hash(password)
+
     try:
-        execute_db("""INSERT INTO users (username, password, full_name, role, phone, status, child_id, profile_pic, must_change_password) 
-                      VALUES (?, ?, ?, ?, ?, 1, ?, 'default_avatar.png', 1)""",
-                   (username, hashed_password, full_name, role, phone, child_id))
-        flash(f'User {full_name} ({username}) added. Password: {password}', 'success')
+        execute_db("""
+            INSERT INTO users
+            (username,password,full_name,role,phone,status,child_id,profile_pic,must_change_password)
+            VALUES (%s,%s,%s,%s,%s,1,%s,'default_avatar.png',1)
+        """,(username,hashed_password,full_name,role,phone,child_id))
+
+        flash(f'User {full_name} ({username}) added. Password: {password}','success')
+
     except Exception as e:
-        flash(f'Error: {str(e)}', 'danger')
+        flash(f'Error: {str(e)}','danger')
+
     return redirect(url_for('dashboard'))
 
-@app.route('/admin/edit_user/<int:user_id>', methods=['GET', 'POST'])
+
+@app.route('/admin/edit_user/<int:user_id>',methods=['GET','POST'])
 @admin_required
 def edit_user(user_id):
-    if request.method == 'POST':
-        full_name = sanitize_input(request.form.get('full_name', '').strip())
-        username = request.form.get('username', '').strip()
-        role = request.form.get('role', '').strip()
-        phone = request.form.get('phone', '').strip()
-        child_id = request.form.get('child_id', '').strip() or None
-        file = request.files.get('profile_pic')
-        
-        profile_pic = None
-        if file and file.filename and allowed_file(file.filename, ALLOWED_IMAGE_EXTENSIONS):
-            ext = file.filename.rsplit('.', 1)[1].lower()
-            filename = f"user_{user_id}.{ext}"
-            file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
-            profile_pic = filename
-        
+
+    if request.method=='POST':
+
+        full_name=sanitize_input(request.form.get('full_name','').strip())
+        username=request.form.get('username','').strip()
+        role=request.form.get('role','').strip()
+        phone=request.form.get('phone','').strip()
+        child_id=request.form.get('child_id','').strip() or None
+        file=request.files.get('profile_pic')
+
+        profile_pic=None
+
+        if file and file.filename and allowed_file(file.filename,ALLOWED_IMAGE_EXTENSIONS):
+            ext=file.filename.rsplit('.',1)[1].lower()
+            filename=f"user_{user_id}.{ext}"
+            file.save(os.path.join(app.config['UPLOAD_FOLDER'],filename))
+            profile_pic=filename
+
         try:
             if profile_pic:
-                execute_db("UPDATE users SET username=?, full_name=?, role=?, phone=?, child_id=?, profile_pic=? WHERE id=?", 
-                           (username, full_name, role, phone, child_id, profile_pic, user_id))
+                execute_db("""
+                    UPDATE users
+                    SET username=%s,full_name=%s,role=%s,phone=%s,child_id=%s,profile_pic=%s
+                    WHERE id=%s
+                """,(username,full_name,role,phone,child_id,profile_pic,user_id))
             else:
-                execute_db("UPDATE users SET username=?, full_name=?, role=?, phone=?, child_id=? WHERE id=?", 
-                           (username, full_name, role, phone, child_id, user_id))
-            flash('User updated successfully.', 'success')
+                execute_db("""
+                    UPDATE users
+                    SET username=%s,full_name=%s,role=%s,phone=%s,child_id=%s
+                    WHERE id=%s
+                """,(username,full_name,role,phone,child_id,user_id))
+
+            flash('User updated successfully.','success')
+
         except Exception as e:
-            flash(f'Error: {str(e)}', 'danger')
+            flash(f'Error: {str(e)}','danger')
+
         return redirect(url_for('dashboard'))
-    
-    db = get_db_dict()
-    cur = db.cursor()
-    cur.execute("SELECT id, username, full_name, role, phone, child_id, profile_pic FROM users WHERE id=?", (user_id,))
-    user = cur.fetchone()
+
+    cur=get_db().cursor()
+    cur.execute("""
+        SELECT id,username,full_name,role,phone,child_id,profile_pic
+        FROM users WHERE id=%s
+    """,(user_id,))
+
+    user=cur.fetchone()
     cur.close()
-    
+
     if not user:
-        flash('User not found.', 'danger')
+        flash('User not found.','danger')
         return redirect(url_for('dashboard'))
-    
-    return render_template('edit_user.html', user=user)
+
+    return render_template('edit_user.html',user=user)
+
 
 @app.route('/admin/toggle_user/<int:user_id>')
 @admin_required
 def toggle_user(user_id):
-    if user_id == session.get('user_id'):
-        flash('Cannot toggle your own account.', 'warning')
+
+    if user_id==session.get('user_id'):
+        flash('Cannot toggle your own account.','warning')
         return redirect(url_for('dashboard'))
-    cur = get_db().cursor()
-    cur.execute("UPDATE users SET status = 1 - status WHERE id=?", (user_id,))
-    cur.close()
-    get_db().commit()
-    flash('Status toggled.', 'success')
+
+    execute_db(
+        "UPDATE users SET status=CASE WHEN status=1 THEN 0 ELSE 1 END WHERE id=%s",
+        (user_id,)
+    )
+
+    flash('Status toggled.','success')
     return redirect(url_for('dashboard'))
+
 
 @app.route('/admin/delete_user/<int:user_id>')
 @admin_required
 def delete_user(user_id):
-    if user_id == session.get('user_id'):
-        flash('Cannot delete your own account.', 'warning')
+
+    if user_id==session.get('user_id'):
+        flash('Cannot delete your own account.','warning')
         return redirect(url_for('dashboard'))
-    execute_db("DELETE FROM users WHERE id=?", (user_id,))
-    flash('User deleted.', 'success')
+
+    execute_db("DELETE FROM users WHERE id=%s",(user_id,))
+
+    flash('User deleted.','success')
     return redirect(url_for('dashboard'))
+
 
 @app.route('/admin/role_counts')
 def admin_role_counts():
+
     if not check_permission(['admin']):
         abort(403)
-    
-    cur = get_db().cursor()
+
+    cur=get_db().cursor()
+
     cur.execute("""
-        SELECT role, COUNT(*) as count, (SELECT max_count FROM role_limits WHERE role_name = users.role) as max_count
-        FROM users 
+        SELECT role,
+        COUNT(*) AS count,
+        (SELECT max_count FROM role_limits WHERE role_name=users.role) AS max_count
+        FROM users
         GROUP BY role
     """)
-    counts = cur.fetchall()
-    cur.close()
-    
-    return render_template('admin/role_counts.html', counts=counts)
 
-@app.route('/admin/school_settings', methods=['GET', 'POST'])
+    counts=cur.fetchall()
+    cur.close()
+
+    return render_template('admin/role_counts.html',counts=counts)
+
+
+@app.route('/admin/school_settings',methods=['GET','POST'])
 def school_settings():
-    if not check_permission(['admin', 'headteacher']):
+
+    if not check_permission(['admin','headteacher']):
         abort(403)
-    
-    if request.method == 'POST':
-        begins = request.form['next_term_begins']
-        ends = request.form['next_term_ends']
-        
-        stamp_file = request.files.get('stamp')
-        stamp_filename = None
-        if stamp_file and stamp_file.filename and allowed_file(stamp_file.filename, ALLOWED_IMAGE_EXTENSIONS):
-            stamp_filename = f"stamp_{int(datetime.now().timestamp())}.{stamp_file.filename.rsplit('.', 1)[1].lower()}"
-            stamp_file.save(os.path.join(app.config['UPLOAD_FOLDER'], stamp_filename))
-        
-        school_name = request.form.get('school_name', 'YOUR SCHOOL NAME')
-        school_address = request.form.get('school_address', 'P.O. Box 123, Kampala, Uganda')
-        school_phone = request.form.get('school_phone', 'Tel: +256 712 345678')
-        school_email = request.form.get('school_email', 'Email: info@school.com')
-        
-        logo_file = request.files.get('logo')
-        logo_filename = None
-        if logo_file and logo_file.filename and allowed_file(logo_file.filename, ALLOWED_IMAGE_EXTENSIONS):
-            logo_filename = f"logo_{int(datetime.now().timestamp())}.{logo_file.filename.rsplit('.', 1)[1].lower()}"
-            logo_file.save(os.path.join(app.config['UPLOAD_FOLDER'], logo_filename))
-        
-        nssf_employee_rate = float(request.form.get('nssf_employee_rate', 5.0))
-        paye_rate = float(request.form.get('paye_rate', 10.0))
-        paye_threshold = float(request.form.get('paye_threshold', 235000))
-        
-        # Update school settings
-        cur = get_db().cursor()
-        cur.execute("UPDATE school_settings SET next_term_begins=?, next_term_ends=?, school_name=?, school_address=?, school_phone=?, school_email=?, nssf_employee_rate=?, paye_rate=?, paye_threshold=? WHERE id=1",
-                    (begins, ends, school_name, school_address, school_phone, school_email, nssf_employee_rate, paye_rate, paye_threshold))
+
+    if request.method=='POST':
+
+        begins=request.form['next_term_begins']
+        ends=request.form['next_term_ends']
+
+        stamp_file=request.files.get('stamp')
+        stamp_filename=None
+
+        if stamp_file and stamp_file.filename and allowed_file(stamp_file.filename,ALLOWED_IMAGE_EXTENSIONS):
+            stamp_filename=f"stamp_{int(datetime.now().timestamp())}.{stamp_file.filename.rsplit('.',1)[1].lower()}"
+            stamp_file.save(os.path.join(app.config['UPLOAD_FOLDER'],stamp_filename))
+
+        school_name=request.form.get('school_name','YOUR SCHOOL NAME')
+        school_address=request.form.get('school_address','P.O. Box 123, Kampala, Uganda')
+        school_phone=request.form.get('school_phone','Tel: +256 712 345678')
+        school_email=request.form.get('school_email','Email: info@school.com')
+
+        logo_file=request.files.get('logo')
+        logo_filename=None
+
+        if logo_file and logo_file.filename and allowed_file(logo_file.filename,ALLOWED_IMAGE_EXTENSIONS):
+            logo_filename=f"logo_{int(datetime.now().timestamp())}.{logo_file.filename.rsplit('.',1)[1].lower()}"
+            logo_file.save(os.path.join(app.config['UPLOAD_FOLDER'],logo_filename))
+
+        nssf_employee_rate=float(request.form.get('nssf_employee_rate',5.0))
+        paye_rate=float(request.form.get('paye_rate',10.0))
+        paye_threshold=float(request.form.get('paye_threshold',235000))
+
+        execute_db("""
+            UPDATE school_settings
+            SET next_term_begins=%s,next_term_ends=%s,school_name=%s,
+            school_address=%s,school_phone=%s,school_email=%s,
+            nssf_employee_rate=%s,paye_rate=%s,paye_threshold=%s
+            WHERE id=1
+        """,(begins,ends,school_name,school_address,school_phone,school_email,nssf_employee_rate,paye_rate,paye_threshold))
+
         if stamp_filename:
-            cur.execute("UPDATE school_settings SET headteacher_stamp=? WHERE id=1", (stamp_filename,))
+            execute_db("UPDATE school_settings SET headteacher_stamp=%s WHERE id=1",(stamp_filename,))
+
         if logo_filename:
-            cur.execute("UPDATE school_settings SET logo_url=? WHERE id=1", (logo_filename,))
-        get_db().commit()
-        cur.close()
-        flash('School settings updated successfully.', 'success')
-    
-    cur = get_db().cursor()
-    cur.execute("SELECT next_term_begins, next_term_ends, headteacher_stamp, school_name, school_address, school_phone, school_email, logo_url, nssf_employee_rate, paye_rate, paye_threshold FROM school_settings WHERE id=1")
-    settings = cur.fetchone()
-    cur.close()
-    
-    nssf_rate = settings[8] if settings and len(settings) > 8 else 5.0
-    paye_rate_val = settings[9] if settings and len(settings) > 9 else 10.0
-    paye_threshold_val = settings[10] if settings and len(settings) > 10 else 235000
-    
-    return render_template('admin/school_settings.html', settings=settings, nssf_rate=nssf_rate, paye_rate=paye_rate_val, paye_threshold=paye_threshold_val)
+            execute_db("UPDATE school_settings SET logo_url=%s WHERE id=1",(logo_filename,))
 
-@app.route('/admin/nssf_paye_settings', methods=['GET', 'POST'])
+        flash('School settings updated successfully.','success')
+
+    cur=get_db().cursor()
+
+    cur.execute("""
+        SELECT next_term_begins,next_term_ends,headteacher_stamp,
+        school_name,school_address,school_phone,school_email,
+        logo_url,nssf_employee_rate,paye_rate,paye_threshold
+        FROM school_settings WHERE id=1
+    """)
+
+    settings=cur.fetchone()
+    cur.close()
+
+    return render_template(
+        'admin/school_settings.html',
+        settings=settings,
+        nssf_rate=settings['nssf_employee_rate'] if settings else 5.0,
+        paye_rate=settings['paye_rate'] if settings else 10.0,
+        paye_threshold=settings['paye_threshold'] if settings else 235000
+    )
+
+
+@app.route('/admin/nssf_paye_settings',methods=['GET','POST'])
 def nssf_paye_settings():
-    if not check_permission(['admin', 'bursar']):
-        abort(403)
-    
-    if request.method == 'POST':
-        nssf_employee = float(request.form['nssf_employee_rate'])
-        paye_rate = float(request.form['paye_rate'])
-        paye_threshold = float(request.form['paye_threshold'])
-        execute_db("UPDATE school_settings SET nssf_employee_rate=?, paye_rate=?, paye_threshold=? WHERE id=1", 
-                   (nssf_employee, paye_rate, paye_threshold))
-        flash('NSSF and PAYE settings updated successfully.', 'success')
-    
-    cur = get_db().cursor()
-    cur.execute("SELECT nssf_employee_rate, paye_rate, paye_threshold FROM school_settings WHERE id=1")
-    settings = cur.fetchone()
-    cur.close()
-    return render_template('admin/nssf_paye_settings.html', settings=settings)
 
+    if not check_permission(['admin','bursar']):
+        abort(403)
+
+    if request.method=='POST':
+
+        execute_db("""
+            UPDATE school_settings
+            SET nssf_employee_rate=%s,paye_rate=%s,paye_threshold=%s
+            WHERE id=1
+        """,(
+            float(request.form['nssf_employee_rate']),
+            float(request.form['paye_rate']),
+            float(request.form['paye_threshold'])
+        ))
+
+        flash('NSSF and PAYE settings updated successfully.','success')
+
+    cur=get_db().cursor()
+    cur.execute("""
+        SELECT nssf_employee_rate,paye_rate,paye_threshold
+        FROM school_settings WHERE id=1
+    """)
+    settings=cur.fetchone()
+    cur.close()
+
+    return render_template('admin/nssf_paye_settings.html',settings=settings)
 
 # ==================== ADMISSION PORTAL ROUTES ====================
 def extract_results_from_pdf(file_path):
@@ -1878,23 +1770,20 @@ def generate_admission_letter(student):
 
 @app.route('/admissions', methods=['GET', 'POST'])
 def admissions_portal():
-    # Check if admissions are open
     cur = get_db().cursor()
     cur.execute("SELECT is_open, deadline, closing_reason FROM admission_settings WHERE id=1")
     settings = cur.fetchone()
     cur.close()
-    
+
     is_open = settings[0] if settings else 1
     deadline = settings[1] if settings else None
     closing_reason = settings[2] if settings else ''
-    
+
     if not is_open:
-        return render_template('admissions/closed.html', 
-                              reason=closing_reason, 
-                              deadline=deadline)
-    
+        return render_template('admissions/closed.html', reason=closing_reason, deadline=deadline)
+
     if request.method == 'POST':
-        full_name = request.form['full_name']
+        full_name = sanitize_input(request.form['full_name'].strip())
         date_of_birth = request.form['date_of_birth']
         sex = request.form['sex']
         preferred_house = request.form['preferred_house']
@@ -1903,161 +1792,229 @@ def admissions_portal():
         lin = request.form['lin']
         phone = request.form['phone']
         email = request.form['email']
-        
+
         birth_date = datetime.strptime(date_of_birth, '%Y-%m-%d').date()
         age = calculate_age(birth_date)
-        
+
         photo = request.files.get('photo')
         photo_filename = None
+
         if photo and photo.filename:
             ext = photo.filename.rsplit('.', 1)[1].lower()
             student_id_temp = f"TEMP-{int(datetime.now().timestamp())}"
             photo_filename = f"{student_id_temp}.{ext}"
             photo.save(os.path.join(app.config['UPLOAD_FOLDER'], photo_filename))
-        
+
         results_file = request.files.get('results_pdf')
         results_data = None
+
         if results_file and results_file.filename:
             filename = secure_filename(f"results_{int(datetime.now().timestamp())}_{results_file.filename}")
             filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
             results_file.save(filepath)
             results_data = extract_results_from_pdf(filepath)
-        
-        qualification = determine_admission_worth(results_data) if results_data else {'qualifies': False, 'message': 'Results not uploaded'}
-        
+
+        qualification = determine_admission_worth(results_data) if results_data else {
+            'qualifies': False,
+            'message': 'Results not uploaded'
+        }
+
         session['admission_data'] = {
-            'full_name': full_name, 'date_of_birth': date_of_birth, 'age': age, 'sex': sex,
-            'preferred_house': preferred_house, 'disability': disability,
-            'sports_activities': ','.join(sports_activities), 'lin': lin, 'phone': phone,
-            'email': email, 'photo_filename': photo_filename, 'qualification': qualification,
+            'full_name': full_name,
+            'date_of_birth': date_of_birth,
+            'age': age,
+            'sex': sex,
+            'preferred_house': preferred_house,
+            'disability': disability,
+            'sports_activities': ','.join(sports_activities),
+            'lin': lin,
+            'phone': phone,
+            'email': email,
+            'photo_filename': photo_filename,
+            'qualification': qualification,
             'results_data': results_data
         }
-        
+
         if qualification['qualifies']:
             return redirect(url_for('admission_payment'))
         else:
             flash(qualification['message'], 'danger')
             return redirect(url_for('admissions_portal'))
-    
-    # GET request - show form
+
     db = get_db_dict()
     cur = db.cursor()
+
     cur.execute("SELECT name FROM houses ORDER BY name")
     houses = cur.fetchall()
+
     cur.execute("SELECT name FROM sports_activities ORDER BY name")
     sports = cur.fetchall()
+
     cur.close()
+
     return render_template('admissions/apply.html', houses=houses, sports=sports)
+
 
 @app.route('/admissions/payment', methods=['GET', 'POST'])
 def admission_payment():
     admission_data = session.get('admission_data')
+
     if not admission_data:
         flash('Please complete the application form first.', 'warning')
         return redirect(url_for('admissions_portal'))
-    
-    # Get admission fee from settings
+
     cur = get_db().cursor()
     cur.execute("SELECT is_open, fee_amount FROM admission_settings WHERE id=1")
     settings = cur.fetchone()
     cur.close()
-    
+
     if not settings or settings[0] == 0:
         flash('Online admissions are currently closed.', 'danger')
         return redirect(url_for('admissions_portal'))
-    
+
     amount = settings[1] if settings else 50000
-    
+
     if request.method == 'POST':
         phone_number = request.form['phone_number']
         transaction_ref = f"ADM-{int(datetime.now().timestamp())}"
-        
-        # Request payment via mobile money
+
         result = request_momo_payment(phone_number, amount, transaction_ref)
-        
+
         if result['success']:
-            # Store pending payment in session
             session['payment_data'] = {
                 'transaction_id': result['transaction_id'],
                 'amount': amount,
                 'phone': phone_number,
                 'reference': transaction_ref
             }
-            
-            # Store admission data temporarily
+
             temp_student_id = f"TEMP-{int(datetime.now().timestamp())}"
-            execute_db("""INSERT INTO students (student_id, full_name, class, parent_phone, date_of_birth, age, sex, 
-                           preferred_house, disability, sports_activities, lin, admission_source, admission_status, 
-                           payment_status, payment_transaction_id)
-                           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'online', 'pending', 'pending', ?)""",
-                       (temp_student_id, admission_data['full_name'], 'Pending', admission_data.get('phone'),
-                        admission_data.get('date_of_birth'), admission_data.get('age'), admission_data.get('sex'),
-                        admission_data.get('preferred_house'), admission_data.get('disability'),
-                        admission_data.get('sports_activities'), admission_data.get('lin'),
-                        result['transaction_id']))
-            
+
+            execute_db("""
+                INSERT INTO students (
+                    student_id,
+                    full_name,
+                    class,
+                    parent_phone,
+                    date_of_birth,
+                    age,
+                    sex,
+                    preferred_house,
+                    disability,
+                    sports_activities,
+                    lin,
+                    admission_source,
+                    admission_status,
+                    payment_status,
+                    payment_transaction_id
+                )
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'online','pending','pending',%s)
+            """,
+            (
+                temp_student_id,
+                admission_data['full_name'],
+                'Pending',
+                admission_data.get('phone'),
+                admission_data.get('date_of_birth'),
+                admission_data.get('age'),
+                admission_data.get('sex'),
+                admission_data.get('preferred_house'),
+                admission_data.get('disability'),
+                admission_data.get('sports_activities'),
+                admission_data.get('lin'),
+                result['transaction_id']
+            ))
+
             flash('Payment request sent! Please check your phone and complete the payment.', 'info')
-            return redirect(url_for('admission_payment_status', transaction_id=result['transaction_id']))
+
+            return redirect(url_for(
+                'admission_payment_status',
+                transaction_id=result['transaction_id']
+            ))
+
         else:
             flash(result['message'], 'danger')
             return redirect(url_for('admission_payment'))
-    
-    return render_template('admissions/payment.html', amount=amount, student_name=admission_data['full_name'])
+
+    return render_template(
+        'admissions/payment.html',
+        amount=amount,
+        student_name=admission_data['full_name']
+    )
+
 
 @app.route('/admissions/payment/status/<transaction_id>')
 def admission_payment_status(transaction_id):
-    """Check payment status and complete admission if successful"""
+
     status = check_payment_status(transaction_id)
-    
+
     if status == 'successful':
-        # Update student record
+
         cur = get_db().cursor()
+
         cur.execute("""
-            UPDATE students SET 
-                payment_status = 'completed',
-                payment_date = CURRENT_TIMESTAMP,
-                admission_status = 'pending'
-            WHERE payment_transaction_id = ?
-        """, (transaction_id,))
+            UPDATE students
+            SET payment_status='completed',
+                payment_date=CURRENT_TIMESTAMP,
+                admission_status='pending'
+            WHERE payment_transaction_id=%s
+        """,(transaction_id,))
+
         get_db().commit()
         cur.close()
-        
+
         flash('Payment confirmed! Your application is pending review by the admissions office.', 'success')
+
         return redirect(url_for('admission_submitted'))
-    
+
     elif status == 'failed':
+
         flash('Payment failed. Please try again.', 'danger')
+
         return redirect(url_for('admission_payment'))
-    
+
     else:
-        # Still pending - refresh page to check again
-        return render_template('admissions/payment_pending.html', transaction_id=transaction_id)
+        return render_template(
+            'admissions/payment_pending.html',
+            transaction_id=transaction_id
+        )
+
 
 @app.route('/admissions/submitted')
 def admission_submitted():
+
     admission_data = session.get('admission_data')
+
     if not admission_data:
         return redirect(url_for('admissions_portal'))
-    return render_template('admissions/submitted.html', data=admission_data)
 
+    return render_template(
+        'admissions/submitted.html',
+        data=admission_data
+    )
 # ==================== DOS MODULE ====================
 SCHOOL_ABBR = "TSS"
 def generate_student_id():
     return generate_unique_number(SCHOOL_ABBR, 'students', 'student_id', year_format=True)
 
+# ==================== DOS ADMISSION MANAGEMENT ====================
+
 @app.route('/dos/admit_student', methods=['GET', 'POST'])
 def dos_admit():
     if not check_permission(['dos']):
         abort(403)
-    
+
     db = get_db_dict()
     cur = db.cursor()
+
     cur.execute("SELECT name FROM houses ORDER BY name")
     houses = cur.fetchall()
+
     cur.execute("SELECT name FROM sports_activities ORDER BY name")
     sports = cur.fetchall()
+
     cur.close()
-    
+
     if request.method == 'POST':
         full_name = request.form['full_name'].strip()
         class_name = request.form['class'].strip()
@@ -2067,104 +2024,264 @@ def dos_admit():
         lin = request.form.get('lin') or None
         disability = request.form.get('disability') or None
         sports_activities = request.form.getlist('sports_activities')
+
         parent_phone_raw = request.form.get('parent_phone', '').strip()
         parent_phone = validate_and_format_phone(parent_phone_raw) if parent_phone_raw else None
+
         photo = request.files.get('photo')
-        
+
         age = None
+
         if date_of_birth:
             birth_date = datetime.strptime(date_of_birth, '%Y-%m-%d').date()
             age = calculate_age(birth_date)
-        
+
         student_id = generate_student_id()
+
         photo_filename = "default_avatar.png"
+
         if photo and photo.filename and allowed_file(photo.filename, ALLOWED_IMAGE_EXTENSIONS):
             ext = photo.filename.rsplit('.', 1)[1].lower()
             photo_filename = f"{student_id}.{ext}"
-            photo.save(os.path.join(app.config['UPLOAD_FOLDER'], photo_filename))
-        
+            photo.save(
+                os.path.join(app.config['UPLOAD_FOLDER'], photo_filename)
+            )
+
         try:
-            execute_db("""INSERT INTO students (student_id, full_name, class, photo_path, fees_paid, fees_balance, admission_date, parent_phone, 
-                           date_of_birth, age, sex, preferred_house, disability, sports_activities, lin, admission_source, admission_status)
-                           VALUES (?, ?, ?, ?, 0, 0, DATE('now'), ?, ?, ?, ?, ?, ?, ?, ?, 'local', 'approved')""",
-                       (student_id, full_name, class_name, photo_filename, parent_phone, date_of_birth, age, sex, preferred_house, disability,
-                        ','.join(sports_activities) if sports_activities else None, lin))
-            flash(f'Student {full_name} admitted with ID {student_id}.', 'success')
+            execute_db(
+                """
+                INSERT INTO students
+                (
+                    student_id,
+                    full_name,
+                    class,
+                    photo_path,
+                    fees_paid,
+                    fees_balance,
+                    admission_date,
+                    parent_phone,
+                    date_of_birth,
+                    age,
+                    sex,
+                    preferred_house,
+                    disability,
+                    sports_activities,
+                    lin,
+                    admission_source,
+                    admission_status
+                )
+                VALUES
+                (
+                    %s,%s,%s,%s,
+                    0,0,
+                    CURRENT_DATE,
+                    %s,%s,%s,%s,%s,%s,%s,%s,
+                    'local',
+                    'approved'
+                )
+                """,
+                (
+                    student_id,
+                    full_name,
+                    class_name,
+                    photo_filename,
+                    parent_phone,
+                    date_of_birth,
+                    age,
+                    sex,
+                    preferred_house,
+                    disability,
+                    ','.join(sports_activities) if sports_activities else None,
+                    lin
+                )
+            )
+
+            flash(
+                f'Student {full_name} admitted with ID {student_id}.',
+                'success'
+            )
+
         except Exception as e:
             flash(f'Error: {str(e)}', 'danger')
+
         return redirect(url_for('dos_admit'))
-    
-    return render_template('dos/admit_student.html', houses=houses, sports=sports)
+
+    return render_template(
+        'dos/admit_student.html',
+        houses=houses,
+        sports=sports
+    )
+
 
 @app.route('/dos/admission_settings', methods=['GET', 'POST'])
-def dos_admission_settings():  # Remove @admin_required
+def dos_admission_settings():
+
     if not check_permission(['dos']):
         abort(403)
-    
+
     if request.method == 'POST':
+
         is_open = 1 if request.form.get('is_open') == 'on' else 0
         deadline = request.form.get('deadline') or None
         closing_reason = request.form.get('closing_reason', '')
         fee_amount = float(request.form.get('fee_amount', 50000))
-        
-        execute_db("""UPDATE admission_settings SET 
-                      is_open=?, deadline=?, closing_reason=?, fee_amount=?, updated_at=CURRENT_TIMESTAMP 
-                      WHERE id=1""",
-                   (is_open, deadline, closing_reason, fee_amount))
-        
-        flash('Admission settings updated successfully.', 'success')
+
+        execute_db(
+            """
+            UPDATE admission_settings
+            SET
+                is_open=%s,
+                deadline=%s,
+                closing_reason=%s,
+                fee_amount=%s,
+                updated_at=CURRENT_TIMESTAMP
+            WHERE id=1
+            """,
+            (
+                is_open,
+                deadline,
+                closing_reason,
+                fee_amount
+            )
+        )
+
+        flash(
+            'Admission settings updated successfully.',
+            'success'
+        )
+
         return redirect(url_for('dos_admission_settings'))
-    
+
     db = get_db_dict()
     cur = db.cursor()
-    cur.execute("SELECT is_open, deadline, closing_reason, fee_amount FROM admission_settings WHERE id=1")
+
+    cur.execute(
+        """
+        SELECT 
+            is_open,
+            deadline,
+            closing_reason,
+            fee_amount
+        FROM admission_settings
+        WHERE id=1
+        """
+    )
+
     settings = cur.fetchone()
-    
-    # Get pending online applications
-    cur.execute("SELECT student_id, full_name, lin, application_date FROM students WHERE admission_source='online' AND admission_status='pending' ORDER BY application_date DESC")
+
+    cur.execute(
+        """
+        SELECT
+            student_id,
+            full_name,
+            lin,
+            application_date
+        FROM students
+        WHERE admission_source='online'
+        AND admission_status='pending'
+        ORDER BY application_date DESC
+        """
+    )
+
     pending = cur.fetchall()
+
     cur.close()
-    
-    return render_template('dos/admission_settings.html', 
-                          settings=settings, 
-                          pending=pending,
-                          is_open=settings['is_open'] if settings else 1,
-                          deadline=settings['deadline'] if settings else '',
-                          closing_reason=settings['closing_reason'] if settings else '',
-                          fee_amount=settings['fee_amount'] if settings else 50000)
+
+    return render_template(
+        'dos/admission_settings.html',
+        settings=settings,
+        pending=pending,
+        is_open=settings['is_open'] if settings else 1,
+        deadline=settings['deadline'] if settings else '',
+        closing_reason=settings['closing_reason'] if settings else '',
+        fee_amount=settings['fee_amount'] if settings else 50000
+    )
+
 
 @app.route('/dos/class_lists')
 def dos_class_lists():
+
     if not check_permission(['dos']):
         abort(403)
+
     class_filter = request.args.get('class', '') or ''
     search = request.args.get('search', '') or ''
     term = request.args.get('term', 'Term 1')
-    
+
     db = get_db_dict()
     cur = db.cursor()
-    cur.execute("SELECT DISTINCT class FROM students WHERE class IS NOT NULL AND class != '' ORDER BY class")
-    classes = [row['class'] for row in cur.fetchall()]
-    
-    query = "SELECT student_id, full_name, class, photo_path, parent_phone, sex, age, preferred_house, lin, admission_source FROM students WHERE 1=1"
+
+    cur.execute(
+        """
+        SELECT DISTINCT class
+        FROM students
+        WHERE class IS NOT NULL
+        AND class != ''
+        ORDER BY class
+        """
+    )
+
+    classes = [
+        row['class']
+        for row in cur.fetchall()
+    ]
+
+    query = """
+        SELECT
+            student_id,
+            full_name,
+            class,
+            photo_path,
+            parent_phone,
+            sex,
+            age,
+            preferred_house,
+            lin,
+            admission_source
+        FROM students
+        WHERE 1=1
+    """
+
     params = []
+
     if class_filter:
-        query += " AND class = ?"
+        query += " AND class=%s"
         params.append(class_filter)
+
     if search:
-        query += " AND (student_id LIKE ? OR full_name LIKE ?)"
+        query += """
+        AND (
+            student_id ILIKE %s
+            OR full_name ILIKE %s
+        )
+        """
+
         pattern = f"%{search}%"
-        params.append(pattern)
-        params.append(pattern)
+        params.extend([pattern, pattern])
+
     query += " ORDER BY full_name"
+
     cur.execute(query, params)
+
     students = cur.fetchall()
-    
-    for s in students:
-        s['photo_url'] = get_photo_url(s.get('photo_path'))
-    
+
+    for student in students:
+        student['photo_url'] = get_photo_url(
+            student.get('photo_path')
+        )
+
     cur.close()
-    return render_template('dos/class_lists.html', classes=classes, students=students, selected_class=class_filter, search=search, term=term)
+
+    return render_template(
+        'dos/class_lists.html',
+        classes=classes,
+        students=students,
+        selected_class=class_filter,
+        search=search,
+        term=term
+    )
+
+# ==================== DOS TEACHER ASSIGNMENTS ====================
 
 @app.route('/dos/teacher_assignments', methods=['GET', 'POST'])
 def dos_teacher_assignments():
@@ -2175,9 +2292,6 @@ def dos_teacher_assignments():
     db = get_db_dict()
     cur = db.cursor()
 
-    # ==========================
-    # ADD ASSIGNMENT
-    # ==========================
     if request.method == 'POST':
 
         teacher_id = request.form.get('teacher_id')
@@ -2188,45 +2302,55 @@ def dos_teacher_assignments():
         if assignment_type == 'classteacher':
             subject = None
 
-        # Duplicate check
-        cur.execute("""
+        cur.execute(
+            """
             SELECT id
             FROM teacher_class_assignments
-            WHERE user_id=?
-            AND class_name=?
-            AND assignment_type=?
-            AND subject IS ?
-        """, (
-            teacher_id,
-            class_name,
-            assignment_type,
-            subject
-        ))
+            WHERE user_id=%s
+            AND class_name=%s
+            AND assignment_type=%s
+            AND subject IS NOT DISTINCT FROM %s
+            """,
+            (
+                teacher_id,
+                class_name,
+                assignment_type,
+                subject
+            )
+        )
 
         if cur.fetchone():
-            flash("This assignment already exists.", "warning")
+            flash(
+                "This assignment already exists.",
+                "warning"
+            )
             return redirect(url_for('dos_teacher_assignments'))
 
-
-        # Only one class teacher per class
         if assignment_type == "classteacher":
 
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT id
                 FROM teacher_class_assignments
-                WHERE class_name=?
+                WHERE class_name=%s
                 AND assignment_type='classteacher'
-            """, (class_name,))
+                """,
+                (class_name,)
+            )
 
             if cur.fetchone():
+
                 flash(
                     f"{class_name} already has a class teacher.",
                     "danger"
                 )
-                return redirect(url_for('dos_teacher_assignments'))
 
+                return redirect(
+                    url_for('dos_teacher_assignments')
+                )
 
-        cur.execute("""
+        cur.execute(
+            """
             INSERT INTO teacher_class_assignments
             (
                 user_id,
@@ -2235,14 +2359,16 @@ def dos_teacher_assignments():
                 assignment_type,
                 assigned_by
             )
-            VALUES (?,?,?,?,?)
-        """, (
-            teacher_id,
-            class_name,
-            subject,
-            assignment_type,
-            session.get('username')
-        ))
+            VALUES(%s,%s,%s,%s,%s)
+            """,
+            (
+                teacher_id,
+                class_name,
+                subject,
+                assignment_type,
+                session.get('username')
+            )
+        )
 
         db.commit()
 
@@ -2251,15 +2377,13 @@ def dos_teacher_assignments():
             "success"
         )
 
-        return redirect(url_for('dos_teacher_assignments'))
+        return redirect(
+            url_for('dos_teacher_assignments')
+        )
 
 
-
-    # ==========================
-    # GET TEACHERS FOR FORM
-    # ==========================
-
-    cur.execute("""
+    cur.execute(
+        """
         SELECT id, username, full_name
         FROM users
         WHERE role IN
@@ -2269,53 +2393,43 @@ def dos_teacher_assignments():
             'classteacher'
         )
         ORDER BY full_name
-    """)
+        """
+    )
 
     teachers = cur.fetchall()
 
 
-
-    # ==========================
-    # GET CLASSES
-    # ==========================
-
-    cur.execute("""
+    cur.execute(
+        """
         SELECT DISTINCT class
         FROM students
         WHERE class IS NOT NULL
         ORDER BY class
-    """)
+        """
+    )
 
     classes = cur.fetchall()
 
 
-
-    # ==========================
-    # GET ASSIGNMENTS
-    # ==========================
-
-    cur.execute("""
-        SELECT 
+    cur.execute(
+        """
+        SELECT
             tca.*,
             u.username,
             u.full_name,
             u.phone
-
         FROM teacher_class_assignments tca
-
         JOIN users u
         ON tca.user_id=u.id
-
         ORDER BY u.full_name
-    """)
+        """
+    )
 
     assignments = cur.fetchall()
-
 
     cur.close()
 
 
-    # Organize teachers
     teachers_data = {}
 
     for a in assignments:
@@ -2332,18 +2446,18 @@ def dos_teacher_assignments():
                 "subjects": []
             }
 
-
         if a['assignment_type'] == 'classteacher':
 
             teachers_data[uid]['class_teacher'] = a['class_name']
 
         else:
 
-            teachers_data[uid]['subjects'].append({
-                "class": a['class_name'],
-                "subject": a['subject']
-            })
-
+            teachers_data[uid]['subjects'].append(
+                {
+                    "class": a['class_name'],
+                    "subject": a['subject']
+                }
+            )
 
 
     class_teachers = []
@@ -2356,31 +2470,29 @@ def dos_teacher_assignments():
         has_class = teacher['class_teacher'] is not None
         has_subject = len(teacher['subjects']) > 0
 
-
         if has_class and has_subject:
 
             teacher['classteacher_class'] = teacher['class_teacher']
             both_roles.append(teacher)
-
 
         elif has_class:
 
             teacher['class_name'] = teacher['class_teacher']
             class_teachers.append(teacher)
 
-
         elif has_subject:
 
-            for s in teacher['subjects']:
+            for subject in teacher['subjects']:
 
-                subject_teachers.append({
-                    "username": teacher['username'],
-                    "full_name": teacher['full_name'],
-                    "phone": teacher['phone'],
-                    "class_name": s['class'],
-                    "subject": s['subject']
-                })
-
+                subject_teachers.append(
+                    {
+                        "username": teacher['username'],
+                        "full_name": teacher['full_name'],
+                        "phone": teacher['phone'],
+                        "class_name": subject['class'],
+                        "subject": subject['subject']
+                    }
+                )
 
 
     return render_template(
@@ -2392,219 +2504,682 @@ def dos_teacher_assignments():
         both_roles=both_roles
     )
 
+
+# ==================== REMOVE STUDENT ====================
+
 @app.route('/dos/remove_student/<student_id>', methods=['POST'])
 def dos_remove_student(student_id):
+
     if not check_permission(['dos']):
         abort(403)
-    cur = get_db().cursor()
-    cur.execute("SELECT photo_path FROM students WHERE student_id=?", (student_id,))
+
+    db = get_db_dict()
+    cur = db.cursor()
+
+    cur.execute(
+        """
+        SELECT photo_path
+        FROM students
+        WHERE student_id=%s
+        """,
+        (student_id,)
+    )
+
     row = cur.fetchone()
+
     cur.close()
-    if row and row[0] != 'default_avatar.png':
-        path = os.path.join(app.config['UPLOAD_FOLDER'], row[0])
+
+    if row and row['photo_path'] != 'default_avatar.png':
+
+        path = os.path.join(
+            app.config['UPLOAD_FOLDER'],
+            row['photo_path']
+        )
+
         if os.path.exists(path):
             os.remove(path)
-    execute_db("DELETE FROM students WHERE student_id=?", (student_id,))
-    flash(f'Student {student_id} removed.', 'success')
-    return redirect(url_for('dos_class_lists'))
+
+    execute_db(
+        "DELETE FROM students WHERE student_id=%s",
+        (student_id,)
+    )
+
+    flash(
+        f'Student {student_id} removed.',
+        'success'
+    )
+
+    return redirect(
+        url_for('dos_class_lists')
+    )
+
+
+# ==================== PROMOTION ====================
 
 @app.route('/dos/promote', methods=['GET', 'POST'])
 def dos_promote():
+
     if not check_permission(['dos']):
         abort(403)
-    cur = get_db().cursor()
-    cur.execute("SELECT DISTINCT class FROM students WHERE class IS NOT NULL AND class != '' ORDER BY class")
-    classes = [row[0] for row in cur.fetchall()]
-    cur.close()
+
+    db = get_db_dict()
+    cur = db.cursor()
+
+    cur.execute(
+        """
+        SELECT DISTINCT class
+        FROM students
+        WHERE class IS NOT NULL
+        AND class != ''
+        ORDER BY class
+        """
+    )
+
+    classes = [
+        row['class']
+        for row in cur.fetchall()
+    ]
+
     if request.method == 'POST':
+
         from_class = request.form['from_class']
-        match = re.search(r'(\d+)', from_class)
+
+        match = re.search(
+            r'(\d+)',
+            from_class
+        )
+
         if match:
-            to_class = from_class.replace(str(match.group(1)), str(int(match.group(1)) + 1))
+
+            to_class = from_class.replace(
+                match.group(1),
+                str(int(match.group(1))+1)
+            )
+
         else:
+
             to_class = from_class + " (Promoted)"
-        execute_db("UPDATE students SET class=? WHERE class=?", (to_class, from_class))
-        flash(f'{cur.rowcount} students promoted from {from_class} to {to_class}.', 'success')
-    return render_template('dos/promote.html', classes=classes)
+
+
+        cur.execute(
+            """
+            UPDATE students
+            SET class=%s
+            WHERE class=%s
+            """,
+            (
+                to_class,
+                from_class
+            )
+        )
+
+        count = cur.rowcount
+
+        db.commit()
+
+        flash(
+            f'{count} students promoted from {from_class} to {to_class}.',
+            'success'
+        )
+
+    cur.close()
+
+    return render_template(
+        'dos/promote.html',
+        classes=classes
+    )
+
+
+# ==================== ATTENDANCE ====================
 
 @app.route('/dos/attendance')
 def dos_attendance():
+
     if not check_permission(['dos']):
         abort(403)
-    cur = get_db().cursor()
-    cur.execute("SELECT DISTINCT class FROM students WHERE class IS NOT NULL AND class != '' ORDER BY class")
-    classes = [row[0] for row in cur.fetchall()]
+
+    db = get_db_dict()
+    cur = db.cursor()
+
+    cur.execute(
+        """
+        SELECT DISTINCT class
+        FROM students
+        WHERE class IS NOT NULL
+        AND class != ''
+        ORDER BY class
+        """
+    )
+
+    classes = [
+        row['class']
+        for row in cur.fetchall()
+    ]
+
     cur.close()
-    return render_template('dos/attendance.html', classes=classes)
+
+    return render_template(
+        'dos/attendance.html',
+        classes=classes
+    )
+
+
+# ==================== SCHEDULES ====================
 
 @app.route('/dos/schedules', methods=['GET', 'POST'])
 def dos_schedules():
+
     if not check_permission(['dos']):
         abort(403)
+
+
     if request.method == 'POST':
+
         schedule_type = request.form['schedule_type']
         term_scope = request.form['term_scope']
-        content = request.form.get('schedule_text', '').strip()
-        file = request.files.get('schedule_file')
-        final_content = content
-        if file and file.filename and allowed_file(file.filename, {'csv'}):
-            stream = io.StringIO(file.stream.read().decode("UTF8"), newline=None)
-            reader = csv.reader(stream)
-            parsed = []
-            for row in reader:
-                if any(row):
-                    parsed.append(",".join([escape(cell.strip()) for cell in row]))
-            final_content = "\n".join(parsed)
-        execute_db("INSERT INTO schedules (type, term_scope, content, updated_at) VALUES (?, ?, ?, CURRENT_TIMESTAMP) ON CONFLICT(type, term_scope) DO UPDATE SET content=?, updated_at=CURRENT_TIMESTAMP",
-                   (schedule_type, term_scope, final_content, final_content))
-        flash(f'{schedule_type.capitalize()} saved.', 'success')
-        return redirect(url_for('dos_schedules'))
-    cur = get_db().cursor()
-    cur.execute("SELECT type, term_scope, content, updated_at FROM schedules ORDER BY type, term_scope DESC")
-    schedules = cur.fetchall()
-    cur.close()
-    return render_template('dos/schedules.html', schedules=schedules)
+        content = request.form.get(
+            'schedule_text',
+            ''
+        ).strip()
 
-# DOS Grading Management
+        file = request.files.get('schedule_file')
+
+        final_content = content
+
+
+        if file and file.filename and allowed_file(
+            file.filename,
+            {'csv'}
+        ):
+
+            stream = io.StringIO(
+                file.stream.read().decode("UTF8"),
+                newline=None
+            )
+
+            reader = csv.reader(stream)
+
+            rows = []
+
+            for row in reader:
+
+                if any(row):
+
+                    rows.append(
+                        ",".join(
+                            [
+                                escape(cell.strip())
+                                for cell in row
+                            ]
+                        )
+                    )
+
+            final_content = "\n".join(rows)
+
+
+        execute_db(
+            """
+            INSERT INTO schedules
+            (
+                type,
+                term_scope,
+                content,
+                updated_at
+            )
+            VALUES
+            (%s,%s,%s,CURRENT_TIMESTAMP)
+
+            ON CONFLICT(type,term_scope)
+
+            DO UPDATE SET
+                content=EXCLUDED.content,
+                updated_at=CURRENT_TIMESTAMP
+            """,
+            (
+                schedule_type,
+                term_scope,
+                final_content
+            )
+        )
+
+
+        flash(
+            f'{schedule_type.capitalize()} saved.',
+            'success'
+        )
+
+        return redirect(
+            url_for('dos_schedules')
+        )
+
+
+    db = get_db_dict()
+    cur = db.cursor()
+
+    cur.execute(
+        """
+        SELECT
+            type,
+            term_scope,
+            content,
+            updated_at
+        FROM schedules
+        ORDER BY type, term_scope DESC
+        """
+    )
+
+    schedules = cur.fetchall()
+
+    cur.close()
+
+
+    return render_template(
+        'dos/schedules.html',
+        schedules=schedules
+    )
+
+# ==================== O-LEVEL GRADING MANAGEMENT ====================
+
 @app.route('/dos/olevel_grading', methods=['GET', 'POST'])
 def dos_olevel_grading():
+
     if not check_permission(['dos']):
         abort(403)
+
     if request.method == 'POST':
+
         file = request.files.get('grading_file')
+
         if not file or not file.filename:
-            flash('Please upload an Excel file.', 'danger')
-            return redirect(url_for('dos_olevel_grading'))
+            flash(
+                'Please upload an Excel file.',
+                'danger'
+            )
+            return redirect(
+                url_for('dos_olevel_grading')
+            )
+
         try:
+
             from openpyxl import load_workbook
-            wb = load_workbook(file, data_only=True)
+
+            wb = load_workbook(
+                file,
+                data_only=True
+            )
+
             sheet = wb.active
-            
-            # Get headers from first row
-            headers = []
-            for cell in sheet[1]:
-                if cell.value:
-                    headers.append(str(cell.value).strip().lower())
-                else:
-                    headers.append('')
-            
-            # Find required column indices
-            min_score_col = None
-            max_score_col = None
-            grade_col = None
-            descriptor_col = None
-            
-            for idx, h in enumerate(headers):
-                if h == 'min_score':
-                    min_score_col = idx
-                elif h == 'max_score':
-                    max_score_col = idx
-                elif h == 'grade':
-                    grade_col = idx
-                elif h == 'descriptor':
-                    descriptor_col = idx
-            
-            if min_score_col is None or max_score_col is None or grade_col is None or descriptor_col is None:
-                flash('Missing required columns: min_score, max_score, grade, descriptor', 'danger')
-                return redirect(url_for('dos_olevel_grading'))
-            
-            execute_db("DELETE FROM grading_system")
+
+            headers = [
+                str(cell.value).strip().lower()
+                if cell.value else ''
+                for cell in sheet[1]
+            ]
+
+            cols = {}
+
+            for idx, header in enumerate(headers):
+
+                if header in [
+                    'min_score',
+                    'max_score',
+                    'grade',
+                    'descriptor'
+                ]:
+                    cols[header] = idx
+
+
+            required = [
+                'min_score',
+                'max_score',
+                'grade',
+                'descriptor'
+            ]
+
+            if not all(
+                item in cols
+                for item in required
+            ):
+
+                flash(
+                    'Missing required columns: min_score, max_score, grade, descriptor',
+                    'danger'
+                )
+
+                return redirect(
+                    url_for('dos_olevel_grading')
+                )
+
+
+            execute_db(
+                "DELETE FROM grading_system"
+            )
+
+
             count = 0
-            
-            for row_idx in range(2, sheet.max_row + 1):
-                min_val = sheet.cell(row=row_idx, column=min_score_col + 1).value
-                max_val = sheet.cell(row=row_idx, column=max_score_col + 1).value
-                grade_val = sheet.cell(row=row_idx, column=grade_col + 1).value
-                desc_val = sheet.cell(row=row_idx, column=descriptor_col + 1).value
-                
-                if min_val is None or max_val is None or grade_val is None:
+
+
+            for row_idx in range(
+                2,
+                sheet.max_row + 1
+            ):
+
+                min_val = sheet.cell(
+                    row=row_idx,
+                    column=cols['min_score'] + 1
+                ).value
+
+                max_val = sheet.cell(
+                    row=row_idx,
+                    column=cols['max_score'] + 1
+                ).value
+
+                grade_val = sheet.cell(
+                    row=row_idx,
+                    column=cols['grade'] + 1
+                ).value
+
+                desc_val = sheet.cell(
+                    row=row_idx,
+                    column=cols['descriptor'] + 1
+                ).value
+
+
+                if None in [
+                    min_val,
+                    max_val,
+                    grade_val
+                ]:
                     continue
-                
+
+
                 try:
-                    execute_db("INSERT INTO grading_system (min_score, max_score, grade, descriptor) VALUES (?, ?, ?, ?)",
-                               (float(min_val), float(max_val), str(grade_val).strip(), str(desc_val).strip() if desc_val else ''))
+
+                    execute_db(
+                        """
+                        INSERT INTO grading_system
+                        (
+                            min_score,
+                            max_score,
+                            grade,
+                            descriptor
+                        )
+                        VALUES
+                        (%s,%s,%s,%s)
+                        """,
+                        (
+                            float(min_val),
+                            float(max_val),
+                            str(grade_val).strip(),
+                            str(desc_val).strip()
+                            if desc_val else ''
+                        )
+                    )
+
                     count += 1
-                except:
+
+
+                except Exception:
+
                     continue
-            
-            flash(f'{count} O-Level grading rules uploaded.', 'success')
+
+
+            flash(
+                f'{count} O-Level grading rules uploaded.',
+                'success'
+            )
+
+
         except Exception as e:
-            flash(f'Error: {str(e)}', 'danger')
-        return redirect(url_for('dos_olevel_grading'))
-    
-    cur = get_db().cursor()
-    cur.execute("SELECT min_score, max_score, grade, descriptor FROM grading_system ORDER BY min_score DESC")
+
+            flash(
+                f'Error: {str(e)}',
+                'danger'
+            )
+
+
+        return redirect(
+            url_for('dos_olevel_grading')
+        )
+
+
+    db = get_db_dict()
+    cur = db.cursor()
+
+    cur.execute(
+        """
+        SELECT
+            min_score,
+            max_score,
+            grade,
+            descriptor
+        FROM grading_system
+        ORDER BY min_score DESC
+        """
+    )
+
     rules = cur.fetchall()
+
     cur.close()
-    return render_template('dos/olevel_grading.html', rules=rules)
+
+
+    return render_template(
+        'dos/olevel_grading.html',
+        rules=rules
+    )
+
+
+
+# ==================== A-LEVEL GRADING MANAGEMENT ====================
 
 @app.route('/dos/alevel_grading', methods=['GET', 'POST'])
 def dos_alevel_grading():
+
     if not check_permission(['dos']):
         abort(403)
+
+
     if request.method == 'POST':
+
         file = request.files.get('grading_file')
+
+
         if not file or not file.filename:
-            flash('Please upload an Excel file.', 'danger')
-            return redirect(url_for('dos_alevel_grading'))
+
+            flash(
+                'Please upload an Excel file.',
+                'danger'
+            )
+
+            return redirect(
+                url_for('dos_alevel_grading')
+            )
+
+
         try:
+
             from openpyxl import load_workbook
-            wb = load_workbook(file, data_only=True)
+
+            wb = load_workbook(
+                file,
+                data_only=True
+            )
+
             sheet = wb.active
-            
-            headers = []
-            for cell in sheet[1]:
-                headers.append(str(cell.value).strip().lower() if cell.value else '')
-            
-            min_score_col = None
-            max_score_col = None
-            grade_col = None
-            points_col = None
-            
-            for idx, h in enumerate(headers):
-                if h == 'min_score':
-                    min_score_col = idx
-                elif h == 'max_score':
-                    max_score_col = idx
-                elif h == 'grade':
-                    grade_col = idx
-                elif h == 'points':
-                    points_col = idx
-            
-            if None in [min_score_col, max_score_col, grade_col, points_col]:
-                flash('Missing required columns: min_score, max_score, grade, points', 'danger')
-                return redirect(url_for('dos_alevel_grading'))
-            
-            execute_db("DELETE FROM alevel_grading WHERE is_subsidiary=0")
+
+
+            headers = [
+                str(cell.value).strip().lower()
+                if cell.value else ''
+                for cell in sheet[1]
+            ]
+
+
+            cols = {}
+
+
+            for idx, header in enumerate(headers):
+
+                if header in [
+                    'min_score',
+                    'max_score',
+                    'grade',
+                    'points'
+                ]:
+
+                    cols[header] = idx
+
+
+
+            required = [
+                'min_score',
+                'max_score',
+                'grade',
+                'points'
+            ]
+
+
+            if not all(
+                item in cols
+                for item in required
+            ):
+
+                flash(
+                    'Missing required columns: min_score, max_score, grade, points',
+                    'danger'
+                )
+
+                return redirect(
+                    url_for('dos_alevel_grading')
+                )
+
+
+            execute_db(
+                """
+                DELETE FROM alevel_grading
+                WHERE is_subsidiary=FALSE
+                """
+            )
+
+
             count = 0
-            
-            for row_idx in range(2, sheet.max_row + 1):
-                min_val = sheet.cell(row=row_idx, column=min_score_col + 1).value
-                max_val = sheet.cell(row=row_idx, column=max_score_col + 1).value
-                grade_val = sheet.cell(row=row_idx, column=grade_col + 1).value
-                points_val = sheet.cell(row=row_idx, column=points_col + 1).value
-                
-                if None in [min_val, max_val, grade_val, points_val]:
+
+
+            for row_idx in range(
+                2,
+                sheet.max_row + 1
+            ):
+
+                min_val = sheet.cell(
+                    row=row_idx,
+                    column=cols['min_score'] + 1
+                ).value
+
+                max_val = sheet.cell(
+                    row=row_idx,
+                    column=cols['max_score'] + 1
+                ).value
+
+                grade_val = sheet.cell(
+                    row=row_idx,
+                    column=cols['grade'] + 1
+                ).value
+
+                points_val = sheet.cell(
+                    row=row_idx,
+                    column=cols['points'] + 1
+                ).value
+
+
+                if None in [
+                    min_val,
+                    max_val,
+                    grade_val,
+                    points_val
+                ]:
                     continue
-                
+
+
                 try:
-                    execute_db("INSERT INTO alevel_grading (min_score, max_score, grade, points, is_subsidiary) VALUES (?, ?, ?, ?, 0)",
-                               (float(min_val), float(max_val), str(grade_val).strip(), int(points_val)))
+
+                    execute_db(
+                        """
+                        INSERT INTO alevel_grading
+                        (
+                            min_score,
+                            max_score,
+                            grade,
+                            points,
+                            is_subsidiary
+                        )
+                        VALUES
+                        (%s,%s,%s,%s,FALSE)
+                        """,
+                        (
+                            float(min_val),
+                            float(max_val),
+                            str(grade_val).strip(),
+                            int(points_val)
+                        )
+                    )
+
                     count += 1
-                except:
+
+
+                except Exception:
+
                     continue
-            
-            flash(f'{count} A-Level grading rules uploaded.', 'success')
+
+
+
+            flash(
+                f'{count} A-Level grading rules uploaded.',
+                'success'
+            )
+
+
         except Exception as e:
-            flash(f'Error: {str(e)}', 'danger')
-        return redirect(url_for('dos_alevel_grading'))
-    
-    cur = get_db().cursor()
-    cur.execute("SELECT min_score, max_score, grade, points FROM alevel_grading WHERE is_subsidiary=0 ORDER BY min_score DESC")
+
+            flash(
+                f'Error: {str(e)}',
+                'danger'
+            )
+
+
+        return redirect(
+            url_for('dos_alevel_grading')
+        )
+
+
+
+    db = get_db_dict()
+    cur = db.cursor()
+
+    cur.execute(
+        """
+        SELECT
+            min_score,
+            max_score,
+            grade,
+            points
+        FROM alevel_grading
+        WHERE is_subsidiary=FALSE
+        ORDER BY min_score DESC
+        """
+    )
+
+
     rules = cur.fetchall()
+
     cur.close()
-    return render_template('dos/alevel_grading.html', rules=rules)
+
+
+    return render_template(
+        'dos/alevel_grading.html',
+        rules=rules
+    )
     
+
 @app.route('/dos/predefined_comments')
 def dos_predefined_comments():
     if not check_permission(['dos']):
@@ -2625,7 +3200,10 @@ def dos_predefined_comments_add():
     if not comment_text:
         flash('Comment text is required.', 'danger')
         return redirect(url_for('dos_predefined_comments'))
-    execute_db("INSERT INTO predefined_comments (comment_type, comment_text, is_active) VALUES (?, ?, 1)", (comment_type, comment_text))
+    execute_db(
+        "INSERT INTO predefined_comments (comment_type, comment_text, is_active) VALUES (%s, %s, %s)",
+        (comment_type, comment_text, True)
+    )
     flash('Comment added successfully.', 'success')
     return redirect(url_for('dos_predefined_comments'))
 
@@ -2633,7 +3211,10 @@ def dos_predefined_comments_add():
 def dos_predefined_comments_delete(comment_id):
     if not check_permission(['dos']):
         abort(403)
-    execute_db("DELETE FROM predefined_comments WHERE id=?", (comment_id,))
+    execute_db(
+        "DELETE FROM predefined_comments WHERE id=%s",
+        (comment_id,)
+    )
     flash('Comment deleted successfully.', 'success')
     return redirect(url_for('dos_predefined_comments'))
 
@@ -2641,24 +3222,28 @@ def dos_predefined_comments_delete(comment_id):
 def dos_identifier_grading():
     if not check_permission(['dos']):
         abort(403)
+
     if request.method == 'POST':
         file = request.files.get('grading_file')
+
         if not file or not file.filename:
             flash('Please upload an Excel file.', 'danger')
             return redirect(url_for('dos_identifier_grading'))
+
         try:
             from openpyxl import load_workbook
+
             wb = load_workbook(file, data_only=True)
             sheet = wb.active
-            
+
             headers = []
             for cell in sheet[1]:
                 headers.append(str(cell.value).strip().lower() if cell.value else '')
-            
+
             min_col = None
             max_col = None
             desc_col = None
-            
+
             for idx, h in enumerate(headers):
                 if h == 'min_value':
                     min_col = idx
@@ -2666,238 +3251,313 @@ def dos_identifier_grading():
                     max_col = idx
                 elif h == 'descriptor':
                     desc_col = idx
-            
+
             if None in [min_col, max_col, desc_col]:
                 flash('Missing required columns: min_value, max_value, descriptor', 'danger')
                 return redirect(url_for('dos_identifier_grading'))
-            
+
             execute_db("DELETE FROM identifier_grading")
+
             count = 0
-            
+
             for row_idx in range(2, sheet.max_row + 1):
                 min_val = sheet.cell(row=row_idx, column=min_col + 1).value
                 max_val = sheet.cell(row=row_idx, column=max_col + 1).value
                 desc_val = sheet.cell(row=row_idx, column=desc_col + 1).value
-                
+
                 if None in [min_val, max_val, desc_val]:
                     continue
-                
+
                 try:
-                    execute_db("INSERT INTO identifier_grading (min_value, max_value, descriptor) VALUES (?, ?, ?)",
-                               (float(min_val), float(max_val), str(desc_val).strip()))
+                    execute_db(
+                        """
+                        INSERT INTO identifier_grading
+                        (min_value, max_value, descriptor)
+                        VALUES (%s, %s, %s)
+                        """,
+                        (
+                            float(min_val),
+                            float(max_val),
+                            str(desc_val).strip()
+                        )
+                    )
                     count += 1
-                except:
+                except Exception:
                     continue
-            
+
             flash(f'{count} Identifier grading rules uploaded.', 'success')
+
         except Exception as e:
             flash(f'Error: {str(e)}', 'danger')
+
         return redirect(url_for('dos_identifier_grading'))
-    
+
     cur = get_db().cursor()
-    cur.execute("SELECT min_value, max_value, descriptor FROM identifier_grading ORDER BY min_value DESC")
+    cur.execute(
+        "SELECT min_value, max_value, descriptor FROM identifier_grading ORDER BY min_value DESC"
+    )
     rules = cur.fetchall()
     cur.close()
+
     return render_template('dos/identifier_grading.html', rules=rules)
 
 @app.route('/dos/upload_teachers', methods=['GET', 'POST'])
 def dos_upload_teachers():
     if not check_permission(['dos']):
         abort(403)
-    
+
     if request.method == 'POST':
         file = request.files.get('excel_file')
+
         if not file or not file.filename:
             flash('Please upload an Excel file.', 'danger')
             return redirect(url_for('dos_upload_teachers'))
-        
+
         try:
             from openpyxl import load_workbook
+
             wb = load_workbook(file, data_only=True)
             sheet = wb.active
-            
-            # Get headers
-            headers = []
-            for cell in sheet[1]:
-                headers.append(str(cell.value).strip().lower() if cell.value else '')
-            
-            # Find columns
+
+            headers = [str(cell.value).strip().lower() if cell.value else '' for cell in sheet[1]]
+
             col_map = {}
             for idx, h in enumerate(headers):
                 if h in ['username', 'full_name', 'class_name', 'subject', 'assignment_type']:
                     col_map[h] = idx
-            
+
             required = ['username', 'full_name', 'class_name', 'assignment_type']
+
             for r in required:
                 if r not in col_map:
                     flash(f'Missing column: {r}', 'danger')
                     return redirect(url_for('dos_upload_teachers'))
-            
+
             db = get_db_dict()
             cur = db.cursor()
+
             success = 0
             errors = []
-            
+
             for row_idx in range(2, sheet.max_row + 1):
                 try:
                     username = str(sheet.cell(row=row_idx, column=col_map['username'] + 1).value or '').strip()
                     full_name = str(sheet.cell(row=row_idx, column=col_map['full_name'] + 1).value or '').strip()
                     class_name = str(sheet.cell(row=row_idx, column=col_map['class_name'] + 1).value or '').strip()
                     assignment_type = str(sheet.cell(row=row_idx, column=col_map['assignment_type'] + 1).value or '').strip().lower()
-                    subject = str(sheet.cell(row=row_idx, column=col_map.get('subject', 999) + 1).value or '').strip() if 'subject' in col_map else None
-                    
+                    subject = str(sheet.cell(row=row_idx, column=col_map['subject'] + 1).value or '').strip() if 'subject' in col_map else None
+
                     if not username or not class_name or not assignment_type:
                         errors.append(f"Row {row_idx}: Missing username, class_name, or assignment_type")
                         continue
-                    
-                    # Validate assignment_type
+
                     if assignment_type not in ['classteacher', 'subject_teacher']:
-                        errors.append(f"Row {row_idx}: Invalid assignment_type '{assignment_type}'. Must be 'classteacher' or 'subject_teacher'")
+                        errors.append(f"Row {row_idx}: Invalid assignment type")
                         continue
-                    
-                    # For subject_teacher, subject is required
+
                     if assignment_type == 'subject_teacher' and not subject:
-                        errors.append(f"Row {row_idx}: Subject is required for subject_teacher")
+                        errors.append(f"Row {row_idx}: Subject required for subject teacher")
                         continue
-                    
-                    # Check if user exists, if not create
-                    cur.execute("SELECT id, full_name FROM users WHERE username=?", (username,))
+
+                    cur.execute(
+                        "SELECT id, full_name, role FROM users WHERE username=%s",
+                        (username,)
+                    )
+
                     user = cur.fetchone()
-                    
+
                     if not user:
-                        # Create user with default password
                         default_password = 'password123'
                         hashed = generate_password_hash(default_password)
-                        cur.execute("""
-                            INSERT INTO users (username, full_name, password, role, status, must_change_password) 
-                            VALUES (?, ?, ?, ?, 1, 1)
-                        """, (username, full_name or username, hashed, 
-                              'subject_teacher' if assignment_type == 'subject_teacher' else 'classteacher'))
-                        user_id = cur.lastrowid
-                        
-                        # Add notification to DOS only (not to teacher)
-                        add_notification(
-                            'dos',  # Send to DOS role
-                            f"New teacher created: {full_name or username}. Username: {username}, Password: {default_password}. Class: {class_name}, Type: {assignment_type}",
-                            f"/dos/teacher_assignments"
+
+                        cur.execute(
+                            """
+                            INSERT INTO users
+                            (username, full_name, password, role, status, must_change_password)
+                            VALUES (%s,%s,%s,%s,%s,%s)
+                            RETURNING id
+                            """,
+                            (
+                                username,
+                                full_name or username,
+                                hashed,
+                                'subject_teacher' if assignment_type == 'subject_teacher' else 'classteacher',
+                                True,
+                                True
+                            )
                         )
-                        
+
+                        user_id = cur.fetchone()['id']
+
+                        add_notification(
+                            'dos',
+                            f"New teacher created: {full_name or username}. Username: {username}, Password: {default_password}. Class: {class_name}, Type: {assignment_type}",
+                            "/dos/teacher_assignments"
+                        )
+
                         success += 1
+
                     else:
                         user_id = user['id']
-                        # Update full_name if provided and different
+
                         if full_name and full_name != user['full_name']:
-                            cur.execute("UPDATE users SET full_name=? WHERE id=?", (full_name, user_id))
-                        # Update role if needed (DOS uploads can't override admin roles)
-                        current_role = user['role'] if isinstance(user, dict) else user[2]
-                        if current_role not in ['admin', 'headteacher', 'bursar']:
+                            cur.execute(
+                                "UPDATE users SET full_name=%s WHERE id=%s",
+                                (full_name, user_id)
+                            )
+
+                        if user['role'] not in ['admin', 'headteacher', 'bursar']:
                             new_role = 'subject_teacher' if assignment_type == 'subject_teacher' else 'classteacher'
-                            if current_role != new_role:
-                                cur.execute("UPDATE users SET role=? WHERE id=?", (new_role, user_id))
+
+                            cur.execute(
+                                "UPDATE users SET role=%s WHERE id=%s",
+                                (new_role, user_id)
+                            )
+
                         success += 1
-                    
-                    # For class teacher, check if class already has one
+
                     if assignment_type == 'classteacher':
-                        cur.execute("""
-                            SELECT id FROM teacher_class_assignments 
-                            WHERE class_name=? AND assignment_type='classteacher'
-                        """, (class_name,))
-                        existing_class_teacher = cur.fetchone()
-                        
-                        if existing_class_teacher:
-                            errors.append(f"Row {row_idx}: Class '{class_name}' already has a class teacher! Skipped {username}")
+                        cur.execute(
+                            """
+                            SELECT id FROM teacher_class_assignments
+                            WHERE class_name=%s
+                            AND assignment_type='classteacher'
+                            """,
+                            (class_name,)
+                        )
+
+                        if cur.fetchone():
+                            errors.append(f"Row {row_idx}: Class {class_name} already has a class teacher")
                             continue
-                    
-                    # Check if this specific assignment already exists
-                    cur.execute("""
-                        SELECT id FROM teacher_class_assignments 
-                        WHERE user_id=? AND class_name=? AND assignment_type=?
-                    """, (user_id, class_name, assignment_type))
-                    existing_assignment = cur.fetchone()
-                    
-                    if existing_assignment:
-                        # Update existing assignment
-                        if assignment_type == 'subject_teacher' and subject:
-                            cur.execute("""
-                                UPDATE teacher_class_assignments 
-                                SET subject=?, assigned_by=?, assigned_at=CURRENT_TIMESTAMP
-                                WHERE id=?
-                            """, (subject, session.get('username'), existing_assignment['id']))
-                            errors.append(f"Row {row_idx}: Updated existing assignment for {username} - {class_name} ({assignment_type})")
-                        else:
-                            errors.append(f"Row {row_idx}: Assignment already exists for {username} - {class_name} ({assignment_type})")
+
+                    cur.execute(
+                        """
+                        SELECT id FROM teacher_class_assignments
+                        WHERE user_id=%s
+                        AND class_name=%s
+                        AND assignment_type=%s
+                        """,
+                        (
+                            user_id,
+                            class_name,
+                            assignment_type
+                        )
+                    )
+
+                    existing = cur.fetchone()
+
+                    if existing:
+                        if assignment_type == 'subject_teacher':
+                            cur.execute(
+                                """
+                                UPDATE teacher_class_assignments
+                                SET subject=%s,
+                                    assigned_by=%s,
+                                    assigned_at=CURRENT_TIMESTAMP
+                                WHERE id=%s
+                                """,
+                                (
+                                    subject,
+                                    session.get('username'),
+                                    existing['id']
+                                )
+                            )
                     else:
-                        # Insert new assignment
-                        cur.execute("""
-                            INSERT INTO teacher_class_assignments 
+                        cur.execute(
+                            """
+                            INSERT INTO teacher_class_assignments
                             (user_id, class_name, subject, assignment_type, assigned_by)
-                            VALUES (?, ?, ?, ?, ?)
-                        """, (user_id, class_name, subject, assignment_type, session.get('username')))
-                    
+                            VALUES (%s,%s,%s,%s,%s)
+                            """,
+                            (
+                                user_id,
+                                class_name,
+                                subject,
+                                assignment_type,
+                                session.get('username')
+                            )
+                        )
+
                 except Exception as e:
                     errors.append(f"Row {row_idx}: {str(e)}")
-                    app.logger.error(f"Error in row {row_idx}: {str(e)}")
-                    continue
-            
+                    app.logger.error(f"Error row {row_idx}: {str(e)}")
+
             db.commit()
             cur.close()
-            
-            flash(f'{success} teachers processed. {len(errors)} issues found.', 
-                  'success' if success > 0 else 'warning')
-            if errors:
-                for e in errors[:10]:  # Show first 10 errors
-                    flash(e, 'warning')
-                    
-        except Exception as e:
-            app.logger.error(f"Upload error: {str(e)}")
-            flash(f'Error uploading file: {str(e)}', 'danger')
-        
-        return redirect(url_for('dos_teacher_assignments'))
-    
-    return render_template('dos/upload_teachers.html')
 
+            flash(
+                f'{success} teachers processed. {len(errors)} issues found.',
+                'success' if success else 'warning'
+            )
+
+            for e in errors[:10]:
+                flash(e, 'warning')
+
+        except Exception as e:
+            flash(f'Error uploading file: {str(e)}', 'danger')
+
+        return redirect(url_for('dos_teacher_assignments'))
+
+    return render_template('dos/upload_teachers.html')
 
 def assign_user_to_class(user_id, class_name, subject=None, assignment_type='subject_teacher'):
     """Helper function to assign a teacher to a class with proper conflict handling"""
     try:
         db = get_db_dict()
         cur = db.cursor()
-        
-        # Check if assignment already exists
-        cur.execute("""
-            SELECT id FROM teacher_class_assignments 
-            WHERE user_id=? AND class_name=? AND assignment_type=?
-        """, (user_id, class_name, assignment_type))
-        
+
+        cur.execute(
+            """
+            SELECT id FROM teacher_class_assignments
+            WHERE user_id=%s
+            AND class_name=%s
+            AND assignment_type=%s
+            """,
+            (user_id, class_name, assignment_type)
+        )
+
         existing = cur.fetchone()
-        
+
         if existing:
-            # Update existing assignment
             if assignment_type == 'subject_teacher':
-                cur.execute("""
-                    UPDATE teacher_class_assignments 
-                    SET subject=?, assigned_at=CURRENT_TIMESTAMP
-                    WHERE id=?
-                """, (subject, existing['id']))
+                cur.execute(
+                    """
+                    UPDATE teacher_class_assignments
+                    SET subject=%s,
+                        assigned_at=CURRENT_TIMESTAMP
+                    WHERE id=%s
+                    """,
+                    (subject, existing['id'])
+                )
             else:
-                # For classteacher, just update timestamp
-                cur.execute("""
-                    UPDATE teacher_class_assignments 
+                cur.execute(
+                    """
+                    UPDATE teacher_class_assignments
                     SET assigned_at=CURRENT_TIMESTAMP
-                    WHERE id=?
-                """, (existing['id'],))
+                    WHERE id=%s
+                    """,
+                    (existing['id'],)
+                )
         else:
-            # Insert new assignment
-            cur.execute("""
-                INSERT INTO teacher_class_assignments 
+            cur.execute(
+                """
+                INSERT INTO teacher_class_assignments
                 (user_id, class_name, subject, assignment_type, assigned_by)
-                VALUES (?, ?, ?, ?, ?)
-            """, (user_id, class_name, subject, assignment_type, session.get('username')))
-        
+                VALUES (%s,%s,%s,%s,%s)
+                """,
+                (
+                    user_id,
+                    class_name,
+                    subject,
+                    assignment_type,
+                    session.get('username')
+                )
+            )
+
         db.commit()
         cur.close()
         return True
-        
+
     except Exception as e:
         app.logger.error(f"Error in assign_user_to_class: {str(e)}")
         return False
@@ -2907,174 +3567,90 @@ def assign_user_to_class(user_id, class_name, subject=None, assignment_type='sub
 def dos_delete_assignment(assignment_id):
     if not check_permission(['dos']):
         return jsonify({'success': False, 'error': 'Permission denied'})
-    
+
     try:
         db = get_db_dict()
         cur = db.cursor()
-        cur.execute("DELETE FROM teacher_class_assignments WHERE id = ?", (assignment_id,))
+
+        cur.execute(
+            "DELETE FROM teacher_class_assignments WHERE id=%s",
+            (assignment_id,)
+        )
+
         db.commit()
         cur.close()
+
         return jsonify({'success': True})
+
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
+
 
 @app.route('/dos/edit_assignment/<int:assignment_id>', methods=['GET', 'POST'])
 def dos_edit_assignment(assignment_id):
     if not check_permission(['dos']):
         abort(403)
-    
+
     db = get_db_dict()
     cur = db.cursor()
-    
+
     if request.method == 'POST':
         class_name = request.form.get('class_name')
         subject = request.form.get('subject')
         assignment_type = request.form.get('assignment_type')
-        
-        cur.execute("""
-            UPDATE teacher_class_assignments 
-            SET class_name=?, subject=?, assignment_type=?, assigned_by=?
-            WHERE id=?
-        """, (class_name, subject, assignment_type, session.get('username'), assignment_id))
+
+        cur.execute(
+            """
+            UPDATE teacher_class_assignments
+            SET class_name=%s,
+                subject=%s,
+                assignment_type=%s,
+                assigned_by=%s
+            WHERE id=%s
+            """,
+            (
+                class_name,
+                subject,
+                assignment_type,
+                session.get('username'),
+                assignment_id
+            )
+        )
+
         db.commit()
         cur.close()
+
         flash('Assignment updated successfully!', 'success')
         return redirect(url_for('dos_teacher_assignments'))
-    
-    # GET request - show edit form
-    cur.execute("""
-        SELECT tca.*, u.username, u.full_name 
+
+    cur.execute(
+        """
+        SELECT tca.*, u.username, u.full_name
         FROM teacher_class_assignments tca
-        JOIN users u ON tca.user_id = u.id
-        WHERE tca.id = ?
-    """, (assignment_id,))
+        JOIN users u
+        ON tca.user_id=u.id
+        WHERE tca.id=%s
+        """,
+        (assignment_id,)
+    )
+
     assignment = cur.fetchone()
     cur.close()
-    
-    # Get all classes for dropdown
+
     cur = db.cursor()
-    cur.execute("SELECT DISTINCT class FROM students ORDER BY class")
+    cur.execute(
+        "SELECT DISTINCT class FROM students ORDER BY class"
+    )
+
     classes = cur.fetchall()
     cur.close()
-    
-    return render_template('dos/edit_assignment.html', assignment=assignment, classes=classes)
 
-@app.route('/dos/report_card/<student_id>')
-def dos_report_card(student_id):
-    if not check_permission(['dos']):
-        abort(403)
+    return render_template(
+        'dos/edit_assignment.html',
+        assignment=assignment,
+        classes=classes
+    )
     
-    db = get_db_dict()
-    cur = db.cursor()
-    
-    cur.execute("SELECT full_name, class, photo_path FROM students WHERE student_id=?", (student_id,))
-    student = cur.fetchone()
-    if not student:
-        flash('Student not found.', 'danger')
-        return redirect(url_for('dos_class_lists'))
-    
-    full_name, class_name, photo_path = student['full_name'], student['class'], student['photo_path']
-    photo_url = get_photo_url(photo_path)
-    
-    term = request.args.get('term', 'Term 1')
-    year = request.args.get('year', datetime.now().year)
-    
-    cur.execute("SELECT school_name, school_address, school_phone, school_email, logo_url FROM school_settings WHERE id=1")
-    school = cur.fetchone()
-    school_name = school['school_name'] if school else 'YOUR SCHOOL NAME'
-    school_address = school['school_address'] if school else 'P.O. Box 123, Kampala, Uganda'
-    school_phone = school['school_phone'] if school else 'Tel: +256 712 345678'
-    school_email = school['school_email'] if school else 'Email: info@school.com'
-    school_logo_url = school['logo_url'] if school else url_for('static', filename='images/logo.png')
-    
-    cur.execute("SELECT next_term_begins, next_term_ends, headteacher_stamp FROM school_settings WHERE id=1")
-    settings = cur.fetchone()
-    next_term_begins = settings['next_term_begins'] if settings else None
-    next_term_ends = settings['next_term_ends'] if settings else None
-    stamp_url = url_for('static', filename='uploads/' + settings['headteacher_stamp']) if settings and settings['headteacher_stamp'] else None
-    
-    cur.execute("SELECT comment, headteacher_comment FROM teacher_comments WHERE student_id=? AND term=? AND year=?", 
-                (student_id, term, year))
-    comments = cur.fetchone()
-    teacher_comment = comments['comment'] if comments else ''
-    headteacher_comment = comments['headteacher_comment'] if comments else ''
-    
-    class_upper = class_name.upper()
-    is_alevel = class_upper in ['S5', 'S6', 'A-LEVEL', 'A LEVEL', 'S.5', 'S.6'] or (class_upper.startswith('S') and len(class_upper) >= 2 and class_upper[1] in ['5', '6'])
-    
-    if is_alevel:
-        cur.execute("SELECT subject, paper1, paper2, total_score, grade, points, teacher_initials FROM marks WHERE student_id=? AND term=? AND year=? ORDER BY subject", 
-                    (student_id, term, year))
-        marks = cur.fetchall()
-        total_points = sum(m['points'] for m in marks if m['points'] is not None) if marks else 0
-        cur.close()
-        return render_template('teacher/report_card_alevel.html',
-            student_id=student_id, full_name=full_name, class_name=class_name, photo_url=photo_url,
-            term=term, year=year, marks=marks, total_points=total_points,
-            teacher_comment=teacher_comment, headteacher_comment=headteacher_comment,
-            next_term_begins=next_term_begins, next_term_ends=next_term_ends, stamp_url=stamp_url,
-            school_name=school_name, school_address=school_address, school_phone=school_phone,
-            school_email=school_email, school_logo_url=school_logo_url, can_edit_comments=False)
-    else:
-        cur.execute("""SELECT subject, ai1, ai2, ai3, ai_average, ai_contribution, eot_score, total_score, grade, identifier, descriptor, teacher_initials
-                       FROM marks WHERE student_id=? AND term=? AND year=? ORDER BY subject""", (student_id, term, year))
-        marks = cur.fetchall()
-        total_final = sum(m['total_score'] for m in marks) if marks else 0
-        count = len(marks)
-        avg_percent = total_final / count if count > 0 else 0
-        avg_out_of_3 = round((avg_percent / 100) * 3, 2)
-        general_grade, general_descriptor = get_grade_and_descriptor(avg_percent)
-        cur.close()
-        return render_template('teacher/report_card.html',
-            student_id=student_id, full_name=full_name, class_name=class_name, photo_url=photo_url,
-            term=term, year=year, marks=marks, avg_out_of_3=avg_out_of_3,
-            general_grade=general_grade, general_descriptor=general_descriptor,
-            teacher_comment=teacher_comment, headteacher_comment=headteacher_comment,
-            next_term_begins=next_term_begins, next_term_ends=next_term_ends, stamp_url=stamp_url,
-            school_name=school_name, school_address=school_address, school_phone=school_phone,
-            school_email=school_email, school_logo_url=school_logo_url, can_edit_comments=False)
-
-@app.route('/dos/admissions/pending')
-def dos_pending_admissions():
-    if not check_permission(['dos']):
-        abort(403)
-    db = get_db_dict()
-    cur = db.cursor()
-    cur.execute("SELECT * FROM students WHERE admission_source = 'online' AND admission_status = 'pending' ORDER BY application_date DESC")
-    pending = cur.fetchall()
-    cur.close()
-    return render_template('dos/pending_admissions.html', pending=pending)
-
-@app.route('/dos/admissions/approve/<student_id>')
-def dos_approve_admission(student_id):
-    if not check_permission(['dos']):
-        abort(403)
-    new_student_id = generate_student_id()
-    db = get_db_dict()
-    cur = db.cursor()
-    cur.execute("SELECT * FROM students WHERE student_id=? AND admission_source='online' AND admission_status='pending'", (student_id,))
-    student = cur.fetchone()
-    if not student:
-        flash('Admission not found or already processed.', 'danger')
-        return redirect(url_for('dos_pending_admissions'))
-    cur.execute("UPDATE students SET student_id=?, admission_status='approved' WHERE student_id=?", (new_student_id, student_id))
-    letter_content = generate_admission_letter({
-        'full_name': student['full_name'], 'student_id': new_student_id,
-        'class': student['class'], 'lin': student['lin'], 'preferred_house': student['preferred_house']
-    })
-    send_email(student['email'], 'Admission Letter - Approved', letter_content)
-    db.commit()
-    cur.close()
-    flash(f'Admission approved for {student["full_name"]}. Student ID: {new_student_id}', 'success')
-    return redirect(url_for('dos_pending_admissions'))
-
-@app.route('/dos/admissions/reject/<student_id>')
-def dos_reject_admission(student_id):
-    if not check_permission(['dos']):
-        abort(403)
-    execute_db("UPDATE students SET admission_status='rejected' WHERE student_id=? AND admission_source='online' AND admission_status='pending'", (student_id,))
-    flash('Admission rejected.', 'warning')
-    return redirect(url_for('dos_pending_admissions'))
 
 # ==================== UNIFIED TEACHER MODULE ====================
 @app.route('/teacher/students')
