@@ -85,7 +85,13 @@ class="btn btn-success btn-sm">
 Approve
 
 </a>
+<a href="{{url_for('admission_letter',
+student_id=s.student_id)}}"
+class="btn btn-primary btn-sm">
 
+Admission Letter
+
+</a>
 
 <a href="{{url_for('reject_admission',
 student_id=s[0])}}"
