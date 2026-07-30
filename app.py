@@ -2568,7 +2568,40 @@ def reject_admission(student_id):
 
 
     return redirect(url_for('dos_pending_admissions'))
+# ==================== ADMISSION LETTER ====================
 
+@app.route('/admission_letter/<student_id>')
+@login_required
+def admission_letter(student_id):
+
+    cur = get_db().cursor()
+
+    cur.execute("""
+        SELECT 
+            student_id,
+            full_name,
+            class,
+            admission_date,
+            preferred_house
+        FROM students
+        WHERE student_id=%s
+        AND admission_status='approved'
+    """,(student_id,))
+
+    student = cur.fetchone()
+
+    cur.close()
+
+
+    if not student:
+        flash("Admission record not found.", "danger")
+        return redirect(url_for('dashboard'))
+
+
+    return render_template(
+        'admissions/admission_letter.html',
+        student=student
+    )
 
 
 
