@@ -7049,27 +7049,27 @@ def generate_item_code(category_name):
     prefix = category_name[:3].upper()
     year = datetime.now().strftime("%Y")
 
-    db = get_db()
+    db = get_db_dict()
     cur = db.cursor()
 
     cur.execute(
         """
-        SELECT item_code 
-        FROM inventory_items 
-        WHERE item_code LIKE ?
-        ORDER BY item_code DESC 
+        SELECT item_code
+        FROM inventory_items
+        WHERE item_code LIKE %s
+        ORDER BY item_code DESC
         LIMIT 1
         """,
         (f'{prefix}-{year}-%',)
     )
 
     last = cur.fetchone()
+
     cur.close()
 
     if last:
-        last_code = last[0]
-        number = int(last_code.split('-')[-1])
-        number += 1
+        last_code = last['item_code']
+        number = int(last_code.split('-')[-1]) + 1
     else:
         number = 1
 
@@ -7083,16 +7083,12 @@ def check_low_stock_alerts():
     cur = db.cursor()
 
     cur.execute("""
-        SELECT 
+        SELECT
             i.id,
             i.name,
             i.quantity,
-            i.unit,
-            i.reorder_level,
-            c.name AS category_name
+            i.unit
         FROM inventory_items i
-        JOIN inventory_categories c
-        ON i.category_id = c.id
         WHERE i.quantity <= i.reorder_level
         AND i.status='working'
     """)
@@ -7103,11 +7099,11 @@ def check_low_stock_alerts():
     for item in items:
 
         cur.execute("""
-            SELECT id 
+            SELECT id
             FROM inventory_alerts
-            WHERE item_id=?
+            WHERE item_id=%s
             AND alert_type='low_stock'
-            AND is_read=0
+            AND is_read=FALSE
         """,
         (item['id'],))
 
@@ -7125,7 +7121,7 @@ def check_low_stock_alerts():
                     message
                 )
                 VALUES
-                (?, ?, ?)
+                (%s,%s,%s)
                 """,
                 (
                     item['id'],
@@ -7154,10 +7150,10 @@ def check_low_stock_alerts():
 
 
 
-# ==================== DASHBOARD ====================
+# ==================== INVENTORY DASHBOARD ====================
 
 
-@inventory_bp.route('/dashboard')
+@app.route('/inventory/dashboard')
 def inventory_dashboard():
 
     if not check_permission(
@@ -7170,9 +7166,10 @@ def inventory_dashboard():
     cur = db.cursor()
 
 
-    cur.execute(
-        "SELECT COUNT(*) AS total FROM inventory_items"
-    )
+    cur.execute("""
+        SELECT COUNT(*) AS total
+        FROM inventory_items
+    """)
     total_items = cur.fetchone()
 
 
@@ -7202,7 +7199,7 @@ def inventory_dashboard():
 
 
     cur.execute("""
-        SELECT SUM(quantity) AS total
+        SELECT COALESCE(SUM(quantity),0) AS total
         FROM inventory_items
         WHERE status='working'
     """)
@@ -7210,7 +7207,7 @@ def inventory_dashboard():
 
 
     cur.execute("""
-        SELECT SUM(current_value) AS total
+        SELECT COALESCE(SUM(current_value),0) AS total
         FROM inventory_items
     """)
     value = cur.fetchone()
@@ -7218,7 +7215,7 @@ def inventory_dashboard():
 
 
     cur.execute("""
-        SELECT 
+        SELECT
             t.*,
             i.name AS item_name,
             i.item_code
@@ -7228,12 +7225,13 @@ def inventory_dashboard():
         ORDER BY t.created_at DESC
         LIMIT 10
     """)
+
     transactions = cur.fetchall()
 
 
 
     cur.execute("""
-        SELECT 
+        SELECT
             a.*,
             i.name AS item_name,
             i.quantity,
@@ -7241,7 +7239,7 @@ def inventory_dashboard():
         FROM inventory_alerts a
         JOIN inventory_items i
         ON a.item_id=i.id
-        WHERE a.is_read=0
+        WHERE a.is_read=FALSE
         ORDER BY a.created_at DESC
     """)
 
@@ -7268,7 +7266,7 @@ def inventory_dashboard():
 # ==================== ITEMS LIST ====================
 
 
-@inventory_bp.route('/items')
+@app.route('/inventory/items')
 def inventory_items():
 
     if not check_permission(
@@ -7287,7 +7285,7 @@ def inventory_items():
 
 
     query = """
-        SELECT 
+        SELECT
             i.*,
             c.name AS category_name
         FROM inventory_items i
@@ -7300,22 +7298,23 @@ def inventory_items():
 
 
     if category:
-        query += " AND c.name=?"
+        query += " AND c.name=%s"
         params.append(category)
 
 
     if status:
-        query += " AND i.status=?"
+        query += " AND i.status=%s"
         params.append(status)
 
 
     if search:
         query += """
         AND (
-            i.name LIKE ?
-            OR i.item_code LIKE ?
+            i.name ILIKE %s
+            OR i.item_code ILIKE %s
         )
         """
+
         params.extend([
             f"%{search}%",
             f"%{search}%"
@@ -7354,92 +7353,181 @@ def inventory_items():
         search=search
     )
 
+
+
 # ==================== ADD INVENTORY ITEM ====================
 
-@inventory_bp.route('/item/add', methods=['GET', 'POST'])
+
+@app.route('/inventory/item/add', methods=['GET','POST'])
 def inventory_item_add():
-    if not check_permission(['admin','bursar','stores_keeper']):
+
+    if not check_permission(
+        ['admin','bursar','stores_keeper']
+    ):
         abort(403)
+
+
     db = get_db_dict()
     cur = db.cursor()
+
+
     if request.method == 'POST':
+
         try:
+
             category_id = request.form.get('category_id')
+
+
             if not category_id:
-                flash('Please select a category.', 'danger')
-                return redirect(url_for('inventory.inventory_item_add'))
-            name = request.form.get('name','').strip()
-            if not name:
-                flash('Item name is required.', 'danger')
-                return redirect(url_for('inventory.inventory_item_add'))
-            unit = request.form.get('unit','pieces')
-            quantity = int(request.form.get('quantity',0))
-            minimum_quantity = int(
-                request.form.get('minimum_quantity',10)
-            )
-            reorder_level = int(
-                request.form.get('reorder_level',5)
-            )
-            location = request.form.get('location','')
-            supplier = request.form.get('supplier','')
-            try:
-                purchase_price = float(
-                    request.form.get('purchase_price',0)
+                flash(
+                    'Please select a category.',
+                    'danger'
                 )
-            except:
-                purchase_price = 0
-            current_value = quantity * purchase_price
+                return redirect(
+                    url_for('inventory_item_add')
+                )
+
+
+            name = request.form.get(
+                'name',
+                ''
+            ).strip()
+
+
+            unit = request.form.get(
+                'unit',
+                'pieces'
+            )
+
+
+            quantity = int(
+                request.form.get(
+                    'quantity',
+                    0
+                )
+            )
+
+
+            minimum_quantity = int(
+                request.form.get(
+                    'minimum_quantity',
+                    10
+                )
+            )
+
+
+            reorder_level = int(
+                request.form.get(
+                    'reorder_level',
+                    5
+                )
+            )
+
+
+            purchase_price = float(
+                request.form.get(
+                    'purchase_price',
+                    0
+                )
+            )
+
+
+            current_value = (
+                quantity * purchase_price
+            )
+
+
+            location = request.form.get(
+                'location',
+                ''
+            )
+
+
+            supplier = request.form.get(
+                'supplier',
+                ''
+            )
+
+
             status = request.form.get(
                 'status',
                 'working'
             )
+
+
             responsible_person = request.form.get(
                 'responsible_person',
                 ''
             )
+
+
             responsible_role = request.form.get(
                 'responsible_role',
                 ''
             )
-            # Get category
+
 
             cur.execute(
                 """
                 SELECT name
                 FROM inventory_categories
-                WHERE id=?
+                WHERE id=%s
                 """,
                 (category_id,)
             )
+
+
             category = cur.fetchone()
+
+
             if not category:
                 flash(
                     'Invalid category.',
                     'danger'
                 )
                 return redirect(
-                    url_for('inventory.inventory_item_add')
+                    url_for('inventory_item_add')
                 )
+
+
             item_code = generate_item_code(
                 category['name']
             )
-            # Image upload
+
+
             image_path = None
+
+
             image_file = request.files.get('image')
+
+
             if image_file and image_file.filename:
+
                 if allowed_file(
                     image_file.filename,
                     ALLOWED_IMAGE_EXTENSIONS
                 ):
+
                     filename = secure_filename(
                         f"{item_code}_{image_file.filename}"
                     )
+
+
                     upload_path = os.path.join(
                         'uploads',
                         filename
                     )
-                    image_file.save(upload_path)
+
+
+                    image_file.save(
+                        upload_path
+                    )
+
+
                     image_path = filename
+
+
+
             cur.execute("""
                 INSERT INTO inventory_items
                 (
@@ -7461,10 +7549,17 @@ def inventory_item_add():
                     created_at,
                     updated_at
                 )
+
                 VALUES
-                (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,
-                CURRENT_TIMESTAMP,
-                CURRENT_TIMESTAMP)
+                (
+                    %s,%s,%s,%s,%s,
+                    %s,%s,%s,%s,%s,
+                    %s,%s,%s,%s,%s,
+                    CURRENT_TIMESTAMP,
+                    CURRENT_TIMESTAMP
+                )
+
+                RETURNING id
             """,
             (
                 item_code,
@@ -7483,8 +7578,11 @@ def inventory_item_add():
                 responsible_role,
                 image_path
             ))
-            item_id = cur.lastrowid
-            # Record opening stock
+
+
+            item_id = cur.fetchone()['id']
+
+
             cur.execute("""
                 INSERT INTO inventory_transactions
                 (
@@ -7497,165 +7595,145 @@ def inventory_item_add():
                     recorded_by,
                     notes
                 )
+
                 VALUES
-                (?,?,?,?,?,
-                DATE('now'),
-                ?,
-                ?)
+                (
+                    %s,
+                    'purchase',
+                    %s,
+                    %s,
+                    %s,
+                    CURRENT_DATE,
+                    %s,
+                    %s
+                )
             """,
             (
                 item_id,
-                'purchase',
                 quantity,
                 purchase_price,
                 current_value,
                 session.get('username'),
                 'Initial stock'
             ))
+
+
             db.commit()
+
+
             flash(
                 f'Item added successfully. Code: {item_code}',
                 'success'
             )
+
+
         except Exception as e:
+
             db.rollback()
+
             flash(
                 f'Error adding item: {str(e)}',
                 'danger'
             )
+
+
         finally:
+
             cur.close()
+
+
         return redirect(
-            url_for('inventory.inventory_items')
+            url_for('inventory_items')
         )
-    # GET
-    cur.execute(
-        """
+
+
+    cur.execute("""
         SELECT *
         FROM inventory_categories
         ORDER BY name
-        """
-    )
+    """)
+
+
     categories = cur.fetchall()
+
+
     cur.close()
+
+
     return render_template(
         'inventory/item_add.html',
         categories=categories
     )
+
 # ==================== EDIT INVENTORY ITEM ====================
-@inventory_bp.route(
-    '/item/edit/<int:item_id>',
+
+@app.route(
+    '/inventory/item/edit/<int:item_id>',
     methods=['GET','POST']
 )
 def inventory_item_edit(item_id):
+
     if not check_permission(
         ['admin','bursar','stores_keeper']
     ):
         abort(403)
+
+
     if request.method == 'POST':
-        execute_db(
-            """
-            UPDATE inventory_items SET
-            name=?,
-            unit=?,
-            minimum_quantity=?,
-            reorder_level=?,
-            location=?,
-            supplier=?,
-            status=?,
-            responsible_person=?,
-            responsible_role=?,
-            updated_at=CURRENT_TIMESTAMP
 
-            WHERE id=?
+        name = request.form.get(
+            'name'
+        )
 
-            """,
-            (
-                request.form['name'],
-                request.form['unit'],
-                int(request.form.get(
-                    'minimum_quantity',
-                    0
-                )),
-                int(request.form.get(
-                    'reorder_level',
-                    5
-                )),
-                request.form.get(
-                    'location',
-                    ''
-                ),
-                request.form.get(
-                    'supplier',
-                    ''
-                ),
-                request.form.get(
-                    'status',
-                    'working'
-                ),
-                request.form.get(
-                    'responsible_person',
-                    ''
-                ),
-                request.form.get(
-                    'responsible_role',
-                    ''),
-                item_id
+        unit = request.form.get(
+            'unit'
+        )
+
+        minimum_quantity = int(
+            request.form.get(
+                'minimum_quantity',
+                0
             )
         )
-        flash(
-            'Item updated successfully.',
-            'success'
-        )
-        return redirect(
-            url_for('inventory.inventory_items')
-        )
-    db = get_db_dict()
-    cur = db.cursor()
-    cur.execute("""
-        SELECT 
-            i.*,
-            c.name AS category_name
-        FROM inventory_items i
-        JOIN inventory_categories c
-        ON i.category_id=c.id
 
-        WHERE i.id=?
-    """,
-    (item_id,))
-    item = cur.fetchone()
-    cur.execute(
-        """
-        SELECT *
-        FROM inventory_categories
-        ORDER BY name
-        """
-    )
-    categories = cur.fetchall()
-    cur.close()
-    return render_template(
-        'inventory/item_edit.html',
-        item=item,
-        categories=categories
-    )
-# ==================== INVENTORY ITEM EDIT ====================
-@app.route('/inventory/item/edit/<int:item_id>', methods=['GET', 'POST'])
-def inventory_item_edit(item_id):
-    if not check_permission(['admin', 'bursar', 'stores_keeper']):
-        abort(403)
-    if request.method == 'POST':
-        name = request.form.get('name')
-        unit = request.form.get('unit')
-        minimum_quantity = int(request.form.get('minimum_quantity', 0))
-        reorder_level = int(request.form.get('reorder_level', 5))
-        location = request.form.get('location', '')
-        supplier = request.form.get('supplier', '')
-        status = request.form.get('status', 'working')
-        responsible_person = request.form.get('responsible_person', '')
-        responsible_role = request.form.get('responsible_role', '')
-        execute_db("""
-            UPDATE inventory_items 
-            SET name=%s,
+        reorder_level = int(
+            request.form.get(
+                'reorder_level',
+                5
+            )
+        )
+
+        location = request.form.get(
+            'location',
+            ''
+        )
+
+        supplier = request.form.get(
+            'supplier',
+            ''
+        )
+
+        status = request.form.get(
+            'status',
+            'working'
+        )
+
+        responsible_person = request.form.get(
+            'responsible_person',
+            ''
+        )
+
+        responsible_role = request.form.get(
+            'responsible_role',
+            ''
+        )
+
+
+        execute_db(
+            """
+            UPDATE inventory_items
+            SET
+                name=%s,
                 unit=%s,
                 minimum_quantity=%s,
                 reorder_level=%s,
@@ -7665,84 +7743,205 @@ def inventory_item_edit(item_id):
                 responsible_person=%s,
                 responsible_role=%s,
                 updated_at=CURRENT_TIMESTAMP
+
             WHERE id=%s
-        """,
-        (
-            name,
-            unit,
-            minimum_quantity,
-            reorder_level,
-            location,
-            supplier,
-            status,
-            responsible_person,
-            responsible_role,
-            item_id
-        ))
-        flash('Item updated successfully.', 'success')
-        return redirect(url_for('inventory_items'))
+            """,
+            (
+                name,
+                unit,
+                minimum_quantity,
+                reorder_level,
+                location,
+                supplier,
+                status,
+                responsible_person,
+                responsible_role,
+                item_id
+            )
+        )
+
+
+        flash(
+            'Item updated successfully.',
+            'success'
+        )
+
+
+        return redirect(
+            url_for('inventory_items')
+        )
+
+
+
     db = get_db_dict()
     cur = db.cursor()
-    cur.execute("""
-        SELECT i.*, c.name AS category_name
+
+
+    cur.execute(
+        """
+        SELECT
+            i.*,
+            c.name AS category_name
+
         FROM inventory_items i
-        JOIN inventory_categories c 
-        ON i.category_id = c.id
+
+        JOIN inventory_categories c
+        ON i.category_id=c.id
+
         WHERE i.id=%s
-    """, (item_id,))
+        """,
+        (item_id,)
+    )
+
+
     item = cur.fetchone()
-    cur.execute("""
+
+
+
+    cur.execute(
+        """
         SELECT *
         FROM inventory_categories
         ORDER BY name
-    """)
+        """
+    )
+
+
     categories = cur.fetchall()
+
+
     cur.close()
+
+
     return render_template(
         'inventory/item_edit.html',
         item=item,
         categories=categories
     )
+
+
+
 # ==================== ISSUE INVENTORY ITEM ====================
-@app.route('/inventory/issue/<int:item_id>', methods=['POST'])
+
+
+@app.route(
+    '/inventory/issue/<int:item_id>',
+    methods=['POST']
+)
 def inventory_issue_item(item_id):
-    if not check_permission(['admin', 'bursar', 'dos', 'stores_keeper']):
+
+    if not check_permission(
+        ['admin','bursar','dos','stores_keeper']
+    ):
         abort(403)
-    quantity = int(request.form.get('quantity', 0))
-    issued_to = request.form.get('issued_to')
-    issued_to_role = request.form.get('issued_to_role')
-    purpose = request.form.get('purpose')
-    notes = request.form.get('notes', '')
+
+
+    quantity = int(
+        request.form.get(
+            'quantity',
+            0
+        )
+    )
+
+
+    issued_to = request.form.get(
+        'issued_to'
+    )
+
+
+    issued_to_role = request.form.get(
+        'issued_to_role'
+    )
+
+
+    purpose = request.form.get(
+        'purpose'
+    )
+
+
+    notes = request.form.get(
+        'notes',
+        ''
+    )
+
+
     db = get_db_dict()
     cur = db.cursor()
-    cur.execute("""
-        SELECT name, quantity, unit
+
+
+
+    cur.execute(
+        """
+        SELECT
+            name,
+            quantity,
+            unit
+
         FROM inventory_items
+
         WHERE id=%s
-    """, (item_id,))
+        """,
+        (item_id,)
+    )
+
+
     item = cur.fetchone()
+
+
+
     if not item:
-        flash('Item not found.', 'danger')
-        return redirect(url_for('inventory_items'))
+
+        flash(
+            'Item not found.',
+            'danger'
+        )
+
+        return redirect(
+            url_for('inventory_items')
+        )
+
+
+
     if item['quantity'] < quantity:
+
         flash(
             f"Insufficient stock! Available: {item['quantity']} {item['unit']}",
             'danger'
         )
-        return redirect(url_for('inventory_items'))
-    new_quantity = item['quantity'] - quantity
-    cur.execute("""
+
+        return redirect(
+            url_for('inventory_items')
+        )
+
+
+
+    new_quantity = (
+        item['quantity']
+        -
+        quantity
+    )
+
+
+
+    cur.execute(
+        """
         UPDATE inventory_items
+
         SET quantity=%s,
             updated_at=CURRENT_TIMESTAMP
-        WHERE id=%s
-    """,
-    (
-        new_quantity,
-        item_id
-    ))
 
-    cur.execute("""
+        WHERE id=%s
+        """,
+        (
+            new_quantity,
+            item_id
+        )
+    )
+
+
+
+    cur.execute(
+        """
         INSERT INTO inventory_transactions
         (
             item_id,
@@ -7755,6 +7954,7 @@ def inventory_issue_item(item_id):
             notes,
             recorded_by
         )
+
         VALUES
         (
             %s,
@@ -7767,78 +7967,170 @@ def inventory_issue_item(item_id):
             %s,
             %s
         )
-    """,
-    (
-        item_id,
-        quantity,
-        issued_to,
-        issued_to_role,
-        purpose,
-        notes,
-        session.get('username')
-    ))
+        """,
+        (
+            item_id,
+            quantity,
+            issued_to,
+            issued_to_role,
+            purpose,
+            notes,
+            session.get('username')
+        )
+    )
+
+
+
     db.commit()
+
     cur.close()
 
+
+
     check_low_stock_alerts()
+
+
+
     flash(
         f"{quantity} {item['unit']} of {item['name']} issued to {issued_to}.",
         'success'
     )
-    return redirect(url_for('inventory_items'))
+
+
+    return redirect(
+        url_for('inventory_items')
+    )
+
+
 
 # ==================== RECEIVE INVENTORY ITEM ====================
 
-@app.route('/inventory/receive/<int:item_id>', methods=['POST'])
+
+@app.route(
+    '/inventory/receive/<int:item_id>',
+    methods=['POST']
+)
 def inventory_receive_item(item_id):
 
-    if not check_permission(['admin', 'bursar', 'stores_keeper']):
+    if not check_permission(
+        ['admin','bursar','stores_keeper']
+    ):
         abort(403)
 
-    quantity = int(request.form.get('quantity', 0))
-    unit_price = float(request.form.get('unit_price', 0))
-    supplier = request.form.get('supplier', '')
-    notes = request.form.get('notes', '')
+
+
+    quantity = int(
+        request.form.get(
+            'quantity',
+            0
+        )
+    )
+
+
+    unit_price = float(
+        request.form.get(
+            'unit_price',
+            0
+        )
+    )
+
+
+    supplier = request.form.get(
+        'supplier',
+        ''
+    )
+
+
+    notes = request.form.get(
+        'notes',
+        ''
+    )
+
+
 
     db = get_db_dict()
+
     cur = db.cursor()
 
-    cur.execute("""
-        SELECT name, quantity, current_value, unit
+
+
+    cur.execute(
+        """
+        SELECT
+            name,
+            quantity,
+            current_value,
+            unit
+
         FROM inventory_items
+
         WHERE id=%s
-    """, (item_id,))
+        """,
+        (item_id,)
+    )
+
 
     item = cur.fetchone()
 
+
+
     if not item:
-        flash('Item not found.', 'danger')
-        return redirect(url_for('inventory_items'))
 
-    new_quantity = item['quantity'] + quantity
+        flash(
+            'Item not found.',
+            'danger'
+        )
 
-    total_amount = quantity * unit_price
+        return redirect(
+            url_for('inventory_items')
+        )
+
+
+
+    new_quantity = (
+        item['quantity']
+        +
+        quantity
+    )
+
+
+
+    total_amount = (
+        quantity
+        *
+        unit_price
+    )
+
+
 
     new_value = (
-        item['current_value'] or 0
+        item['current_value']
+        or 0
     ) + total_amount
 
 
-    cur.execute("""
+
+    cur.execute(
+        """
         UPDATE inventory_items
+
         SET quantity=%s,
             current_value=%s,
             updated_at=CURRENT_TIMESTAMP
+
         WHERE id=%s
-    """,
-    (
-        new_quantity,
-        new_value,
-        item_id
-    ))
+        """,
+        (
+            new_quantity,
+            new_value,
+            item_id
+        )
+    )
 
 
-    cur.execute("""
+
+    cur.execute(
+        """
         INSERT INTO inventory_transactions
         (
             item_id,
@@ -7851,6 +8143,7 @@ def inventory_receive_item(item_id):
             notes,
             recorded_by
         )
+
         VALUES
         (
             %s,
@@ -7863,29 +8156,39 @@ def inventory_receive_item(item_id):
             %s,
             %s
         )
-    """,
-    (
-        item_id,
-        quantity,
-        unit_price,
-        total_amount,
-        supplier,
-        notes,
-        session.get('username')
-    ))
+        """,
+        (
+            item_id,
+            quantity,
+            unit_price,
+            total_amount,
+            supplier,
+            notes,
+            session.get('username')
+        )
+    )
 
 
-    cur.execute("""
+
+    cur.execute(
+        """
         UPDATE inventory_alerts
+
         SET is_read=TRUE
+
         WHERE item_id=%s
+
         AND alert_type='low_stock'
-    """,
-    (item_id,))
+        """,
+        (item_id,)
+    )
+
 
 
     db.commit()
+
     cur.close()
+
 
 
     flash(
@@ -7893,65 +8196,125 @@ def inventory_receive_item(item_id):
         'success'
     )
 
-    return redirect(url_for('inventory_items'))
+
+
+    return redirect(
+        url_for('inventory_items')
+    )
 
 
 
 # ==================== UPDATE INVENTORY STATUS ====================
 
-@app.route('/inventory/update_status/<int:item_id>', methods=['POST'])
+
+@app.route(
+    '/inventory/update_status/<int:item_id>',
+    methods=['POST']
+)
 def inventory_update_status(item_id):
 
-    if not check_permission(['admin', 'bursar', 'stores_keeper']):
+    if not check_permission(
+        ['admin','bursar','stores_keeper']
+    ):
         abort(403)
 
-    status = request.form.get('status')
-    condition_notes = request.form.get('condition_notes', '')
-    quantity_affected = int(
-        request.form.get('quantity_affected', 0)
+
+
+    status = request.form.get(
+        'status'
     )
 
+
+    condition_notes = request.form.get(
+        'condition_notes',
+        ''
+    )
+
+
+    quantity_affected = int(
+        request.form.get(
+            'quantity_affected',
+            0
+        )
+    )
+
+
+
     db = get_db_dict()
+
     cur = db.cursor()
 
-    cur.execute("""
-        SELECT name, quantity
+
+
+    cur.execute(
+        """
+        SELECT
+            name,
+            quantity
+
         FROM inventory_items
+
         WHERE id=%s
-    """,
-    (item_id,))
+        """,
+        (item_id,)
+    )
 
 
     item = cur.fetchone()
 
 
+
     if not item:
-        flash('Item not found.', 'danger')
-        return redirect(url_for('inventory_items'))
+
+        flash(
+            'Item not found.',
+            'danger'
+        )
+
+        return redirect(
+            url_for('inventory_items')
+        )
 
 
-    if status in ['spoilt', 'used_up'] and quantity_affected > 0:
 
-        new_quantity = item['quantity'] - quantity_affected
+    if status in [
+        'spoilt',
+        'used_up'
+    ] and quantity_affected > 0:
 
 
-        cur.execute("""
+
+        new_quantity = (
+            item['quantity']
+            -
+            quantity_affected
+        )
+
+
+
+        cur.execute(
+            """
             UPDATE inventory_items
+
             SET quantity=%s,
                 status=%s,
                 condition_notes=%s,
                 updated_at=CURRENT_TIMESTAMP
+
             WHERE id=%s
-        """,
-        (
-            new_quantity,
-            status,
-            condition_notes,
-            item_id
-        ))
+            """,
+            (
+                new_quantity,
+                status,
+                condition_notes,
+                item_id
+            )
+        )
 
 
-        cur.execute("""
+
+        cur.execute(
+            """
             INSERT INTO inventory_transactions
             (
                 item_id,
@@ -7960,6 +8323,7 @@ def inventory_update_status(item_id):
                 notes,
                 recorded_by
             )
+
             VALUES
             (
                 %s,
@@ -7968,34 +8332,43 @@ def inventory_update_status(item_id):
                 %s,
                 %s
             )
-        """,
-        (
-            item_id,
-            status,
-            quantity_affected,
-            condition_notes,
-            session.get('username')
-        ))
+            """,
+            (
+                item_id,
+                status,
+                quantity_affected,
+                condition_notes,
+                session.get('username')
+            )
+        )
 
 
     else:
 
-        cur.execute("""
+
+        cur.execute(
+            """
             UPDATE inventory_items
+
             SET status=%s,
                 condition_notes=%s,
                 updated_at=CURRENT_TIMESTAMP
+
             WHERE id=%s
-        """,
-        (
-            status,
-            condition_notes,
-            item_id
-        ))
+            """,
+            (
+                status,
+                condition_notes,
+                item_id
+            )
+        )
+
 
 
     db.commit()
+
     cur.close()
+
 
 
     flash(
@@ -8003,62 +8376,102 @@ def inventory_update_status(item_id):
         'success'
     )
 
-    return redirect(url_for('inventory_items'))
+
+
+    return redirect(
+        url_for('inventory_items')
+    )
 
 # ==================== INVENTORY TRANSACTIONS ====================
+
 
 @app.route('/inventory/transactions')
 def inventory_transactions():
 
-    if not check_permission(['admin', 'bursar', 'dos', 'stores_keeper']):
+    if not check_permission(
+        ['admin','bursar','dos','stores_keeper']
+    ):
         abort(403)
 
-    item_id = request.args.get('item_id', '')
+
+    item_id = request.args.get(
+        'item_id',
+        ''
+    )
+
 
     db = get_db_dict()
+
     cur = db.cursor()
+
+
 
     if item_id:
 
-        cur.execute("""
-            SELECT 
+        cur.execute(
+            """
+            SELECT
                 t.*,
                 i.name AS item_name,
                 i.item_code
+
             FROM inventory_transactions t
+
             JOIN inventory_items i
-            ON t.item_id = i.id
+            ON t.item_id=i.id
+
             WHERE t.item_id=%s
+
             ORDER BY t.created_at DESC
-        """,
-        (item_id,))
+            """,
+            (item_id,)
+        )
+
 
     else:
 
-        cur.execute("""
-            SELECT 
+        cur.execute(
+            """
+            SELECT
                 t.*,
                 i.name AS item_name,
                 i.item_code
+
             FROM inventory_transactions t
+
             JOIN inventory_items i
-            ON t.item_id = i.id
+            ON t.item_id=i.id
+
             ORDER BY t.created_at DESC
-        """)
+            """
+        )
+
 
 
     transactions = cur.fetchall()
 
 
-    cur.execute("""
-        SELECT id, name, item_code
+
+    cur.execute(
+        """
+        SELECT
+            id,
+            name,
+            item_code
+
         FROM inventory_items
+
         ORDER BY name
-    """)
+        """
+    )
+
 
     items = cur.fetchall()
 
+
+
     cur.close()
+
 
 
     return render_template(
@@ -8072,18 +8485,26 @@ def inventory_transactions():
 
 # ==================== INVENTORY ALERTS ====================
 
+
 @app.route('/inventory/alerts')
 def inventory_alerts():
 
-    if not check_permission(['admin', 'bursar', 'dos', 'stores_keeper']):
+    if not check_permission(
+        ['admin','bursar','dos','stores_keeper']
+    ):
         abort(403)
 
+
+
     db = get_db_dict()
+
     cur = db.cursor()
 
 
-    cur.execute("""
-        SELECT 
+
+    cur.execute(
+        """
+        SELECT
             a.*,
             i.name AS item_name,
             i.quantity,
@@ -8093,18 +8514,22 @@ def inventory_alerts():
         FROM inventory_alerts a
 
         JOIN inventory_items i
-        ON a.item_id = i.id
+        ON a.item_id=i.id
 
-        WHERE a.is_read = FALSE
+        WHERE a.is_read=FALSE
 
         ORDER BY a.created_at DESC
+        """
+    )
 
-    """)
 
 
     alerts = cur.fetchall()
 
+
+
     cur.close()
+
 
 
     return render_template(
@@ -8116,19 +8541,30 @@ def inventory_alerts():
 
 # ==================== MARK ALERT AS READ ====================
 
-@app.route('/inventory/alert/read/<int:alert_id>')
+
+@app.route(
+    '/inventory/alert/read/<int:alert_id>'
+)
 def inventory_alert_read(alert_id):
 
-    if not check_permission(['admin', 'bursar', 'dos', 'stores_keeper']):
+    if not check_permission(
+        ['admin','bursar','dos','stores_keeper']
+    ):
         abort(403)
 
 
-    execute_db("""
+
+    execute_db(
+        """
         UPDATE inventory_alerts
+
         SET is_read=TRUE
+
         WHERE id=%s
-    """,
-    (alert_id,))
+        """,
+        (alert_id,)
+    )
+
 
 
     flash(
@@ -8145,146 +8581,221 @@ def inventory_alert_read(alert_id):
 
 # ==================== INVENTORY REPORTS ====================
 
+
 @app.route('/inventory/reports')
 def inventory_reports():
 
-    if not check_permission(['admin', 'bursar', 'stores_keeper']):
+    if not check_permission(
+        ['admin','bursar','stores_keeper']
+    ):
         abort(403)
 
 
+
     by_category = []
+
     by_status = []
+
     low_stock_items = []
+
     recent_issues = []
 
+
+
     total_items = 0
+
     total_quantity = 0
+
     low_stock_count = 0
+
     total_value = 0
+
 
 
     try:
 
-        db = get_db()
+        db = get_db_dict()
+
         cur = db.cursor()
+
 
 
         # Total items
 
-        cur.execute("""
-            SELECT COUNT(*)
-            FROM inventory_items
-        """)
+        cur.execute(
+            """
+            SELECT COUNT(*) AS total
 
-        total_items = cur.fetchone()[0] or 0
+            FROM inventory_items
+            """
+        )
+
+
+        total_items = cur.fetchone()['total'] or 0
+
 
 
 
         # Total quantity
 
-        cur.execute("""
-            SELECT SUM(quantity)
+        cur.execute(
+            """
+            SELECT COALESCE(
+                SUM(quantity),
+                0
+            ) AS total
+
             FROM inventory_items
+
             WHERE status='working'
-        """)
-
-        total_quantity = cur.fetchone()[0] or 0
-
+            """
+        )
 
 
-        # Low stock
+        total_quantity = cur.fetchone()['total'] or 0
 
-        cur.execute("""
-            SELECT COUNT(*)
+
+
+
+        # Low stock count
+
+        cur.execute(
+            """
+            SELECT COUNT(*) AS total
+
             FROM inventory_items
-            WHERE quantity <= reorder_level
-            AND status='working'
-        """)
 
-        low_stock_count = cur.fetchone()[0] or 0
+            WHERE quantity <= reorder_level
+
+            AND status='working'
+            """
+        )
+
+
+        low_stock_count = cur.fetchone()['total'] or 0
+
 
 
 
         # Total value
 
-        cur.execute("""
-            SELECT SUM(current_value)
-            FROM inventory_items
-        """)
+        cur.execute(
+            """
+            SELECT COALESCE(
+                SUM(current_value),
+                0
+            ) AS total
 
-        total_value = cur.fetchone()[0] or 0
+            FROM inventory_items
+            """
+        )
+
+
+        total_value = cur.fetchone()['total'] or 0
 
 
 
 
         # Stock by category
 
-        cur.execute("""
+        cur.execute(
+            """
             SELECT
-                c.name,
-                COUNT(i.id),
-                COALESCE(SUM(i.quantity),0),
-                COALESCE(SUM(i.current_value),0)
+
+                c.name AS category,
+
+                COUNT(i.id) AS item_count,
+
+                COALESCE(
+                    SUM(i.quantity),
+                    0
+                ) AS total_quantity,
+
+                COALESCE(
+                    SUM(i.current_value),
+                    0
+                ) AS total_value
+
 
             FROM inventory_categories c
+
 
             LEFT JOIN inventory_items i
 
             ON c.id=i.category_id
 
+
             GROUP BY c.id,c.name
 
-        """)
+            ORDER BY c.name
+            """
+        )
+
 
 
         rows = cur.fetchall()
 
 
+
         for row in rows:
 
-            by_category.append({
+            by_category.append(
+                {
+                    'category': row['category'],
 
-                'category': row[0] or 'Unknown',
+                    'item_count': row['item_count'],
 
-                'item_count': row[1] or 0,
+                    'total_quantity': row['total_quantity'],
 
-                'total_quantity': row[2] or 0,
+                    'total_value': row['total_value']
+                }
+            )
 
-                'total_value': row[3] or 0
-
-            })
 
 
 
 
         # Stock by status
 
-        cur.execute("""
+
+        cur.execute(
+            """
             SELECT
+
                 status,
-                COUNT(*),
-                COALESCE(SUM(quantity),0)
+
+                COUNT(*) AS count,
+
+                COALESCE(
+                    SUM(quantity),
+                    0
+                ) AS quantity
+
 
             FROM inventory_items
 
+
             GROUP BY status
-        """)
+            """
+        )
 
 
         rows = cur.fetchall()
 
 
+
         for row in rows:
 
-            by_status.append({
+            by_status.append(
+                {
+                    'status': row['status'],
 
-                'status': row[0] or 'Unknown',
+                    'count': row['count'],
 
-                'count': row[1] or 0,
+                    'quantity': row['quantity']
+                }
+            )
 
-                'quantity': row[2] or 0
-
-            })
 
 
 
@@ -8292,53 +8803,69 @@ def inventory_reports():
 
         # Low stock items
 
-        cur.execute("""
+
+        cur.execute(
+            """
             SELECT
+
                 i.id,
+
                 i.item_code,
+
                 i.name,
+
                 i.quantity,
+
                 i.reorder_level,
+
                 i.unit,
-                c.name
+
+                c.name AS category_name
+
 
             FROM inventory_items i
+
 
             LEFT JOIN inventory_categories c
 
             ON i.category_id=c.id
 
+
             WHERE i.quantity <= i.reorder_level
 
             AND i.status='working'
 
-            ORDER BY i.quantity ASC
 
-        """)
+            ORDER BY i.quantity ASC
+            """
+        )
+
 
 
         rows = cur.fetchall()
 
 
+
         for row in rows:
 
-            low_stock_items.append({
+            low_stock_items.append(
+                {
+                    'id': row['id'],
 
-                'id': row[0],
+                    'item_code': row['item_code'],
 
-                'item_code': row[1],
+                    'name': row['name'],
 
-                'name': row[2],
+                    'quantity': row['quantity'],
 
-                'quantity': row[3],
+                    'reorder_level': row['reorder_level'],
 
-                'reorder_level': row[4],
+                    'unit': row['unit'],
 
-                'unit': row[5],
+                    'category_name': row['category_name']
+                }
+            )
 
-                'category_name': row[6] or 'Unknown'
-
-            })
 
 
 
@@ -8346,15 +8873,22 @@ def inventory_reports():
 
         # Recent issues
 
-        cur.execute("""
+
+        cur.execute(
+            """
             SELECT
 
                 t.transaction_date,
+
                 t.quantity,
+
                 t.issued_to,
+
                 t.purpose,
+
                 t.recorded_by,
-                i.name
+
+                i.name AS item_name
 
 
             FROM inventory_transactions t
@@ -8370,31 +8904,41 @@ def inventory_reports():
 
             ORDER BY t.created_at DESC
 
-            LIMIT 20
 
-        """)
+            LIMIT 20
+            """
+        )
+
 
 
         rows = cur.fetchall()
 
 
+
         for row in rows:
 
-            recent_issues.append({
+            recent_issues.append(
+                {
+                    'transaction_date':
+                        row['transaction_date'],
 
-                'transaction_date': row[0],
+                    'quantity':
+                        row['quantity'],
 
-                'quantity': row[1],
+                    'issued_to':
+                        row['issued_to'],
 
-                'issued_to': row[2],
+                    'purpose':
+                        row['purpose'],
 
-                'purpose': row[3],
+                    'recorded_by':
+                        row['recorded_by'],
 
-                'recorded_by': row[4],
+                    'item_name':
+                        row['item_name']
+                }
+            )
 
-                'item_name': row[5] or 'Unknown'
-
-            })
 
 
         cur.close()
@@ -8407,6 +8951,7 @@ def inventory_reports():
             f"Error in inventory_reports: {str(e)}"
         )
 
+
         flash(
             f'Error loading reports: {str(e)}',
             'danger'
@@ -8414,15 +8959,24 @@ def inventory_reports():
 
 
 
+
     return render_template(
         'inventory/reports.html',
+
         by_category=by_category,
+
         by_status=by_status,
+
         low_stock_items=low_stock_items,
+
         recent_issues=recent_issues,
+
         total_items=total_items,
+
         total_quantity=total_quantity,
+
         low_stock_count=low_stock_count,
+
         total_value=total_value
     )
 
@@ -8430,71 +8984,100 @@ def inventory_reports():
 
 # ==================== PRINT INVENTORY REPORT ====================
 
+
 @app.route('/inventory/print_report')
 def inventory_print_report():
 
-    if not check_permission(['admin', 'bursar', 'stores_keeper']):
+    if not check_permission(
+        ['admin','bursar','stores_keeper']
+    ):
         abort(403)
 
 
-    category = request.args.get('category','')
+
+    category = request.args.get(
+        'category',
+        ''
+    )
+
 
 
     db = get_db_dict()
+
     cur = db.cursor()
+
 
 
     if category:
 
-        cur.execute("""
+
+        cur.execute(
+            """
             SELECT
+
                 i.*,
+
                 c.name AS category_name
 
+
             FROM inventory_items i
+
 
             JOIN inventory_categories c
 
             ON i.category_id=c.id
 
+
             WHERE c.name=%s
 
-            ORDER BY i.name
 
-        """,
-        (category,))
+            ORDER BY i.name
+            """,
+            (category,)
+        )
 
 
     else:
 
-        cur.execute("""
+
+        cur.execute(
+            """
             SELECT
+
                 i.*,
+
                 c.name AS category_name
 
+
             FROM inventory_items i
+
 
             JOIN inventory_categories c
 
             ON i.category_id=c.id
 
-            ORDER BY c.name,i.name
 
-        """)
+            ORDER BY c.name,i.name
+            """
+        )
 
 
 
     items = cur.fetchall()
 
+
+
     cur.close()
+
 
 
     return render_template(
         'inventory/print_report.html',
+
         items=items,
+
         category=category
     )
-
 
 
 # ==================== ALERT COUNT API ====================
