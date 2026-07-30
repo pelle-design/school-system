@@ -1692,8 +1692,8 @@ def school_settings():
 
         try:
 
-            begins = request.form.get('next_term_begins')
-            ends = request.form.get('next_term_ends')
+            begins = request.form.get('next_term_begins') or None
+            ends = request.form.get('next_term_ends') or None
 
             school_name = request.form.get(
                 'school_name',
@@ -1714,14 +1714,9 @@ def school_settings():
                 'school_email',
                 'Email: info@school.com'
             )
-
-
             # ================= LOGO UPLOAD =================
-
             logo_filename = None
-
             logo_file = request.files.get('logo')
-
             if (
                 logo_file 
                 and logo_file.filename
@@ -1730,25 +1725,18 @@ def school_settings():
                     ALLOWED_IMAGE_EXTENSIONS
                 )
             ):
-
                 ext = logo_file.filename.rsplit('.',1)[1].lower()
-
                 logo_filename = (
                     f"logo_{int(datetime.now().timestamp())}.{ext}"
                 )
-
                 logo_file.save(
                     os.path.join(
                         app.config['UPLOAD_FOLDER'],
                         logo_filename
                     )
                 )
-
-
             # ================= STAMP UPLOAD =================
-
             stamp_filename = None
-
             stamp_file = request.files.get('stamp')
 
             if (
@@ -1759,23 +1747,17 @@ def school_settings():
                     ALLOWED_IMAGE_EXTENSIONS
                 )
             ):
-
                 ext = stamp_file.filename.rsplit('.',1)[1].lower()
-
                 stamp_filename = (
                     f"stamp_{int(datetime.now().timestamp())}.{ext}"
                 )
-
                 stamp_file.save(
                     os.path.join(
                         app.config['UPLOAD_FOLDER'],
                         stamp_filename
                     )
                 )
-
-
             # ================= RATES =================
-
             nssf_employee_rate = float(
                 request.form.get(
                     'nssf_employee_rate',
@@ -1796,10 +1778,7 @@ def school_settings():
                     235000
                 )
             )
-
-
             # ================= UPDATE SETTINGS =================
-
             execute_db(
                 """
                 UPDATE school_settings
@@ -1827,10 +1806,6 @@ def school_settings():
                     paye_threshold
                 )
             )
-
-
-            # ================= UPDATE LOGO =================
-
             if logo_filename:
 
                 execute_db(
@@ -1841,12 +1816,8 @@ def school_settings():
                     """,
                     (logo_filename,)
                 )
-
-
             # ================= UPDATE STAMP =================
-
             if stamp_filename:
-
                 execute_db(
                     """
                     UPDATE school_settings
@@ -1855,31 +1826,23 @@ def school_settings():
                     """,
                     (stamp_filename,)
                 )
-
-
             flash(
                 'School settings updated successfully.',
                 'success'
             )
-
-
         except Exception as e:
-
+            db = get_db()
+            db.rollback()
             print(
                 "SETTINGS ERROR:",
                 str(e)
             )
-
             flash(
                 f"Error saving settings: {str(e)}",
                 "danger"
             )
-
-
     # ================= LOAD SETTINGS =================
-
     cur = get_db().cursor()
-
     cur.execute(
         """
         SELECT
@@ -1898,13 +1861,8 @@ def school_settings():
         WHERE id=1
         """
     )
-
-
     settings = cur.fetchone()
-
     cur.close()
-
-
     return render_template(
         'admin/school_settings.html',
         settings=settings,
