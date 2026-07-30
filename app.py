@@ -4402,8 +4402,12 @@ def teacher_attendance():
     )
 
 def to_number(value):
-    if value is None or value.strip() == "":
+    if isinstance(value, list):
+        value = value[0] if value else None
+
+    if value is None or str(value).strip() == "":
         return None
+
     return float(value)
 
 @app.route("/save_manual_marks", methods=["POST"])
