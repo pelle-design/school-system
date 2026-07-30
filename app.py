@@ -7038,24 +7038,6 @@ def management_resend_token(payroll_id):
 
     return redirect(url_for('management_pending_authorizations'))
 
-
-# ==================== inventory_routes.py ====================
-
-from flask import (
-    Blueprint, render_template, request, redirect,
-    url_for, flash, abort, jsonify, session
-)
-from datetime import datetime
-import os
-
-# Import your existing helpers
-from database import get_db, get_db_dict, execute_db
-from auth import check_permission
-from notifications import add_notification
-from uploads import allowed_file, ALLOWED_IMAGE_EXTENSIONS
-from werkzeug.utils import secure_filename
-
-
 inventory_bp = Blueprint(
     'inventory',
     __name__,
