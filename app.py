@@ -7467,42 +7467,30 @@ def management_resend_token(payroll_id):
     return redirect(url_for('management_pending_authorizations'))
 
 # ==================== INVENTORY HELPERS ====================
-
-def generate_item_code():
-    """
-    Generate unique inventory code.
-    """
-
+def generate_item_code(category_name):
     prefix = category_name[:3].upper()
     year = datetime.now().strftime("%Y")
 
     db = get_db_dict()
     cur = db.cursor()
 
-    cur.execute(
-        """
+    cur.execute("""
         SELECT item_code
         FROM inventory_items
         WHERE item_code LIKE %s
         ORDER BY item_code DESC
         LIMIT 1
-        """,
-        (f'{prefix}-{year}-%',)
-    )
+    """, (f'{prefix}-{year}-%',))
 
     last = cur.fetchone()
-
     cur.close()
 
     if last:
-        last_code = last['item_code']
-        number = int(last_code.split('-')[-1]) + 1
+        number = int(last['item_code'].split('-')[-1]) + 1
     else:
         number = 1
 
     return f"{prefix}-{year}-{number:04d}"
-
-
 
 def check_low_stock_alerts():
 
