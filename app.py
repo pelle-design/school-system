@@ -785,10 +785,6 @@ def init_db():
     # SAVE DATABASE TABLE CREATION
     db.commit()
 
-    cursor.close()
-
-    print("Database initialized successfully!")
-
     # DEFAULT ROLE LIMITS
     cursor.execute("""
         SELECT COUNT(*) AS count
