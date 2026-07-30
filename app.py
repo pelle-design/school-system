@@ -7422,9 +7422,12 @@ def management_resend_token(payroll_id):
 
 # ==================== INVENTORY HELPERS ====================
 
-def generate_item_code(category_name):
+def generate_item_code():
     """
-    Generate unique inventory item code.
+    Generate unique inventory code.
+
+    #Example:
+    FUR-2026-0001#
     """
 
     prefix = category_name[:3].upper()
