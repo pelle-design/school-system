@@ -199,4 +199,69 @@
             {% endfor %}
         </tbody>
     </table>
+      <!-- ========== SUMMARY AT BOTTOM OF TABLE ========== -->
+    <table class="summary-table">
+        <tr>
+            <td style="width: 33%; background: #e8eaf6; padding: 10px; border-radius: 8px;">
+                <strong>📊 General Average:</strong> {{ report.avg_out_of_3 or '-' }}
+            </td>
+            <td style="width: 33%; background: #e8eaf6; padding: 10px; border-radius: 8px;">
+                <strong>🎓 General Grade:</strong> <span class="grade-{{ report.general_grade }}">{{ report.general_grade or '-' }}</span>
+            </td>
+            <td style="width: 33%; background: #e8eaf6; padding: 10px; border-radius: 8px;">
+                <strong>📝 Descriptor:</strong> {{ report.general_descriptor or '-' }}
+            </td>
+        </tr>
+    </table>
+    
+    <!-- ========== COMMENTS SECTION ========== -->
+    <div class="row mt-4">
+        <div class="col-md-6">
+            <strong>👩‍🏫 Class Teacher's Comment:</strong>
+            <div class="comment-box">
+                <p>{{ report.teacher_comment or 'No comment yet.' }}</p>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <strong>👨‍🎓 Headteacher's Comment &amp; Stamp</strong>
+            <div class="comment-box">
+                <p>{{ report.headteacher_comment or 'No comment yet.' }}</p>
+            </div>
+            {% if stamp_url %}
+            <div class="text-center mt-3">
+                <img src="{{ stamp_url }}" class="stamp" style="max-width: 80px;" alt="Headteacher's Stamp">
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    
+    <!-- ========== SIGNATURES ========== -->
+    <div class="signature-line">
+        <div class="signature-item">
+            Class Teacher's Signature
+        </div>
+        <div class="signature-item">
+            Headteacher's Signature
+        </div>
+        <div class="signature-item">
+            Parent's Signature
+        </div>
+    </div>
+    
+    <!-- ========== TERM DATES ========== -->
+    <div class="row mt-3">
+        <div class="col-md-12 text-center">
+            <p style="font-size: 10px; color: #666; margin: 0;">
+                <strong>Next Term Begins:</strong> {{ next_term_begins or 'To be announced' }} | 
+                <strong>Next Term Ends:</strong> {{ next_term_ends or 'To be announced' }}
+            </p>
+        </div>
+    </div>
+    
+    <!-- ========== FOOTER ========== -->
+    <div class="text-center mt-2" style="font-size: 9px; color: #666;">
+        Generated on: {{ generated_date }}
+    </div>
+</div>
+{% endfor %}
 {% endblock %}
