@@ -1,41 +1,122 @@
 {% extends "base.html" %}
-{% block title %}Pending Online Applications{% endblock %}
+
+{% block title %}
+Pending Online Admissions
+{% endblock %}
+
+
 {% block content %}
+
 <div class="card shadow">
-    <div class="card-header bg-primary text-white">
-        <i class="fas fa-users"></i> Pending Online Applications
-    </div>
-    <div class="card-body">
-        {% if pending %}
-        <div class="table-responsive">
-            <table class="table table-hover">
-                <thead>
-                    <tr>
-                        <th>LIN</th><th>Full Name</th><th>Sex</th><th>Age</th>
-                        <th>Preferred House</th><th>Application Date</th><th>Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for p in pending %}
-                    <tr>
-                        <td>{{ p.lin }}</td
-                        <td>{{ p.full_name }}</td
-                        <td>{{ p.sex }}</td
-                        <td>{{ p.age }}</td
-                        <td>{{ p.preferred_house }}</td
-                        <td>{{ p.application_date.strftime('%Y-%m-%d') }}</td
-                        <td>
-                            <a href="{{ url_for('dos_approve_admission', student_id=p.student_id) }}" class="btn btn-sm btn-success" onclick="return confirm('Approve this admission?')">Approve</a>
-                            <a href="{{ url_for('dos_reject_admission', student_id=p.student_id) }}" class="btn btn-sm btn-danger" onclick="return confirm('Reject this admission?')">Reject</a>
-                        </td
-                    </tr
-                    {% endfor %}
-                </tbody>
-            </table
-        </div>
-        {% else %}
-        <div class="alert alert-success">No pending online applications.</div>
-        {% endif %}
-    </div>
+
+<div class="card-header bg-primary text-white">
+    Online Admission Applications
 </div>
+
+
+<div class="card-body">
+
+
+<table class="table table-bordered table-striped">
+
+<thead>
+
+<tr>
+<th>Name</th>
+<th>Gender</th>
+<th>Age</th>
+<th>Parent Phone</th>
+<th>Payment</th>
+<th>Status</th>
+<th>Action</th>
+</tr>
+
+</thead>
+
+
+<tbody>
+
+
+{% for s in applications %}
+
+<tr>
+
+<td>{{s[1]}}</td>
+
+<td>{{s[2]}}</td>
+
+<td>{{s[3]}}</td>
+
+<td>{{s[4]}}</td>
+
+
+<td>
+
+{% if s[6]=='completed' %}
+
+<span class="badge bg-success">
+Paid
+</span>
+
+{% else %}
+
+<span class="badge bg-danger">
+Pending
+</span>
+
+{% endif %}
+
+</td>
+
+
+<td>
+{{s[7]}}
+</td>
+
+
+<td>
+
+{% if s[7]=='pending' %}
+
+<a href="{{url_for('approve_admission',
+student_id=s[0])}}"
+class="btn btn-success btn-sm">
+
+Approve
+
+</a>
+
+
+<a href="{{url_for('reject_admission',
+student_id=s[0])}}"
+class="btn btn-danger btn-sm">
+
+Reject
+
+</a>
+
+
+{% endif %}
+
+
+</td>
+
+
+</tr>
+
+
+{% endfor %}
+
+
+</tbody>
+
+
+</table>
+
+
+</div>
+
+</div>
+
+
 {% endblock %}
