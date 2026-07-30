@@ -3333,8 +3333,6 @@ def dos_schedules():
 
     if not check_permission(['dos']):
         abort(403)
-
-
     if request.method == 'POST':
 
         schedule_type = request.form['schedule_type']
@@ -3353,20 +3351,14 @@ def dos_schedules():
             file.filename,
             {'csv'}
         ):
-
             stream = io.StringIO(
                 file.stream.read().decode("UTF8"),
                 newline=None
             )
-
             reader = csv.reader(stream)
-
             rows = []
-
             for row in reader:
-
                 if any(row):
-
                     rows.append(
                         ",".join(
                             [
@@ -3377,8 +3369,6 @@ def dos_schedules():
                     )
 
             final_content = "\n".join(rows)
-
-
         execute_db(
             """
             INSERT INTO schedules
@@ -3403,21 +3393,15 @@ def dos_schedules():
                 final_content
             )
         )
-
-
         flash(
             f'{schedule_type.capitalize()} saved.',
             'success'
         )
-
         return redirect(
             url_for('dos_schedules')
         )
-
-
     db = get_db_dict()
     cur = db.cursor()
-
     cur.execute(
         """
         SELECT
@@ -3431,10 +3415,7 @@ def dos_schedules():
     )
 
     schedules = cur.fetchall()
-
     cur.close()
-
-
     return render_template(
         'dos/schedules.html',
         schedules=schedules
@@ -4419,7 +4400,12 @@ def teacher_attendance():
         selected_date=selected_date,
         assigned_class=selected_class
     )
-    
+
+def to_number(value):
+    if value is None or value.strip() == "":
+        return None
+    return float(value)
+
 @app.route("/save_manual_marks", methods=["POST"])
 def save_manual_marks():
 
@@ -4435,11 +4421,11 @@ def save_manual_marks():
     student_ids = request.form.getlist(
         "student_id[]"
     )
-    paper1 = request.form.getlist(
-        "paper1[]"
+    paper1 = to_number(request.form.getlist(
+        "paper1[]")
     )
-    paper2 = request.form.getlist(
-        "paper2[]"
+    paper2 = to_number(request.form.getlist(
+        "paper2[]")
     )
     initials = request.form.getlist(
         "teacher_initials[]"
@@ -4642,17 +4628,17 @@ def save_olevel_marks():
     student_ids = request.form.getlist(
         "student_id[]"
     )
-    ai1 = request.form.getlist(
-        "ai1[]"
+    ai1 = to_number(request.form.getlist(
+        "ai1[]")
     )
-    ai2 = request.form.getlist(
-        "ai2[]"
+    ai2 = to_number(request.form.getlist(
+        "ai2[]")
     )
-    ai3 = request.form.getlist(
-        "ai3[]"
+    ai3 = to_number(request.form.getlist(
+        "ai3[]")
     )
-    eot = request.form.getlist(
-        "eot_score[]"
+    eot = to_number(request.form.getlist(
+        "eot_score[]")
     )
     initials = request.form.getlist(
         "teacher_initials[]"
