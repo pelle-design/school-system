@@ -68,13 +68,13 @@ def close_connection(exception):
     if db is not None:
         db.close()
 
-
 def init_db():
     """Initialize PostgreSQL database with all tables"""
 
     db = get_db()
     cursor = db.cursor()
-    # ==================== USERS TABLE ====================
+
+    # USERS
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS users (
             id SERIAL PRIMARY KEY,
@@ -89,8 +89,8 @@ def init_db():
             must_change_password INTEGER DEFAULT 0
         )
     """)
-    # ==================== ROLE LIMITS TABLE ====================
 
+    # ROLE LIMITS
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS role_limits (
             role_name TEXT PRIMARY KEY,
@@ -98,8 +98,7 @@ def init_db():
         )
     """)
 
-    # ==================== CLASSES TABLE ====================
-
+    # CLASSES
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS classes (
             id SERIAL PRIMARY KEY,
@@ -107,10 +106,10 @@ def init_db():
             level TEXT,
             stream TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-         )
-   """)
-    # ==================== ADMISSION SETTINGS ====================
+        )
+    """)
 
+    # ADMISSION SETTINGS
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS admission_settings (
             id INTEGER PRIMARY KEY DEFAULT 1,
@@ -123,7 +122,8 @@ def init_db():
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
-    # ==================== STUDENTS TABLE ====================
+
+    # STUDENTS
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS students (
             student_id TEXT PRIMARY KEY,
@@ -151,9 +151,7 @@ def init_db():
         )
     """)
 
-    
-    # ==================== STAFF TABLE ====================
-    
+    # STAFF
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS staff (
             id SERIAL PRIMARY KEY,
@@ -174,18 +172,20 @@ def init_db():
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
-    # ==================== PAYROLL TABLE ====================
 
+    # PAYROLL
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS payroll (
             id SERIAL PRIMARY KEY,
             payroll_no TEXT UNIQUE,
             month_year DATE,
             total_amount NUMERIC DEFAULT 0,
+
             approval_code TEXT,
             approval_status TEXT DEFAULT 'pending',
             approved_by TEXT,
             approved_at TIMESTAMP,
+
             recorded_by TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
@@ -209,14 +209,15 @@ def init_db():
             last_resend_at TIMESTAMP
         )
     """)
-    # ==================== SALARY PAYMENTS ====================
 
+    # SALARY PAYMENTS
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS salary_payments (
             id SERIAL PRIMARY KEY,
             staff_id INTEGER,
             payroll_id INTEGER,
             month_year DATE,
+
             basic NUMERIC,
             allowances NUMERIC,
             deductions NUMERIC,
@@ -224,20 +225,22 @@ def init_db():
             nssf_employee NUMERIC,
             paye_tax NUMERIC,
             net_salary NUMERIC,
+
             payment_date DATE,
             payment_method TEXT,
+
             approval_code TEXT,
             approval_status TEXT DEFAULT 'pending',
+
             transaction_ref TEXT,
             recorded_by TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY(staff_id)
-                REFERENCES staff(id),
-            FOREIGN KEY(payroll_id)
-                REFERENCES payroll(id)
+
+            FOREIGN KEY(staff_id) REFERENCES staff(id),
+            FOREIGN KEY(payroll_id) REFERENCES payroll(id)
         )
     """)
-    # ==================== MARKS TABLE ====================
+    # MARKS
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS marks (
             id SERIAL PRIMARY KEY,
@@ -245,40 +248,52 @@ def init_db():
             subject TEXT,
             term TEXT,
             year INTEGER,
+
             ai1 NUMERIC,
             ai2 NUMERIC,
             ai3 NUMERIC,
             ai_average NUMERIC,
             ai_contribution NUMERIC,
+
             eot_score NUMERIC,
             total_score NUMERIC,
+
             grade TEXT,
             identifier NUMERIC,
             descriptor TEXT,
+
             teacher_initials TEXT,
             teacher_id INTEGER,
+
             paper1 NUMERIC,
             paper2 NUMERIC,
             points INTEGER,
+
             FOREIGN KEY(student_id)
                 REFERENCES students(student_id),
-            UNIQUE(student_id, subject, term, year)
 
+            UNIQUE(student_id, subject, term, year)
         )
     """)
-        # ==================== ATTENDANCE TABLE ====================
+
+
+    # ATTENDANCE
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS attendance (
             id SERIAL PRIMARY KEY,
             student_id TEXT,
             date DATE,
             status TEXT,
+
             FOREIGN KEY(student_id)
                 REFERENCES students(student_id),
+
             UNIQUE(student_id, date)
         )
     """)
-    # ==================== SCHEDULES TABLE ====================
+
+
+    # SCHEDULES
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS schedules (
             id SERIAL PRIMARY KEY,
@@ -288,7 +303,9 @@ def init_db():
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
-    # ==================== GRADING SYSTEM ====================
+
+
+    # GRADING SYSTEM
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS grading_system (
             id SERIAL PRIMARY KEY,
@@ -298,7 +315,9 @@ def init_db():
             descriptor TEXT
         )
     """)
-    # ==================== A LEVEL GRADING ====================
+
+
+    # A LEVEL GRADING
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS alevel_grading (
             id SERIAL PRIMARY KEY,
@@ -309,7 +328,9 @@ def init_db():
             is_subsidiary INTEGER DEFAULT 0
         )
     """)
-    # ==================== IDENTIFIER GRADING ====================
+
+
+    # IDENTIFIER GRADING
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS identifier_grading (
             id SERIAL PRIMARY KEY,
@@ -318,15 +339,19 @@ def init_db():
             descriptor TEXT
         )
     """)
-    # ==================== TEACHER COMMENTS ====================
+
+
+    # TEACHER COMMENTS
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS teacher_comments (
             id SERIAL PRIMARY KEY,
             student_id TEXT,
             term TEXT,
             year INTEGER,
+
             comment TEXT,
             headteacher_comment TEXT,
+
             class_teacher_comment_locked INTEGER DEFAULT 0,
             headteacher_comment_locked INTEGER DEFAULT 0,
 
@@ -334,77 +359,126 @@ def init_db():
                 REFERENCES students(student_id)
         )
     """)
-    # ==================== TEACHER CLASS ASSIGNMENTS ====================
+
+
+    # TEACHER ASSIGNMENTS
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS teacher_class_assignments (
             id SERIAL PRIMARY KEY,
+
             user_id INTEGER NOT NULL,
             class_name TEXT NOT NULL,
             subject TEXT,
+
             assignment_type TEXT NOT NULL,
             assigned_by TEXT,
+
             assigned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
             FOREIGN KEY(user_id)
                 REFERENCES users(id),
+
             UNIQUE(user_id, class_name, subject, assignment_type)
         )
     """)
-    # ==================== NOTIFICATIONS ====================
+
+
+    # NOTIFICATIONS
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS notifications (
             id SERIAL PRIMARY KEY,
+
             user_role TEXT,
             message TEXT,
             link TEXT,
+
             title TEXT DEFAULT 'Notification',
+
             is_read INTEGER DEFAULT 0,
+
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
-    # ==================== SCHOOL SETTINGS ====================
+
+
+    # SCHOOL SETTINGS
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS school_settings (
             id INTEGER PRIMARY KEY DEFAULT 1,
+
             next_term_begins DATE,
             next_term_ends DATE,
+
             headteacher_stamp TEXT,
+
             school_name TEXT DEFAULT 'YOUR SCHOOL NAME',
             school_address TEXT DEFAULT 'P.O. Box 123, Kampala, Uganda',
             school_phone TEXT DEFAULT 'Tel: +256 712 345678',
             school_email TEXT DEFAULT 'info@school.com',
+
             logo_url TEXT,
+
             nssf_employee_rate NUMERIC DEFAULT 5.0,
             paye_rate NUMERIC DEFAULT 10.0,
             paye_threshold NUMERIC DEFAULT 235000
         )
     """)
-    # ==================== PREDEFINED COMMENTS ====================
+
+
+    # PREDEFINED COMMENTS
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS predefined_comments (
             id SERIAL PRIMARY KEY,
+
             comment_type TEXT,
             comment_text TEXT,
+
             is_active INTEGER DEFAULT 1,
+
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
-    # ==================== PAYMENTS ====================
+
+
+    # PAYMENTS
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS payments (
             id SERIAL PRIMARY KEY,
+
             student_id TEXT,
             amount NUMERIC,
+
             payment_date DATE,
+
             receipt_no TEXT UNIQUE,
+
             payment_method TEXT,
+
             notes TEXT,
+
             recorded_by TEXT,
+
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
             FOREIGN KEY(student_id)
                 REFERENCES students(student_id)
         )
     """)
-    # ==================== BUDGET CATEGORIES ====================
+
+
+    # SUBJECTS
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS subjects (
+            id SERIAL PRIMARY KEY,
+
+            subject_name TEXT UNIQUE NOT NULL,
+
+            subject_code TEXT UNIQUE,
+
+            is_active INTEGER DEFAULT 1
+        )
+    """)
+    # BUDGET CATEGORIES
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS budget_categories (
             id SERIAL PRIMARY KEY,
@@ -415,275 +489,465 @@ def init_db():
             year INTEGER
         )
     """)
-    # ==================== EXPENDITURES ====================
+
+
+    # EXPENDITURES
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS expenditures (
             id SERIAL PRIMARY KEY,
+
             voucher_no TEXT UNIQUE,
+
             category_id INTEGER,
+
             description TEXT,
+
             amount NUMERIC,
+
             expenditure_date DATE,
+
             payment_method TEXT,
+
             payee_name TEXT,
+
             payee_phone TEXT,
+
             status TEXT,
+
             recorded_by TEXT,
+
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
             FOREIGN KEY(category_id)
                 REFERENCES budget_categories(id)
         )
     """)
-        # ==================== INVENTORY CATEGORIES ====================
+
+
+    # INVENTORY CATEGORIES
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS inventory_categories (
             id SERIAL PRIMARY KEY,
+
             name TEXT NOT NULL,
+
             description TEXT,
+
             warning_level INTEGER DEFAULT 10,
+
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
-    # ==================== INVENTORY ITEMS ====================
+
+
+    # INVENTORY ITEMS
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS inventory_items (
             id SERIAL PRIMARY KEY,
+
             item_code TEXT UNIQUE NOT NULL,
+
             name TEXT NOT NULL,
+
             category_id INTEGER,
+
             unit TEXT DEFAULT 'pieces',
+
             quantity INTEGER DEFAULT 0,
+
             minimum_quantity INTEGER DEFAULT 10,
+
             maximum_quantity INTEGER DEFAULT 0,
+
             reorder_level INTEGER DEFAULT 5,
+
             location TEXT,
+
             supplier TEXT,
+
             purchase_date DATE,
+
             purchase_price NUMERIC,
+
             current_value NUMERIC,
+
             status TEXT DEFAULT 'working',
+
             condition_notes TEXT,
+
             last_maintenance DATE,
+
             next_maintenance DATE,
+
             responsible_person TEXT,
+
             responsible_role TEXT,
+
             image_path TEXT,
+
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
             FOREIGN KEY(category_id)
                 REFERENCES inventory_categories(id)
         )
     """)
-    # ==================== INVENTORY TRANSACTIONS ====================
+
+
+    # INVENTORY TRANSACTIONS
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS inventory_transactions (
             id SERIAL PRIMARY KEY,
+
             item_id INTEGER,
+
             transaction_type TEXT,
+
             quantity INTEGER,
+
             unit_price NUMERIC,
+
             total_amount NUMERIC,
+
             transaction_date DATE,
+
             issued_to TEXT,
+
             issued_to_role TEXT,
+
             purpose TEXT,
+
             reference_no TEXT,
+
             recorded_by TEXT,
+
             approved_by TEXT,
+
             notes TEXT,
+
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
             FOREIGN KEY(item_id)
                 REFERENCES inventory_items(id)
         )
     """)
-    # ==================== INVENTORY ALERTS ====================
+
+
+    # INVENTORY ALERTS
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS inventory_alerts (
             id SERIAL PRIMARY KEY,
+
             item_id INTEGER,
+
             alert_type TEXT,
+
             message TEXT,
+
             is_read INTEGER DEFAULT 0,
+
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
             FOREIGN KEY(item_id)
                 REFERENCES inventory_items(id)
         )
     """)
-    # ==================== HOUSES ====================
+
+
+    # HOUSES
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS houses (
             id SERIAL PRIMARY KEY,
+
             name TEXT UNIQUE,
+
             description TEXT,
+
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
-    # ==================== SPORTS ACTIVITIES ====================
+
+
+    # SPORTS ACTIVITIES
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS sports_activities (
             id SERIAL PRIMARY KEY,
+
             name TEXT UNIQUE
         )
     """)
-    # ==================== PAYMENT WEBHOOKS ====================
+
+
+    # PAYMENT WEBHOOKS
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS payment_webhooks (
             id SERIAL PRIMARY KEY,
+
             transaction_id TEXT,
+
             amount NUMERIC,
+
             phone_number TEXT,
+
             student_id TEXT,
+
             reference TEXT,
+
             payment_method TEXT,
+
             raw_data TEXT,
+
             status TEXT,
+
             processed INTEGER DEFAULT 0,
+
             received_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
-    # ==================== PAYMENT GATEWAY CONFIG ====================
+
+
+    # PAYMENT GATEWAY CONFIG
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS payment_gateway_config (
             id INTEGER PRIMARY KEY DEFAULT 1,
+
             gateway_name TEXT DEFAULT 'School Pay',
+
             api_key TEXT,
+
             api_secret TEXT,
+
             webhook_secret TEXT,
+
             callback_url TEXT,
+
             status TEXT DEFAULT 'inactive'
         )
     """)
-    # ==================== BANK TRANSACTION LOGS ====================
+
+
+    # BANK TRANSACTION LOGS
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS bank_transaction_logs (
             id SERIAL PRIMARY KEY,
+
             payroll_id INTEGER,
+
             staff_id INTEGER,
+
             transaction_ref TEXT,
+
             amount NUMERIC,
+
             recipient_account TEXT,
+
             recipient_phone TEXT,
+
             status TEXT,
+
             response TEXT,
+
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
             FOREIGN KEY(payroll_id)
                 REFERENCES payroll(id),
+
             FOREIGN KEY(staff_id)
                 REFERENCES staff(id)
         )
     """)
-    # ==================== AUTHORIZATION LOGS ====================
+
+
+    # AUTHORIZATION LOGS
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS authorization_logs (
             id SERIAL PRIMARY KEY,
+
             payroll_id INTEGER,
+
             action TEXT,
+
             performed_by TEXT,
+
             ip_address TEXT,
+
             details TEXT,
+
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
             FOREIGN KEY(payroll_id)
                 REFERENCES payroll(id)
-         )
-    """)
-  
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS subjects (
-            id SERIAL PRIMARY KEY,
-            subject_name TEXT UNIQUE NOT NULL,
-            subject_code TEXT UNIQUE,
-            is_active INTEGER DEFAULT 1
         )
     """)
-    # ==================== SAVE CHANGES ====================
-db.commit()
 
-# ==================== DEFAULT DATA ====================
 
-cursor.execute("SELECT COUNT(*) AS count FROM role_limits")
-if cursor.fetchone()['count'] == 0:
-    cursor.executemany(
-        "INSERT INTO role_limits (role_name, max_count) VALUES (%s, %s)",
-        [
-            ('admin', 1),
-            ('headteacher', 1),
-            ('management', 1),
-            ('bursar', 1),
-            ('dos', 1)
-        ]
-    )
-
-cursor.execute("SELECT COUNT(*) AS count FROM admission_settings")
-if cursor.fetchone()['count'] == 0:
-    cursor.execute(
-        "INSERT INTO admission_settings (id, is_open, fee_amount) VALUES (1, 1, 50000)"
-    )
-
-cursor.execute("SELECT COUNT(*) AS count FROM users")
-if cursor.fetchone()['count'] == 0:
-    from werkzeug.security import generate_password_hash
-
-    hashed = generate_password_hash('admin123')
-
-    cursor.execute(
-        """
-        INSERT INTO users
-        (username, password, full_name, role, status, phone, must_change_password)
-        VALUES (%s, %s, %s, 'admin', 1, '0700000000', 0)
-        """,
-        ('admin', hashed, 'Administrator')
-    )
-
-# ==================== DEFAULT CLASSES ====================
-
-cursor.execute("SELECT COUNT(*) AS count FROM classes")
-if cursor.fetchone()['count'] == 0:
-    cursor.executemany(
-        "INSERT INTO classes (class_name) VALUES (%s)",
-        [
-            ('Senior 1',),
-            ('Senior 2',),
-            ('Senior 3',),
-            ('Senior 4',),
-            ('Senior 5',),
-            ('Senior 6',)
-        ]
-    )
-
-# ==================== DEFAULT SUBJECTS ====================
-
-cursor.execute("SELECT COUNT(*) AS count FROM subjects")
-if cursor.fetchone()['count'] == 0:
-    cursor.executemany(
-        """
-        INSERT INTO subjects
-        (subject_name, subject_code)
-        VALUES (%s, %s)
-        """,
-        [
-            ('English Language', 'ENG'),
-            ('Mathematics', 'MTC'),
-            ('Biology', 'BIO'),
-            ('Chemistry', 'CHE'),
-            ('Physics', 'PHY'),
-            ('History', 'HIS'),
-            ('Geography', 'GEO'),
-            ('Christian Religious Education', 'CRE'),
-            ('Islamic Religious Education', 'IRE'),
-            ('Agriculture', 'AGR'),
-            ('Commerce', 'COM'),
-            ('Entrepreneurship', 'ENT'),
-            ('Information and Communication Technology', 'ICT'),
-            ('Literature in English', 'LIT'),
-            ('Fine Art', 'ART'),
-            ('Kiswahili', 'KIS')
-        ]
-    )
-
-cursor.execute("SELECT COUNT(*) AS count FROM school_settings")
-if cursor.fetchone()['count'] == 0:
-    cursor.execute("INSERT INTO school_settings (id) VALUES (1)")
+    # SAVE DATABASE TABLE CREATION
     db.commit()
+
+    cursor.close()
+
+    print("Database initialized successfully!")
+
+    # DEFAULT ROLE LIMITS
+    cursor.execute("""
+        SELECT COUNT(*) AS count
+        FROM role_limits
+    """)
+
+    if cursor.fetchone()['count'] == 0:
+
+        cursor.executemany(
+            """
+            INSERT INTO role_limits
+            (role_name, max_count)
+            VALUES (%s,%s)
+            """,
+            [
+                ('admin',1),
+                ('headteacher',1),
+                ('management',1),
+                ('bursar',1),
+                ('dos',1)
+            ]
+        )
+
+
+    # DEFAULT ADMISSION SETTINGS
+    cursor.execute("""
+        SELECT COUNT(*) AS count
+        FROM admission_settings
+    """)
+
+    if cursor.fetchone()['count'] == 0:
+
+        cursor.execute("""
+            INSERT INTO admission_settings
+            (id,is_open,fee_amount)
+            VALUES (1,1,50000)
+        """)
+
+
+    # DEFAULT ADMIN USER
+    cursor.execute("""
+        SELECT COUNT(*) AS count
+        FROM users
+    """)
+
+    if cursor.fetchone()['count'] == 0:
+
+        from werkzeug.security import generate_password_hash
+
+        password = generate_password_hash(
+            'admin123'
+        )
+
+        cursor.execute("""
+            INSERT INTO users
+            (
+                username,
+                password,
+                full_name,
+                role,
+                status,
+                phone,
+                must_change_password
+            )
+            VALUES
+            (%s,%s,%s,%s,%s,%s,%s)
+        """,
+        (
+            'admin',
+            password,
+            'Administrator',
+            'admin',
+            1,
+            '0700000000',
+            0
+        ))
+
+
+    # DEFAULT CLASSES
+    cursor.execute("""
+        SELECT COUNT(*) AS count
+        FROM classes
+    """)
+
+    if cursor.fetchone()['count'] == 0:
+
+        cursor.executemany(
+            """
+            INSERT INTO classes
+            (name)
+            VALUES (%s)
+            """,
+            [
+                ('Senior 1',),
+                ('Senior 2',),
+                ('Senior 3',),
+                ('Senior 4',),
+                ('Senior 5',),
+                ('Senior 6',)
+            ]
+        )
+
+
+    # DEFAULT SUBJECTS
+    cursor.execute("""
+        SELECT COUNT(*) AS count
+        FROM subjects
+    """)
+
+    if cursor.fetchone()['count'] == 0:
+
+        cursor.executemany(
+            """
+            INSERT INTO subjects
+            (
+                subject_name,
+                subject_code
+            )
+            VALUES (%s,%s)
+            """,
+            [
+                ('English Language','ENG'),
+                ('Mathematics','MTC'),
+                ('Biology','BIO'),
+                ('Chemistry','CHE'),
+                ('Physics','PHY'),
+                ('History','HIS'),
+                ('Geography','GEO'),
+                ('Christian Religious Education','CRE'),
+                ('Islamic Religious Education','IRE'),
+                ('Agriculture','AGR'),
+                ('Commerce','COM'),
+                ('Entrepreneurship','ENT'),
+                ('Information Communication Technology','ICT'),
+                ('Literature in English','LIT'),
+                ('Fine Art','ART'),
+                ('Kiswahili','KIS')
+            ]
+        )
+
+
+    # DEFAULT SCHOOL SETTINGS
+    cursor.execute("""
+        SELECT COUNT(*) AS count
+        FROM school_settings
+    """)
+
+    if cursor.fetchone()['count'] == 0:
+
+        cursor.execute("""
+            INSERT INTO school_settings(id)
+            VALUES(1)
+        """)
+
+
+    # FINAL SAVE
+    db.commit()
+
+    cursor.close()
 
     print("Database initialized successfully!")
 
