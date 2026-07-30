@@ -3801,10 +3801,11 @@ def save_manual_marks():
         "success"
     )
     return redirect(
-        url_for(
-            'teacher_upload_marks'
-        )
+    url_for(
+        'teacher_upload_marks',
+        class_name=session.get('selected_class')
     )
+)
 
 @app.route('/teacher/upload_marks', methods=['GET', 'POST'])
 def teacher_upload_marks():
@@ -3859,41 +3860,22 @@ def teacher_upload_marks():
     )
     students = cur.fetchall()
     cur.close()
-    # ===============================
-    # EXCEL UPLOAD
-    # ===============================
-    if request.method == "POST":
-        subject = request.form['subject'].strip()
-        term = request.form['term'].strip()
-        year = request.form['year'].strip()
-        is_subsidiary = (
-            request.form.get('is_subsidiary') == 'on'
-        )
-        file = request.files.get('marks_file')
-        if not file or not file.filename:
-            flash(
-                'Please upload an Excel file.',
-                'danger'
-            )
-            return redirect(
-                url_for(
-                    'teacher_upload_marks',
-                    class_name=selected_class
-                )
-            )
-        count = process_marks_upload(
-            file,
-            subject,
-            term,
-            year,
-            selected_class,
-            teacher_id,
-            level,
-            is_subsidiary
-        )
+   # ===============================
+# EXCEL UPLOAD
+# ===============================
+if request.method == "POST":
+    subject = request.form['subject'].strip()
+    term = request.form['term'].strip()
+    year = request.form['year'].strip()
+    is_subsidiary = (
+        request.form.get('is_subsidiary') == 'on'
+    )
+    file = request.files.get('marks_file')
+
+    if not file or not file.filename:
         flash(
-            f'{count} marks uploaded successfully.',
-            'success'
+            'Please upload an Excel file.',
+            'danger'
         )
         return redirect(
             url_for(
@@ -3901,6 +3883,29 @@ def teacher_upload_marks():
                 class_name=selected_class
             )
         )
+
+    count = process_marks_upload(
+        file,
+        subject,
+        term,
+        year,
+        selected_class,
+        teacher_id,
+        level,
+        is_subsidiary
+    )
+
+    flash(
+        f'{count} marks uploaded successfully.',
+        'success'
+    )
+
+    return redirect(
+        url_for(
+            'teacher_upload_marks',
+            class_name=selected_class
+        )
+    )
     return render_template(
         f'teacher/upload_marks_{level}.html',
         assigned_class=selected_class,
@@ -3915,18 +3920,34 @@ def teacher_upload_marks():
     
 @app.route("/save_olevel_marks", methods=["POST"])
 def save_olevel_marks():
-
+    if not check_permission(
+        ['classteacher','subject_teacher','dos']
+    ):
+        abort(403)
     db = get_db_dict()
     cursor = db.cursor()
-
-    student_ids = request.form.getlist("student_id[]")
-    ai1 = request.form.getlist("ai1[]")
-    ai2 = request.form.getlist("ai2[]")
-    ai3 = request.form.getlist("ai3[]")
-    eot = request.form.getlist("eot_score[]")
-    initials = request.form.getlist("teacher_initials[]")
-
-    for sid, a1, a2, a3, e, init in zip(
+    subject = request.form.get('subject')
+    term = request.form.get('term')
+    year = request.form.get('year')
+    student_ids = request.form.getlist(
+        "student_id[]"
+    )
+    ai1 = request.form.getlist(
+        "ai1[]"
+    )
+    ai2 = request.form.getlist(
+        "ai2[]"
+    )
+    ai3 = request.form.getlist(
+        "ai3[]"
+    )
+    eot = request.form.getlist(
+        "eot_score[]"
+    )
+    initials = request.form.getlist(
+        "teacher_initials[]"
+    )
+    for sid,a1,a2,a3,e,init in zip(
         student_ids,
         ai1,
         ai2,
@@ -3934,87 +3955,78 @@ def save_olevel_marks():
         eot,
         initials
     ):
-        cursor.execute(
-            """
-            INSERT INTO olevel_marks
-            (
-                student_id,
-                ai1,
-                ai2,
-                ai3,
-                eot_score,
-                teacher_initials
-            )
-            VALUES (%s, %s, %s, %s, %s, %s)
-            """,
-            (
-                sid,
-                a1,
-                a2,
-                a3,
-                e,
-                init
-            )
+        ai_average = (
+            (float(a1)+float(a2)+float(a3))/3
+            if a1 and a2 and a3
+            else 0
         )
-
+        total_score = (
+            (ai_average * 0.4)
+            +
+            (float(e)*0.6)
+            if e
+            else 0
+        )
+        cursor.execute(
+        """
+        INSERT INTO marks
+        (
+            student_id,
+            subject,
+            ai1,
+            ai2,
+            ai3,
+            ai_average,
+            eot_score,
+            total_score,
+            teacher_initials,
+            term,
+            year
+        )
+        VALUES
+        (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+        ON CONFLICT(student_id,subject,term,year)
+        DO UPDATE SET
+        ai1=%s,
+        ai2=%s,
+        ai3=%s,
+        ai_average=%s,
+        eot_score=%s,
+        total_score=%s,
+        teacher_initials=%s
+        """,
+        (
+        sid,
+        subject,
+        a1,
+        a2,
+        a3,
+        ai_average,
+        e,
+        total_score,
+        init,
+        term,
+        year,
+        a1,
+        a2,
+        a3,
+        ai_average,
+        e,
+        total_score,
+        init
+        )
+        )
     db.commit()
     cursor.close()
-
-    flash("Marks saved successfully.", "success")
-
-    return redirect(url_for("upload_olevel_marks"))
-
-# ================= MANUAL MARKS ENTRY =================
-
-@app.route('/teacher/manual_marks', methods=['GET'])
-def manual_marks():
-
-    if not check_permission(['classteacher', 'subject_teacher', 'dos']):
-        abort(403)
-
-    teacher_id = session.get('user_id')
-
-    assignments = get_user_assignments(teacher_id)
-
-    if not assignments:
-        flash("No class assigned.", "danger")
-        return redirect(url_for('dashboard'))
-
-    selected_class = request.args.get(
-        'class_name',
-        assignments[0]['class_name']
+    flash(
+        "O-Level marks entered successfully.",
+        "success"
     )
-
-    db = get_db_dict()
-    cur = db.cursor()
-
-    cur.execute(
-        """
-        SELECT student_id, full_name
-        FROM students
-        WHERE class=%s
-        ORDER BY full_name
-        """,
-        (selected_class,)
-    )
-
-    students = cur.fetchall()
-
-    cur.close()
-
-    class_upper = selected_class.upper()
-
-    level = (
-        'alevel'
-        if class_upper in ['S5','S6']
-        else 'olevel'
-    )
-
-    return render_template(
-        'teacher/manual_marks.html',
-        students=students,
-        selected_class=selected_class,
-        level=level
+    return redirect(
+        url_for(
+            'teacher_upload_marks',
+            class_name=session.get('selected_class')
+        )
     )
 
 @app.route('/teacher/report_card/<student_id>')
