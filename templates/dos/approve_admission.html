@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+
+{% block title %}
+Approve Admission
+{% endblock %}
+
+
+{% block content %}
+
+<div class="card shadow">
+
+<div class="card-header bg-success text-white">
+Approve Student Admission
+</div>
+
+
+<div class="card-body">
+
+
+<h5>
+{{student.full_name}}
+</h5>
+
+
+<form method="POST">
+
+
+<div class="mb-3">
+
+<label class="form-label">
+Assign Class
+</label>
+
+
+<select name="class" class="form-select" required>
+
+<option value="">
+-- Select Class --
+</option>
+
+
+{% for c in classes %}
+
+<option value="{{c.name}}">
+{{c.name}}
+</option>
+
+{% endfor %}
+
+
+</select>
+
+
+</div>
+
+
+<button class="btn btn-success">
+Approve Student
+</button>
+
+
+<a href="{{url_for('dos_pending_admissions')}}"
+class="btn btn-secondary">
+
+Cancel
+
+</a>
+
+
+</form>
+
+
+</div>
+
+</div>
+
+
+{% endblock %}
