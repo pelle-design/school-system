@@ -1461,45 +1461,7 @@ def admin_dashboard():
     else:
         return render_template('dashboard.html',role=role)
 
-
-@app.route('/notifications')
-@login_required
-def view_all_notifications():
-    role=session.get('role')
-
-    db=get_db()
-    cur=db.cursor()
-
-    cur.execute("""
-        SELECT *
-        FROM notifications
-        WHERE user_role=%s
-        ORDER BY created_at DESC
-    """,(role,))
-
-    notifications=cur.fetchall()
-    cur.close()
-
-    return render_template(
-        'notifications.html',
-        notifications=notifications
-    )
-
-
-@app.route('/notification/mark_read/<int:notification_id>')
-@login_required
-def mark_notification_read_route(notification_id):
-    mark_notification_read(notification_id)
-    return redirect(request.referrer or url_for('dashboard'))
-
-
-@app.route('/notification/mark_all_read')
-@login_required
-def mark_all_notifications_read_route():
-    role=session.get('role')
-    mark_all_notifications_read(role)
-    flash('All notifications marked as read.','success')
-    return redirect(request.referrer or url_for('dashboard'))    
+   
 # ==================== ADMIN ROUTES ====================
 
 @app.route('/admin/add_user',methods=['POST'])
