@@ -249,17 +249,17 @@ def init_db():
             term TEXT,
             year INTEGER,
 
-            ai1 NUMERIC,
-            ai2 NUMERIC,
-            ai3 NUMERIC,
-            ai_average NUMERIC,
-            ai_contribution NUMERIC,
+            ai1 NUMERIC(5,2),
+            ai2 NUMERIC(5,2),
+            ai3 NUMERIC(5,2),
+            ai_average NUMERIC(5,2),
+            ai_contribution NUMERIC(5,2),
 
-            eot_score NUMERIC,
-            total_score NUMERIC,
+            eot_score NUMERIC(5,2),
+            total_score NUMERIC(5,2),
 
             grade TEXT,
-            identifier NUMERIC,
+            identifier NUMERIC(5,2),
             descriptor TEXT,
 
             teacher_initials TEXT,
@@ -321,8 +321,8 @@ def init_db():
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS alevel_grading (
             id SERIAL PRIMARY KEY,
-            min_score NUMERIC,
-            max_score NUMERIC,
+            min_score NUMERIC(5,2),
+            max_score NUMERIC(5,2),
             grade TEXT,
             points INTEGER,
             is_subsidiary INTEGER DEFAULT 0
@@ -334,8 +334,8 @@ def init_db():
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS identifier_grading (
             id SERIAL PRIMARY KEY,
-            min_value NUMERIC,
-            max_value NUMERIC,
+            min_value NUMERIC(5,2),
+            max_value NUMERIC(5,2),
             descriptor TEXT
         )
     """)
