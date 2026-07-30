@@ -1723,6 +1723,9 @@ def school_settings():
             nssf_employee_rate=%s,paye_rate=%s,paye_threshold=%s
             WHERE id=1
         """,(begins,ends,school_name,school_address,school_phone,school_email,nssf_employee_rate,paye_rate,paye_threshold))
+        except Exception as e:
+           print("SETTINGS ERROR:", e)
+           flash(f"Error saving settings: {e}", "danger")
 
         if stamp_filename:
             execute_db("UPDATE school_settings SET headteacher_stamp=%s WHERE id=1",(stamp_filename,))
