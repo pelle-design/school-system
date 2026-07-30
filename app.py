@@ -4402,11 +4402,17 @@ def teacher_attendance():
     )
 
 def to_number(value):
-    if isinstance(value, list):
-        value = value[0] if value else None
+    if value is None:
+        return 0
 
-    if value is None or str(value).strip() == "":
-        return None
+    if isinstance(value, list):
+        return [
+            float(v) if v.strip() != "" else 0
+            for v in value
+        ]
+
+    if value.strip() == "":
+        return 0
 
     return float(value)
 
