@@ -2,196 +2,471 @@
 {% block title %}Upload O-Level Marks{% endblock %}
 
 {% block content %}
+
 <div class="card shadow">
 
-    <div class="card-header bg-primary text-white">
-        Upload O-Level Marks - Class {{ assigned_class }}
-    </div>
+<div class="card-header bg-primary text-white">
+    Upload O-Level Marks - Class {{ assigned_class }}
+</div>
 
-    <div class="card-body">
 
-        <!-- Select Class -->
-        <div class="mb-3">
-            <label>Select Class</label>
+<div class="card-body">
 
-            <select class="form-select"
-                    onchange="window.location.href='?class_name='+this.value">
 
-                {% for cls in teacher_classes %}
-                <option value="{{ cls.class_name }}"
-                    {% if cls.class_name == selected_class %}selected{% endif %}>
-                    {{ cls.class_name }}
-                </option>
-                {% endfor %}
+<!-- Select Class -->
 
-            </select>
-        </div>
+<div class="mb-3">
 
-        <hr>
+<label>Select Class</label>
 
-        <!-- Subject Details -->
-        <div class="row mb-3">
+<select class="form-select"
+onchange="window.location.href='?class_name='+this.value">
 
-            <div class="col-md-3">
-                <label>Subject</label>
-                <input type="text"
-                       name="subject"
-                       form="uploadForm"
-                       class="form-control"
-                       required>
-            </div>
 
-            <div class="col-md-2">
-                <label>Term</label>
-                <input type="text"
-                       name="term"
-                       form="uploadForm"
-                       value="Term 1"
-                       class="form-control"
-                       required>
-            </div>
+{% for cls in teacher_classes %}
 
-            <div class="col-md-2">
-                <label>Year</label>
-                <input type="text"
-                       name="year"
-                       form="uploadForm"
-                       value="{{ current_year }}"
-                       class="form-control"
-                       required>
-            </div>
+<option value="{{ cls.class_name }}"
+{% if cls.class_name == selected_class %}selected{% endif %}>
 
-        </div>
+{{ cls.class_name }}
 
-        <!-- Tabs -->
-        <ul class="nav nav-tabs">
+</option>
 
-            <li class="nav-item">
-                <button class="nav-link active"
-                        data-bs-toggle="tab"
-                        data-bs-target="#manual">
-                    Manual Entry
-                </button>
-            </li>
+{% endfor %}
 
-            <li class="nav-item">
-                <button class="nav-link"
-                        data-bs-toggle="tab"
-                        data-bs-target="#upload">
-                    Upload Excel
-                </button>
-            </li>
 
-        </ul>
-
-        <div class="tab-content mt-3">
-
-            <!-- ========================= -->
-            <!-- Manual Entry -->
-            <!-- ========================= -->
-
-            <div class="tab-pane fade show active" id="manual">
-
-                <form method="POST" action="/save_olevel_marks">
-
-                    <table class="table table-bordered table-striped">
-
-                        <thead class="table-light">
-                            <tr>
-                                <th>Student ID</th>
-                                <th>Student Name</th>
-                                <th>AI1</th>
-                                <th>AI2</th>
-                                <th>AI3</th>
-                                <th>EOT</th>
-                                <th>Teacher Initials</th>
-                            </tr>
-                        </thead>
-
-                        <tbody>
-
-                        {% for student in students %}
-
-                        <tr>
-
-                            <td>
-                                {{ student.student_id }}
-                                <input type="hidden"
-                                       name="student_id[]"
-                                       value="{{ student.student_id }}">
-                            </td>
-
-                            <td>{{ student.full_name }}</td>
-
-                            <td><input type="number" class="form-control" name="ai1[]" min="0" max="100"></td>
-                            <td><input type="number" class="form-control" name="ai2[]" min="0" max="100"></td>
-                            <td><input type="number" class="form-control" name="ai3[]" min="0" max="100"></td>
-                            <td><input type="number" class="form-control" name="eot_score[]" min="0" max="100"></td>
-
-                            <td>
-                                <input type="text"
-                                       class="form-control"
-                                       name="teacher_initials[]">
-                            </td>
-
-                        </tr>
-
-                        {% endfor %}
-
-                        </tbody>
-
-                    </table>
-
-                    <button type="submit"
-                            class="btn btn-success">
-                        Save Marks
-                    </button>
-
-                </form>
-
-            </div>
-
-            <!-- ========================= -->
-            <!-- Excel Upload -->
-            <!-- ========================= -->
-
-            <div class="tab-pane fade" id="upload">
-
-                <form method="POST"
-                      enctype="multipart/form-data"
-                      id="uploadForm">
-
-                    <label>Excel File (.xlsx)</label>
-
-                    <input type="file"
-                           name="marks_file"
-                           class="form-control"
-                           accept=".xlsx,.xls"
-                           required>
-
-                    <small class="text-muted">
-                        Columns:
-                        student_id,
-                        ai1,
-                        ai2,
-                        ai3,
-                        eot_score,
-                        teacher_initials
-                    </small>
-
-                    <button type="submit"
-                            class="btn btn-primary mt-3">
-                        Upload Marks
-                    </button>
-
-                </form>
-
-            </div>
-
-        </div>
-
-    </div>
+</select>
 
 </div>
+
+
+
+<hr>
+
+
+<!-- COMMON DETAILS -->
+
+<div class="row mb-3">
+
+
+<div class="col-md-3">
+
+<label>Subject</label>
+
+<input type="text"
+id="subject"
+class="form-control"
+required>
+
+</div>
+
+
+
+<div class="col-md-2">
+
+<label>Term</label>
+
+<input type="text"
+id="term"
+value="Term 1"
+class="form-control"
+required>
+
+</div>
+
+
+
+<div class="col-md-2">
+
+<label>Year</label>
+
+<input type="text"
+id="year"
+value="{{ current_year }}"
+class="form-control"
+required>
+
+</div>
+
+
+</div>
+
+
+
+<!-- TABS -->
+
+<ul class="nav nav-tabs">
+
+
+<li class="nav-item">
+
+<button class="nav-link active"
+data-bs-toggle="tab"
+data-bs-target="#manual">
+
+Manual Entry
+
+</button>
+
+</li>
+
+
+
+<li class="nav-item">
+
+<button class="nav-link"
+data-bs-toggle="tab"
+data-bs-target="#upload">
+
+Upload Excel
+
+</button>
+
+</li>
+
+
+</ul>
+
+
+
+
+<div class="tab-content mt-3">
+
+
+
+<!-- ================= -->
+<!-- MANUAL ENTRY -->
+<!-- ================= -->
+
+
+<div class="tab-pane fade show active"
+id="manual">
+
+
+
+<form method="POST"
+action="{{ url_for('save_olevel_marks') }}">
+
+
+<input type="hidden"
+name="subject"
+id="manual_subject">
+
+
+<input type="hidden"
+name="term"
+id="manual_term">
+
+
+<input type="hidden"
+name="year"
+id="manual_year">
+
+
+
+<table class="table table-bordered table-striped">
+
+
+<thead class="table-light">
+
+<tr>
+
+<th>Student ID</th>
+<th>Student Name</th>
+<th>AI1</th>
+<th>AI2</th>
+<th>AI3</th>
+<th>EOT</th>
+<th>Teacher Initials</th>
+
+</tr>
+
+</thead>
+
+
+
+<tbody>
+
+
+{% for student in students %}
+
+
+<tr>
+
+
+<td>
+
+{{ student.student_id }}
+
+<input type="hidden"
+name="student_id[]"
+value="{{ student.student_id }}">
+
+</td>
+
+
+
+<td>
+
+{{ student.full_name }}
+
+</td>
+
+
+
+<td>
+
+<input type="number"
+class="form-control"
+name="ai1[]"
+min="0"
+max="100">
+
+</td>
+
+
+
+<td>
+
+<input type="number"
+class="form-control"
+name="ai2[]"
+min="0"
+max="100">
+
+</td>
+
+
+
+<td>
+
+<input type="number"
+class="form-control"
+name="ai3[]"
+min="0"
+max="100">
+
+</td>
+
+
+
+<td>
+
+<input type="number"
+class="form-control"
+name="eot_score[]"
+min="0"
+max="100">
+
+</td>
+
+
+
+<td>
+
+<input type="text"
+class="form-control"
+name="teacher_initials[]">
+
+</td>
+
+
+</tr>
+
+
+{% endfor %}
+
+
+
+</tbody>
+
+
+</table>
+
+
+
+<button type="submit"
+class="btn btn-success">
+
+Save Marks
+
+</button>
+
+
+</form>
+
+
+
+</div>
+
+
+
+
+
+
+<!-- ================= -->
+<!-- EXCEL UPLOAD -->
+<!-- ================= -->
+
+
+<div class="tab-pane fade"
+id="upload">
+
+
+<form method="POST"
+enctype="multipart/form-data"
+id="uploadForm">
+
+
+
+<input type="hidden"
+name="subject"
+id="upload_subject">
+
+
+<input type="hidden"
+name="term"
+id="upload_term">
+
+
+<input type="hidden"
+name="year"
+id="upload_year">
+
+
+
+<label>
+Excel File (.xlsx)
+</label>
+
+
+<input type="file"
+name="marks_file"
+class="form-control"
+accept=".xlsx,.xls"
+required>
+
+
+
+<small class="text-muted">
+
+Columns:
+
+student_id,
+
+ai1,
+
+ai2,
+
+ai3,
+
+eot_score,
+
+teacher_initials
+
+</small>
+
+
+
+<button type="submit"
+class="btn btn-primary mt-3">
+
+Upload Marks
+
+</button>
+
+
+</form>
+
+
+</div>
+
+
+</div>
+
+
+</div>
+
+</div>
+
+
+
+
+<script>
+
+function copyDetails(){
+
+
+document.getElementById(
+"manual_subject"
+).value =
+document.getElementById(
+"subject"
+).value;
+
+
+
+document.getElementById(
+"manual_term"
+).value =
+document.getElementById(
+"term"
+).value;
+
+
+
+document.getElementById(
+"manual_year"
+).value =
+document.getElementById(
+"year"
+).value;
+
+
+
+document.getElementById(
+"upload_subject"
+).value =
+document.getElementById(
+"subject"
+).value;
+
+
+
+document.getElementById(
+"upload_term"
+).value =
+document.getElementById(
+"term"
+).value;
+
+
+
+document.getElementById(
+"upload_year"
+).value =
+document.getElementById(
+"year"
+).value;
+
+
+}
+
+
+
+document.querySelectorAll("form")
+.forEach(function(form){
+
+form.addEventListener(
+"submit",
+copyDetails
+);
+
+});
+
+
+</script>
+
+
 
 {% endblock %}
