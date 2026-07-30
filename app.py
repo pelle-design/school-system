@@ -799,7 +799,17 @@ def execute_db(query, args=()):
 def get_db_dict():
     """Return PostgreSQL dictionary cursor connection"""
     return get_db()
+from datetime import date
 
+def calculate_age(birth_date):
+    today = date.today()
+
+    age = today.year - birth_date.year
+
+    if (today.month, today.day) < (birth_date.month, birth_date.day):
+        age -= 1
+
+    return age
 
 def sanitize_input(text):
     """Remove dangerous characters and escape HTML"""
@@ -3789,8 +3799,8 @@ def dos_upload_teachers():
                                 full_name or username,
                                 hashed,
                                 'subject_teacher' if assignment_type == 'subject_teacher' else 'classteacher',
-                                True,
-                                True
+                                1,
+                                1
                             )
                         )
 
