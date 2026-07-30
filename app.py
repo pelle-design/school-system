@@ -2304,7 +2304,53 @@ def dos_admission_settings():
         closing_reason=settings['closing_reason'] if settings else '',
         fee_amount=settings['fee_amount'] if settings else 50000
     )
+    
+def generate_unique_number(prefix, table, column, year_format=False):
+    db = get_db_dict()
+    cur = db.cursor()
 
+    year = datetime.now().strftime("%Y") if year_format else ""
+
+    if year_format:
+        pattern = f"{prefix}-{year}-%"
+
+        cur.execute(
+            f"""
+            SELECT {column}
+            FROM {table}
+            WHERE {column} LIKE %s
+            ORDER BY {column} DESC
+            LIMIT 1
+            """,
+            (pattern,)
+        )
+    else:
+        pattern = f"{prefix}-%"
+
+        cur.execute(
+            f"""
+            SELECT {column}
+            FROM {table}
+            WHERE {column} LIKE %s
+            ORDER BY {column} DESC
+            LIMIT 1
+            """,
+            (pattern,)
+        )
+
+    last = cur.fetchone()
+    cur.close()
+
+    if last:
+        last_number = int(last[column].split('-')[-1])
+        number = last_number + 1
+    else:
+        number = 1
+
+    if year_format:
+        return f"{prefix}-{year}-{number:04d}"
+
+    return f"{prefix}-{number:04d}"
 @app.route('/dos/pending_admissions')
 @login_required
 def dos_pending_admissions():
@@ -7425,9 +7471,6 @@ def management_resend_token(payroll_id):
 def generate_item_code():
     """
     Generate unique inventory code.
-
-    #Example:
-    FUR-2026-0001#
     """
 
     prefix = category_name[:3].upper()
