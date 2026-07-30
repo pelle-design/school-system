@@ -3853,11 +3853,15 @@ def teacher_upload_marks():
         assigned_class=selected_class,
         current_year=current_year,
         teacher_classes=[
-            {'class_name': c}
-            for c in available_classes
+        {'class_name': c}
+        for c in available_classes
         ],
-        selected_class=selected_class
-    )
+        selected_class=selected_class,
+        manual_link=url_for(
+        'manual_marks',
+        class_name=selected_class
+      )
+  )
 
 
 @app.route("/save_olevel_marks", methods=["POST"])
@@ -3911,6 +3915,59 @@ def save_olevel_marks():
     flash("Marks saved successfully.", "success")
 
     return redirect(url_for("upload_olevel_marks"))
+
+# ================= MANUAL MARKS ENTRY =================
+
+@app.route('/teacher/manual_marks', methods=['GET'])
+def manual_marks():
+
+    if not check_permission(['classteacher', 'subject_teacher', 'dos']):
+        abort(403)
+
+    teacher_id = session.get('user_id')
+
+    assignments = get_user_assignments(teacher_id)
+
+    if not assignments:
+        flash("No class assigned.", "danger")
+        return redirect(url_for('dashboard'))
+
+    selected_class = request.args.get(
+        'class_name',
+        assignments[0]['class_name']
+    )
+
+    db = get_db_dict()
+    cur = db.cursor()
+
+    cur.execute(
+        """
+        SELECT student_id, full_name
+        FROM students
+        WHERE class=%s
+        ORDER BY full_name
+        """,
+        (selected_class,)
+    )
+
+    students = cur.fetchall()
+
+    cur.close()
+
+    class_upper = selected_class.upper()
+
+    level = (
+        'alevel'
+        if class_upper in ['S5','S6']
+        else 'olevel'
+    )
+
+    return render_template(
+        'teacher/manual_marks.html',
+        students=students,
+        selected_class=selected_class,
+        level=level
+    )
 
 @app.route('/teacher/report_card/<student_id>')
 def teacher_report_card(student_id):
@@ -4324,486 +4381,6 @@ def teacher_save_comment():
         )
     )
 
-@app.route('/teacher/report_card/<student_id>')
-def teacher_report_card(student_id):
-
-    if not check_permission(['classteacher', 'subject_teacher', 'parent', 'dos', 'headteacher']):
-        abort(403)
-
-    role = session.get('role')
-
-    db = get_db()
-    cur = db.cursor()
-
-
-    if role in ['classteacher', 'subject_teacher']:
-
-        selected_class = session.get('selected_class')
-
-        if not selected_class:
-            flash('No class selected', 'danger')
-            return redirect(url_for('teacher_students'))
-
-        cur.execute("""
-            SELECT class
-            FROM students
-            WHERE student_id=%s
-        """, (student_id,))
-
-        res = cur.fetchone()
-
-        if not res or res['class'] != selected_class:
-            flash('Student not in your class.', 'danger')
-            return redirect(url_for('teacher_students'))
-
-
-    elif role == 'parent':
-
-        parent_phone = session.get('phone')
-
-        if not parent_phone:
-            flash('No phone linked.', 'danger')
-            return redirect(url_for('dashboard'))
-
-        cur.execute("""
-            SELECT parent_phone
-            FROM students
-            WHERE student_id=%s
-        """, (student_id,))
-
-        res = cur.fetchone()
-
-        if not res or res['parent_phone'] != parent_phone:
-            flash('Not authorized.', 'danger')
-            return redirect(url_for('dashboard'))
-
-
-    elif role in ['dos', 'headteacher']:
-
-        cur.execute("""
-            SELECT class
-            FROM students
-            WHERE student_id=%s
-        """, (student_id,))
-
-        if not cur.fetchone():
-
-            flash('Student not found.', 'danger')
-
-            if role == 'dos':
-                return redirect(url_for('dos_class_lists'))
-
-            return redirect(url_for('dashboard'))
-
-
-
-    cur.execute("""
-        SELECT full_name, class, photo_path
-        FROM students
-        WHERE student_id=%s
-    """, (student_id,))
-
-    student = cur.fetchone()
-
-
-    if not student:
-
-        flash('Student not found.', 'danger')
-        cur.close()
-        return redirect(url_for('dashboard'))
-
-
-    full_name = student['full_name']
-    class_name = student['class']
-    photo_path = student['photo_path']
-
-    photo_url = get_photo_url(photo_path)
-
-
-
-    term = request.args.get('term', 'Term 1')
-    year = request.args.get('year', datetime.now().year)
-
-
-
-    cur.execute("""
-        SELECT 
-            school_name,
-            school_address,
-            school_phone,
-            school_email,
-            logo_url,
-            next_term_begins,
-            next_term_ends,
-            headteacher_stamp
-        FROM school_settings
-        WHERE id=1
-    """)
-
-    school = cur.fetchone()
-
-
-
-    school_name = school['school_name'] if school else 'YOUR SCHOOL NAME'
-    school_address = school['school_address'] if school else 'P.O. Box 123, Kampala, Uganda'
-    school_phone = school['school_phone'] if school else 'Tel: +256 712 345678'
-    school_email = school['school_email'] if school else 'Email: info@school.com'
-    school_logo_url = (
-        school['logo_url']
-        if school and school['logo_url']
-        else url_for('static', filename='images/logo.png')
-    )
-
-
-    next_term_begins = school['next_term_begins'] if school else None
-    next_term_ends = school['next_term_ends'] if school else None
-
-
-    stamp_url = None
-
-    if school and school['headteacher_stamp']:
-
-        stamp_url = url_for(
-            'static',
-            filename='uploads/' + school['headteacher_stamp']
-        )
-
-
-
-    cur.execute("""
-        SELECT 
-            comment,
-            headteacher_comment,
-            class_teacher_comment_locked,
-            headteacher_comment_locked
-        FROM teacher_comments
-        WHERE student_id=%s
-        AND term=%s
-        AND year=%s
-    """,
-    (
-        student_id,
-        term,
-        year
-    ))
-
-    comments = cur.fetchone()
-
-
-    teacher_comment = comments['comment'] if comments else ''
-    headteacher_comment = comments['headteacher_comment'] if comments else ''
-
-    teacher_comment_locked = (
-        comments['class_teacher_comment_locked']
-        if comments else 0
-    )
-
-    headteacher_comment_locked = (
-        comments['headteacher_comment_locked']
-        if comments else 0
-    )
-
-
-    can_edit_class_comment = (
-        role == 'classteacher'
-        and not teacher_comment_locked
-    )
-
-    can_edit_head_comment = (
-        role == 'headteacher'
-        and not headteacher_comment_locked
-    )
-
-    can_view_only = role in [
-        'subject_teacher',
-        'parent',
-        'dos'
-    ]
-
-
-    predefined_class_comments = get_predefined_comments('class_teacher')
-    predefined_head_comments = get_predefined_comments('headteacher')
-
-
-
-    class_upper = class_name.upper()
-
-    is_alevel = (
-        class_upper in [
-            'S5',
-            'S6',
-            'A-LEVEL',
-            'A LEVEL',
-            'S.5',
-            'S.6'
-        ]
-        or
-        (
-            class_upper.startswith('S')
-            and len(class_upper) >= 2
-            and class_upper[1] in ['5','6']
-        )
-    )
-
-
-
-    if is_alevel:
-
-        cur.execute("""
-            SELECT 
-                subject,
-                paper1,
-                paper2,
-                total_score,
-                grade,
-                points,
-                teacher_initials
-            FROM marks
-            WHERE student_id=%s
-            AND term=%s
-            AND year=%s
-            ORDER BY subject
-        """,
-        (
-            student_id,
-            term,
-            year
-        ))
-
-        marks = cur.fetchall()
-
-
-        total_points = sum(
-            m['points']
-            for m in marks
-            if m['points'] is not None
-        )
-
-
-        cur.close()
-
-
-        return render_template(
-            'teacher/report_card_alevel.html',
-            student_id=student_id,
-            full_name=full_name,
-            class_name=class_name,
-            photo_url=photo_url,
-            term=term,
-            year=year,
-            marks=marks,
-            total_points=total_points,
-            teacher_comment=teacher_comment,
-            headteacher_comment=headteacher_comment,
-            teacher_comment_locked=teacher_comment_locked,
-            headteacher_comment_locked=headteacher_comment_locked,
-            next_term_begins=next_term_begins,
-            next_term_ends=next_term_ends,
-            stamp_url=stamp_url,
-            can_edit_class_comment=can_edit_class_comment,
-            can_edit_head_comment=can_edit_head_comment,
-            can_view_only=can_view_only,
-            school_name=school_name,
-            school_address=school_address,
-            school_phone=school_phone,
-            school_email=school_email,
-            school_logo_url=school_logo_url,
-            predefined_class_comments=predefined_class_comments,
-            predefined_head_comments=predefined_head_comments
-        )
-
-
-
-    else:
-
-        cur.execute("""
-            SELECT
-                subject,
-                ai1,
-                ai2,
-                ai3,
-                ai_average,
-                ai_contribution,
-                eot_score,
-                total_score,
-                grade,
-                identifier,
-                descriptor,
-                teacher_initials
-            FROM marks
-            WHERE student_id=%s
-            AND term=%s
-            AND year=%s
-            ORDER BY subject
-        """,
-        (
-            student_id,
-            term,
-            year
-        ))
-
-
-        marks = cur.fetchall()
-
-
-        total_final = sum(
-            m['total_score']
-            for m in marks
-            if m['total_score'] is not None
-        )
-
-
-        count = len(marks)
-
-        avg_percent = (
-            total_final / count
-            if count > 0
-            else 0
-        )
-
-
-        avg_out_of_3 = round(
-            (avg_percent / 100) * 3,
-            2
-        )
-
-
-        general_grade, general_descriptor = get_grade_and_descriptor(avg_percent)
-
-
-        cur.close()
-
-
-        return render_template(
-            'teacher/report_card.html',
-            student_id=student_id,
-            full_name=full_name,
-            class_name=class_name,
-            photo_url=photo_url,
-            term=term,
-            year=year,
-            marks=marks,
-            avg_out_of_3=avg_out_of_3,
-            general_grade=general_grade,
-            general_descriptor=general_descriptor,
-            teacher_comment=teacher_comment,
-            headteacher_comment=headteacher_comment,
-            teacher_comment_locked=teacher_comment_locked,
-            headteacher_comment_locked=headteacher_comment_locked,
-            next_term_begins=next_term_begins,
-            next_term_ends=next_term_ends,
-            stamp_url=stamp_url,
-            can_edit_class_comment=can_edit_class_comment,
-            can_edit_head_comment=can_edit_head_comment,
-            can_view_only=can_view_only,
-            school_name=school_name,
-            school_address=school_address,
-            school_phone=school_phone,
-            school_email=school_email,
-            school_logo_url=school_logo_url,
-            predefined_class_comments=predefined_class_comments,
-            predefined_head_comments=predefined_head_comments
-        )
-
-@app.route('/teacher/save_comment', methods=['POST'])
-def teacher_save_comment():
-
-    if not check_permission(['classteacher']):
-        abort(403)
-
-    student_id = request.form['student_id']
-    term = request.form['term']
-    year = request.form['year']
-
-    comment = request.form.get('comment', '').strip()
-    custom_comment = request.form.get('custom_comment', '').strip()
-
-    final_comment = custom_comment if custom_comment else comment
-
-
-    db = get_db()
-    cur = db.cursor()
-
-
-    cur.execute("""
-        SELECT class_teacher_comment_locked
-        FROM teacher_comments
-        WHERE student_id=%s
-        AND term=%s
-        AND year=%s
-    """,
-    (
-        student_id,
-        term,
-        year
-    ))
-
-    existing = cur.fetchone()
-
-
-    if existing and existing['class_teacher_comment_locked'] == 1:
-
-        cur.close()
-
-        flash(
-            'Comment cannot be edited as it has been locked.',
-            'danger'
-        )
-
-        return redirect(
-            url_for(
-                'teacher_report_card',
-                student_id=student_id,
-                term=term,
-                year=year
-            )
-        )
-
-
-    cur.execute("""
-        INSERT INTO teacher_comments
-        (
-            student_id,
-            term,
-            year,
-            comment,
-            class_teacher_comment_locked
-        )
-        VALUES (%s,%s,%s,%s,1)
-
-        ON CONFLICT(student_id,term,year)
-
-        DO UPDATE SET
-            comment=EXCLUDED.comment,
-            class_teacher_comment_locked=1
-    """,
-    (
-        student_id,
-        term,
-        year,
-        final_comment
-    ))
-
-
-    db.commit()
-    cur.close()
-
-
-    flash(
-        'Comment saved and locked.',
-        'success'
-    )
-
-
-    return redirect(
-        url_for(
-            'teacher_report_card',
-            student_id=student_id,
-            term=term,
-            year=year
-        )
-    )
-
 @app.route('/teacher/edit_student/<student_id>', methods=['GET', 'POST'])
 def teacher_edit_student(student_id):
 
@@ -4910,9 +4487,6 @@ def teacher_edit_student(student_id):
             'address',
             ''
         )
-
-
-
         age = None
 
         if date_of_birth:
@@ -4941,18 +4515,11 @@ def teacher_edit_student(student_id):
             except:
 
                 age = None
-
-
-
         photo_path = student.get(
             'photo_path',
             'default_avatar.png'
         )
-
-
         photo = request.files.get('photo')
-
-
         if (
             photo
             and photo.filename
@@ -4966,23 +4533,14 @@ def teacher_edit_student(student_id):
                 '.',
                 1
             )[1].lower()
-
-
             photo_filename = f"{student_id}.{ext}"
-
-
             photo.save(
                 os.path.join(
                     app.config['UPLOAD_FOLDER'],
                     photo_filename
                 )
             )
-
-
             photo_path = photo_filename
-
-
-
         cur.execute("""
             UPDATE students
             SET
@@ -5032,12 +4590,7 @@ def teacher_edit_student(student_id):
         return redirect(
             url_for('teacher_students')
         )
-
-
-
     cur.close()
-
-
     return render_template(
         'teacher/edit_student.html',
         student=student,
@@ -5114,27 +4667,17 @@ def teacher_remove_student(student_id):
             return redirect(
                 url_for('teacher_students')
             )
-
-
-
     cur.execute("""
         DELETE FROM students
         WHERE student_id=%s
     """,
     (student_id,))
-
-
     db.commit()
-
     cur.close()
-
-
     flash(
         f"Student {student['full_name']} removed successfully.",
         'success'
     )
-
-
     return redirect(
         url_for('teacher_students')
     )
@@ -5149,8 +4692,6 @@ def teacher_upload_students():
     if request.method == 'POST':
 
         file = request.files.get('excel_file')
-
-
         if not file or not file.filename:
 
             flash(
@@ -5161,8 +4702,6 @@ def teacher_upload_students():
             return redirect(
                 url_for('teacher_upload_students')
             )
-
-
         try:
 
             from openpyxl import load_workbook
@@ -5883,8 +5422,6 @@ def teacher_print_all_report_cards():
         school_email=school_email,
         school_logo_url=school_logo_url
     )
-
-
 
 # ==================== BURSAR MODULE ====================
 
