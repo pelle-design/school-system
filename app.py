@@ -680,7 +680,36 @@ def init_db():
             """,
             grading
         )
+     # Insert default classes if table is empty
 
+     cursor.execute("""
+         SELECT COUNT(*) FROM classes
+     """)
+
+     count = cursor.fetchone()[0]
+
+
+     if count == 0:
+
+     cursor.executemany("""
+         INSERT INTO classes(name, level, stream)
+         VALUES(%s,%s,%s)
+     """,
+     [
+        ('S.1 East','O-Level','East'),
+        ('S.1 West','O-Level','West'),
+        ('S.2 East','O-Level','East'),
+        ('S.2 West','O-Level','West'),
+        ('S.3 East','O-Level','East'),
+        ('S.3 West','O-Level','West'),
+        ('S.4 East','O-Level','East'),
+        ('S.4 West','O-Level','West'),
+        ('S.5 Arts','A-Level','Arts'),
+        ('S.5 Science','A-Level','Science'),
+        ('S.6 Arts','A-Level','Arts'),
+        ('S.6 Science','A-Level','Science')
+    ])
+    
     cursor.execute("SELECT COUNT(*) AS count FROM identifier_grading")
     if cursor.fetchone()['count'] == 0:
         identifier = [
