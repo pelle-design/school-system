@@ -2344,6 +2344,220 @@ def dos_admission_settings():
         fee_amount=settings['fee_amount'] if settings else 50000
     )
 
+@app.route('/dos/pending_admissions')
+@login_required
+def dos_pending_admissions():
+
+    if not check_permission(['dos', 'admin']):
+        abort(403)
+
+    cur = get_db().cursor()
+
+    cur.execute("""
+        SELECT
+            id,
+            student_id,
+            full_name,
+            sex,
+            age,
+            parent_phone,
+            admission_status,
+            payment_status,
+            admission_source
+        FROM students
+        WHERE admission_source='online' AND admission_status='pending'
+        ORDER BY id DESC
+    """)
+
+    applications = cur.fetchall()
+
+    cur.close()
+
+    return render_template(
+        'dos/pending_admissions.html',
+        applications=applications
+    )
+@app.route('/dos/approve_admission/<student_id>', methods=['GET','POST'])
+@login_required
+def approve_admission(student_id):
+
+    if not check_permission(['dos','admin']):
+        abort(403)
+
+    db = get_db()
+    cur = db.cursor()
+
+    # Get applicant
+    cur.execute("""
+        SELECT *
+        FROM students
+        WHERE student_id=%s
+    """,(student_id,))
+
+    student = cur.fetchone()
+
+    if not student:
+        cur.close()
+        flash("Student application not found.", "danger")
+        return redirect(url_for('dos_pending_admissions'))
+
+
+    if request.method == 'POST':
+
+        assigned_class = request.form.get('class')
+
+
+        if not assigned_class:
+            flash("Please select a class.", "warning")
+            return redirect(request.url)
+
+
+        new_student_id = generate_student_id()
+
+
+        cur.execute("""
+            INSERT INTO students(
+                student_id,
+                full_name,
+                class,
+                photo_path,
+                fees_paid,
+                fees_balance,
+                fees_total,
+                admission_date,
+                parent_phone,
+                date_of_birth,
+                age,
+                sex,
+                preferred_house,
+                disability,
+                sports_activities,
+                lin,
+                admission_source,
+                admission_status,
+                payment_status,
+                payment_transaction_id,
+                payment_date
+            )
+            VALUES(
+                %s,%s,%s,%s,%s,%s,%s,
+                CURRENT_DATE,
+                %s,%s,%s,%s,%s,%s,%s,%s,
+                'online',
+                'approved',
+                'completed',
+                %s,
+                %s
+            )
+        """,
+        (
+            new_student_id,
+            student['full_name'],
+            assigned_class,
+            student['photo_path'],
+            student['fees_paid'],
+            student['fees_balance'],
+            student['fees_total'],
+            student['parent_phone'],
+            student['date_of_birth'],
+            student['age'],
+            student['sex'],
+            student['preferred_house'],
+            student['disability'],
+            student['sports_activities'],
+            student['lin'],
+            student['payment_transaction_id'],
+            student['payment_date']
+        ))
+
+
+        # Delete temporary application
+        cur.execute("""
+            DELETE FROM students
+            WHERE student_id=%s
+        """,(student_id,))
+
+
+        db.commit()
+        cur.close()
+
+
+        flash(
+            f"Student approved. New ID: {new_student_id}",
+            "success"
+        )
+
+        return redirect(url_for('dos_pending_admissions'))
+
+
+    # Load classes
+    cur.execute("""
+        SELECT name
+        FROM classes
+        ORDER BY name
+    """)
+
+    classes = cur.fetchall()
+
+    cur.close()
+
+
+    return render_template(
+        'dos/approve_admission.html',
+        student=student,
+        classes=classes
+    )
+
+# ==================== REJECT ONLINE ADMISSION ====================
+
+@app.route('/dos/reject_admission/<student_id>')
+@login_required
+def reject_admission(student_id):
+
+    if not check_permission(['dos','admin']):
+        abort(403)
+
+    db = get_db()
+    cur = db.cursor()
+
+    # Check applicant exists
+    cur.execute("""
+        SELECT full_name, admission_status
+        FROM students
+        WHERE student_id=%s
+    """,(student_id,))
+
+    student = cur.fetchone()
+
+
+    if not student:
+        cur.close()
+        flash("Student application not found.", "danger")
+        return redirect(url_for('dos_pending_admissions'))
+
+
+    # Update status
+    cur.execute("""
+        UPDATE students
+        SET admission_status='rejected'
+        WHERE student_id=%s
+    """,(student_id,))
+
+
+    db.commit()
+    cur.close()
+
+
+    flash(
+        f"Admission application for {student['full_name']} rejected.",
+        "warning"
+    )
+
+
+    return redirect(url_for('dos_pending_admissions'))
+
+
+
 
 @app.route('/dos/class_lists')
 def dos_class_lists():
