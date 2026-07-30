@@ -2,189 +2,494 @@
 {% block title %}Upload A-Level Marks{% endblock %}
 
 {% block content %}
+
 <div class="card shadow">
+
     <div class="card-header bg-primary text-white">
         Upload A-Level Marks - Class {{ assigned_class }}
     </div>
 
+
     <div class="card-body">
 
-        <!-- Select Class -->
+
+        <!-- SELECT CLASS -->
         <div class="mb-3">
+
             <label>Select Class</label>
+
             <select class="form-select"
-                onchange="window.location.href='?class_name='+this.value">
+            onchange="window.location.href='?class_name='+this.value">
+
 
                 {% for cls in teacher_classes %}
+
                 <option value="{{ cls.class_name }}"
-                    {% if cls.class_name == selected_class %}selected{% endif %}>
+                {% if cls.class_name == selected_class %}selected{% endif %}>
+
                     {{ cls.class_name }}
+
                 </option>
+
                 {% endfor %}
 
+
             </select>
+
         </div>
+
+
 
         <hr>
 
-        <!-- Subject Details -->
+
+        <!-- COMMON DETAILS -->
+
         <div class="row mb-3">
+
+
             <div class="col-md-3">
+
                 <label>Subject</label>
-                <input type="text" name="subject" form="uploadForm" class="form-control" required>
+
+                <input type="text"
+                id="subject"
+                class="form-control"
+                placeholder="Enter subject">
+
             </div>
 
+
+
             <div class="col-md-2">
+
                 <label>Term</label>
-                <input type="text" name="term" form="uploadForm"
-                       value="Term 1" class="form-control">
+
+                <input type="text"
+                id="term"
+                value="Term 1"
+                class="form-control">
+
             </div>
+
+
+
             <div class="col-md-2">
+
                 <label>Year</label>
-                <input type="text" name="year" form="uploadForm"
-                       value="{{ current_year }}" class="form-control">
+
+                <input type="text"
+                id="year"
+                value="{{ current_year }}"
+                class="form-control">
+
             </div>
+
+
 
             <div class="col-md-3 mt-4">
-                <input type="checkbox" name="is_subsidiary" form="uploadForm">
+
+                <input type="checkbox"
+                id="is_subsidiary">
+
                 Subsidiary Subject
+
             </div>
+
+
         </div>
 
-        <!-- Tabs -->
-        <ul class="nav nav-tabs" id="marksTab">
-            <li class="nav-item">
-                <button class="nav-link active"
-                        data-bs-toggle="tab"
-                        data-bs-target="#manual">
-                    Manual Entry
-                </button>
-            </li>
+
+
+
+        <!-- TABS -->
+
+        <ul class="nav nav-tabs">
+
 
             <li class="nav-item">
-                <button class="nav-link"
-                        data-bs-toggle="tab"
-                        data-bs-target="#upload">
-                    Upload Excel
+
+                <button class="nav-link active"
+                data-bs-toggle="tab"
+                data-bs-target="#manual">
+
+                    Manual Entry
+
                 </button>
+
+
             </li>
+
+
+
+            <li class="nav-item">
+
+                <button class="nav-link"
+                data-bs-toggle="tab"
+                data-bs-target="#upload">
+
+                    Upload Excel
+
+                </button>
+
+
+            </li>
+
+
         </ul>
+
+
+
 
         <div class="tab-content mt-3">
 
+
+
             <!-- ========================= -->
-            <!-- Manual Entry -->
+            <!-- MANUAL ENTRY -->
             <!-- ========================= -->
 
-            <div class="tab-pane fade show active" id="manual">
 
-                <form method="POST" action="/save_manual_marks">
+            <div class="tab-pane fade show active"
+            id="manual">
 
-                    <input type="hidden" name="subject">
-                    <input type="hidden" name="term">
-                    <input type="hidden" name="year">
+
+                <form method="POST"
+                action="{{ url_for('save_manual_marks') }}">
+
+
+
+                    <input type="hidden"
+                    name="subject"
+                    id="manual_subject">
+
+
+                    <input type="hidden"
+                    name="term"
+                    id="manual_term">
+
+
+                    <input type="hidden"
+                    name="year"
+                    id="manual_year">
+
+
+
 
                     <table class="table table-bordered">
+
+
                         <thead class="table-light">
+
                             <tr>
+
                                 <th>Student ID</th>
+
                                 <th>Student Name</th>
+
                                 <th>Paper 1</th>
+
                                 <th>Paper 2</th>
+
                                 <th>Teacher Initials</th>
+
+
                             </tr>
+
+
                         </thead>
+
+
+
 
                         <tbody>
 
+
                         {% for student in students %}
+
 
                         <tr>
 
+
                             <td>
+
                                 {{ student.student_id }}
+
                                 <input type="hidden"
-                                       name="student_id[]"
-                                       value="{{ student.student_id }}">
+                                name="student_id[]"
+                                value="{{ student.student_id }}">
+
+
                             </td>
 
-                            <td>{{ student.full_name }}</td>
+
 
                             <td>
+
+                                {{ student.full_name }}
+
+                            </td>
+
+
+
+                            <td>
+
+
                                 <input type="number"
-                                       class="form-control"
-                                       name="paper1[]"
-                                       min="0"
-                                       max="100">
+                                name="paper1[]"
+                                class="form-control"
+                                min="0"
+                                max="100">
+
+
                             </td>
 
+
+
+
                             <td>
+
+
                                 <input type="number"
-                                       class="form-control"
-                                       name="paper2[]"
-                                       min="0"
-                                       max="100">
+                                name="paper2[]"
+                                class="form-control"
+                                min="0"
+                                max="100">
+
+
                             </td>
 
+
+
+
                             <td>
+
+
                                 <input type="text"
-                                       class="form-control"
-                                       name="teacher_initials[]">
+                                name="teacher_initials[]"
+                                class="form-control">
+
+
                             </td>
+
 
                         </tr>
 
+
                         {% endfor %}
 
+
+
                         </tbody>
+
+
                     </table>
 
-                    <button class="btn btn-success">
-                        Save Marks
-                    </button>
 
-                </form>
-
-            </div>
-
-            <!-- ========================= -->
-            <!-- Upload Excel -->
-            <!-- ========================= -->
-
-            <div class="tab-pane fade" id="upload">
-
-                <form method="POST"
-                      enctype="multipart/form-data"
-                      id="uploadForm">
-
-                    <label>Excel File (.xlsx)</label>
-
-                    <input type="file"
-                           name="marks_file"
-                           class="form-control"
-                           accept=".xlsx,.xls"
-                           required>
-
-                    <small class="text-muted">
-                        Columns:
-                        student_id,
-                        paper1,
-                        paper2,
-                        teacher_initials
-                    </small>
 
                     <button type="submit"
-                            class="btn btn-primary mt-3">
-                        Upload Marks
+                    class="btn btn-success">
+
+                        Save Manual Marks
+
                     </button>
+
+
 
                 </form>
 
+
             </div>
+
+
+
+
+
+
+            <!-- ========================= -->
+            <!-- EXCEL UPLOAD -->
+            <!-- ========================= -->
+
+
+            <div class="tab-pane fade"
+            id="upload">
+
+
+                <form method="POST"
+                enctype="multipart/form-data">
+
+
+
+                    <input type="hidden"
+                    name="subject"
+                    id="upload_subject">
+
+
+                    <input type="hidden"
+                    name="term"
+                    id="upload_term">
+
+
+                    <input type="hidden"
+                    name="year"
+                    id="upload_year">
+
+
+
+                    <input type="hidden"
+                    name="is_subsidiary"
+                    id="upload_subsidiary">
+
+
+
+
+
+                    <label>
+                    Excel File (.xlsx)
+                    </label>
+
+
+
+                    <input type="file"
+                    name="marks_file"
+                    class="form-control"
+                    accept=".xlsx,.xls"
+                    required>
+
+
+
+
+                    <small class="text-muted">
+
+                    Columns:
+                    student_id,
+                    paper1,
+                    paper2,
+                    teacher_initials
+
+                    </small>
+
+
+
+                    <button type="submit"
+                    class="btn btn-primary mt-3">
+
+                        Upload Marks
+
+                    </button>
+
+
+
+                </form>
+
+
+
+            </div>
+
+
+
 
         </div>
 
+
+
     </div>
+
+
 </div>
+
+
+
+
+
+
+<script>
+
+
+function copyDetails(){
+
+
+    document.getElementById(
+    "manual_subject"
+    ).value =
+    document.getElementById(
+    "subject"
+    ).value;
+
+
+
+    document.getElementById(
+    "manual_term"
+    ).value =
+    document.getElementById(
+    "term"
+    ).value;
+
+
+
+    document.getElementById(
+    "manual_year"
+    ).value =
+    document.getElementById(
+    "year"
+    ).value;
+
+
+
+
+    document.getElementById(
+    "upload_subject"
+    ).value =
+    document.getElementById(
+    "subject"
+    ).value;
+
+
+
+    document.getElementById(
+    "upload_term"
+    ).value =
+    document.getElementById(
+    "term"
+    ).value;
+
+
+
+    document.getElementById(
+    "upload_year"
+    ).value =
+    document.getElementById(
+    "year"
+    ).value;
+
+
+
+    document.getElementById(
+    "upload_subsidiary"
+    ).value =
+    document.getElementById(
+    "is_subsidiary"
+    ).checked ? "on" : "";
+
+}
+
+
+
+
+document.querySelectorAll(
+"form"
+).forEach(function(form){
+
+    form.addEventListener(
+    "submit",
+    copyDetails
+    );
+
+});
+
+
+</script>
+
+
 
 {% endblock %}
