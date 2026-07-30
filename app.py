@@ -97,6 +97,18 @@ def init_db():
             max_count INTEGER DEFAULT 1
         )
     """)
+
+    # ==================== CLASSES TABLE ====================
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS classes (
+            id SERIAL PRIMARY KEY,
+            name TEXT UNIQUE NOT NULL,
+            level TEXT,
+            stream TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+         )
+   """)
     # ==================== ADMISSION SETTINGS ====================
 
     cursor.execute("""
