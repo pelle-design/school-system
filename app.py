@@ -3646,7 +3646,6 @@ def teacher_students():
     if selected_class not in available_classes:
         selected_class = available_classes[0]
         session['selected_class'] = selected_class
-
     db = get_db_dict()
     cur = db.cursor()
     cur.execute(
@@ -3654,17 +3653,13 @@ def teacher_students():
         (selected_class,)
     )
     students = cur.fetchall()
-
     for s in students:
         s['photo_url'] = get_photo_url(s.get('photo_path'))
-
     cur.close()
-
     is_classteacher = any(
         a['assignment_type'] == 'classteacher' and a['class_name'] == selected_class
         for a in assignments
     )
-
     return render_template(
         'teacher/students.html',
         students=students,
@@ -3673,7 +3668,6 @@ def teacher_students():
         is_classteacher=is_classteacher,
         term=term
     )
-
 
 @app.route('/teacher/attendance', methods=['GET', 'POST'])
 def teacher_attendance():
@@ -3940,7 +3934,6 @@ def save_olevel_marks():
         eot,
         initials
     ):
-
         cursor.execute(
             """
             INSERT INTO olevel_marks
