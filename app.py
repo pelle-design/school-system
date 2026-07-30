@@ -7038,13 +7038,6 @@ def management_resend_token(payroll_id):
 
     return redirect(url_for('management_pending_authorizations'))
 
-inventory_bp = Blueprint(
-    'inventory',
-    __name__,
-    url_prefix='/inventory'
-)
-
-
 # ==================== INVENTORY HELPERS ====================
 
 def generate_item_code(category_name):
@@ -7365,80 +7358,49 @@ def inventory_items():
 
 @inventory_bp.route('/item/add', methods=['GET', 'POST'])
 def inventory_item_add():
-
     if not check_permission(['admin','bursar','stores_keeper']):
         abort(403)
-
-
     db = get_db_dict()
     cur = db.cursor()
-
-
     if request.method == 'POST':
-
         try:
-
             category_id = request.form.get('category_id')
-
             if not category_id:
                 flash('Please select a category.', 'danger')
                 return redirect(url_for('inventory.inventory_item_add'))
-
-
             name = request.form.get('name','').strip()
-
             if not name:
                 flash('Item name is required.', 'danger')
                 return redirect(url_for('inventory.inventory_item_add'))
-
-
             unit = request.form.get('unit','pieces')
-
             quantity = int(request.form.get('quantity',0))
-
             minimum_quantity = int(
                 request.form.get('minimum_quantity',10)
             )
-
             reorder_level = int(
                 request.form.get('reorder_level',5)
             )
-
-
             location = request.form.get('location','')
             supplier = request.form.get('supplier','')
-
-
             try:
                 purchase_price = float(
                     request.form.get('purchase_price',0)
                 )
             except:
                 purchase_price = 0
-
-
-
             current_value = quantity * purchase_price
-
-
             status = request.form.get(
                 'status',
                 'working'
             )
-
-
             responsible_person = request.form.get(
                 'responsible_person',
                 ''
             )
-
             responsible_role = request.form.get(
                 'responsible_role',
                 ''
             )
-
-
-
             # Get category
 
             cur.execute(
@@ -7449,59 +7411,35 @@ def inventory_item_add():
                 """,
                 (category_id,)
             )
-
             category = cur.fetchone()
-
-
             if not category:
                 flash(
                     'Invalid category.',
                     'danger'
                 )
-
                 return redirect(
                     url_for('inventory.inventory_item_add')
                 )
-
-
-
             item_code = generate_item_code(
                 category['name']
             )
-
-
-
             # Image upload
-
             image_path = None
-
             image_file = request.files.get('image')
-
-
             if image_file and image_file.filename:
-
                 if allowed_file(
                     image_file.filename,
                     ALLOWED_IMAGE_EXTENSIONS
                 ):
-
                     filename = secure_filename(
                         f"{item_code}_{image_file.filename}"
                     )
-
-
                     upload_path = os.path.join(
                         'uploads',
                         filename
                     )
-
-
                     image_file.save(upload_path)
-
                     image_path = filename
-
-
-
             cur.execute("""
                 INSERT INTO inventory_items
                 (
@@ -7545,15 +7483,8 @@ def inventory_item_add():
                 responsible_role,
                 image_path
             ))
-
-
-
             item_id = cur.lastrowid
-
-
-
             # Record opening stock
-
             cur.execute("""
                 INSERT INTO inventory_transactions
                 (
@@ -7581,41 +7512,23 @@ def inventory_item_add():
                 session.get('username'),
                 'Initial stock'
             ))
-
-
-
             db.commit()
-
-
             flash(
                 f'Item added successfully. Code: {item_code}',
                 'success'
             )
-
-
         except Exception as e:
-
             db.rollback()
-
             flash(
                 f'Error adding item: {str(e)}',
                 'danger'
             )
-
-
         finally:
             cur.close()
-
-
-
         return redirect(
             url_for('inventory.inventory_items')
         )
-
-
-
     # GET
-
     cur.execute(
         """
         SELECT *
@@ -7623,41 +7536,26 @@ def inventory_item_add():
         ORDER BY name
         """
     )
-
     categories = cur.fetchall()
-
     cur.close()
-
-
     return render_template(
         'inventory/item_add.html',
         categories=categories
     )
-
-
-
 # ==================== EDIT INVENTORY ITEM ====================
-
-
 @inventory_bp.route(
     '/item/edit/<int:item_id>',
     methods=['GET','POST']
 )
 def inventory_item_edit(item_id):
-
     if not check_permission(
         ['admin','bursar','stores_keeper']
     ):
         abort(403)
-
-
-
     if request.method == 'POST':
-
         execute_db(
             """
             UPDATE inventory_items SET
-
             name=?,
             unit=?,
             minimum_quantity=?,
@@ -7705,42 +7603,27 @@ def inventory_item_edit(item_id):
                 item_id
             )
         )
-
-
         flash(
             'Item updated successfully.',
             'success'
         )
-
-
         return redirect(
             url_for('inventory.inventory_items')
         )
-
-
-
     db = get_db_dict()
     cur = db.cursor()
-
-
     cur.execute("""
         SELECT 
             i.*,
             c.name AS category_name
-
         FROM inventory_items i
-
         JOIN inventory_categories c
         ON i.category_id=c.id
 
         WHERE i.id=?
     """,
     (item_id,))
-
-
     item = cur.fetchone()
-
-
     cur.execute(
         """
         SELECT *
@@ -7748,26 +7631,18 @@ def inventory_item_edit(item_id):
         ORDER BY name
         """
     )
-
     categories = cur.fetchall()
-
-
     cur.close()
-
-
     return render_template(
         'inventory/item_edit.html',
         item=item,
         categories=categories
     )
-
 # ==================== INVENTORY ITEM EDIT ====================
-
 @app.route('/inventory/item/edit/<int:item_id>', methods=['GET', 'POST'])
 def inventory_item_edit(item_id):
     if not check_permission(['admin', 'bursar', 'stores_keeper']):
         abort(403)
-
     if request.method == 'POST':
         name = request.form.get('name')
         unit = request.form.get('unit')
@@ -7778,7 +7653,6 @@ def inventory_item_edit(item_id):
         status = request.form.get('status', 'working')
         responsible_person = request.form.get('responsible_person', '')
         responsible_role = request.form.get('responsible_role', '')
-
         execute_db("""
             UPDATE inventory_items 
             SET name=%s,
@@ -7805,13 +7679,10 @@ def inventory_item_edit(item_id):
             responsible_role,
             item_id
         ))
-
         flash('Item updated successfully.', 'success')
         return redirect(url_for('inventory_items'))
-
     db = get_db_dict()
     cur = db.cursor()
-
     cur.execute("""
         SELECT i.*, c.name AS category_name
         FROM inventory_items i
@@ -7819,64 +7690,47 @@ def inventory_item_edit(item_id):
         ON i.category_id = c.id
         WHERE i.id=%s
     """, (item_id,))
-
     item = cur.fetchone()
-
     cur.execute("""
         SELECT *
         FROM inventory_categories
         ORDER BY name
     """)
-
     categories = cur.fetchall()
-
     cur.close()
-
     return render_template(
         'inventory/item_edit.html',
         item=item,
         categories=categories
     )
-
-
 # ==================== ISSUE INVENTORY ITEM ====================
-
 @app.route('/inventory/issue/<int:item_id>', methods=['POST'])
 def inventory_issue_item(item_id):
-
     if not check_permission(['admin', 'bursar', 'dos', 'stores_keeper']):
         abort(403)
-
     quantity = int(request.form.get('quantity', 0))
     issued_to = request.form.get('issued_to')
     issued_to_role = request.form.get('issued_to_role')
     purpose = request.form.get('purpose')
     notes = request.form.get('notes', '')
-
     db = get_db_dict()
     cur = db.cursor()
-
     cur.execute("""
         SELECT name, quantity, unit
         FROM inventory_items
         WHERE id=%s
     """, (item_id,))
-
     item = cur.fetchone()
-
     if not item:
         flash('Item not found.', 'danger')
         return redirect(url_for('inventory_items'))
-
     if item['quantity'] < quantity:
         flash(
             f"Insufficient stock! Available: {item['quantity']} {item['unit']}",
             'danger'
         )
         return redirect(url_for('inventory_items'))
-
     new_quantity = item['quantity'] - quantity
-
     cur.execute("""
         UPDATE inventory_items
         SET quantity=%s,
@@ -7923,20 +7777,15 @@ def inventory_issue_item(item_id):
         notes,
         session.get('username')
     ))
-
     db.commit()
     cur.close()
 
     check_low_stock_alerts()
-
     flash(
         f"{quantity} {item['unit']} of {item['name']} issued to {issued_to}.",
         'success'
     )
-
     return redirect(url_for('inventory_items'))
-
-
 
 # ==================== RECEIVE INVENTORY ITEM ====================
 
