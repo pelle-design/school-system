@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+
+{% block title %}
+Admission Letter
+{% endblock %}
+
+
+{% block content %}
+
+<div class="card shadow">
+
+<div class="card-body p-5">
+
+
+<div class="text-center">
+
+<h2>
+{{ school_name if school_name else "THE SCHOOL" }}
+</h2>
+
+<h4>
+ADMISSION LETTER
+</h4>
+
+<hr>
+
+</div>
+
+
+<p>
+Dear <strong>{{student.full_name}}</strong>,
+</p>
+
+
+<p>
+We are pleased to inform you that you have been admitted
+to our school.
+</p>
+
+
+<p>
+Your admission details are as follows:
+</p>
+
+
+<table class="table table-bordered">
+
+<tr>
+<th>Student ID</th>
+<td>{{student.student_id}}</td>
+</tr>
+
+
+<tr>
+<th>Name</th>
+<td>{{student.full_name}}</td>
+</tr>
+
+
+<tr>
+<th>Class</th>
+<td>{{student.class}}</td>
+</tr>
+
+
+<tr>
+<th>Admission Date</th>
+<td>{{student.admission_date}}</td>
+</tr>
+
+
+<tr>
+<th>House</th>
+<td>{{student.preferred_house}}</td>
+</tr>
+
+
+</table>
+
+
+<p class="mt-4">
+We welcome you and wish you success in your studies.
+</p>
+
+
+<br><br>
+
+
+<p>
+_________________________
+<br>
+Director of Studies
+</p>
+
+
+<button onclick="window.print()"
+class="btn btn-primary mt-3">
+
+Print Letter
+
+</button>
+
+
+</div>
+
+</div>
+
+
+{% endblock %}
