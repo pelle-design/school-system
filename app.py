@@ -150,8 +150,10 @@ def init_db():
             payment_date TIMESTAMP
         )
     """)
-    # ==================== STAFF TABLE ====================
 
+    
+    # ==================== STAFF TABLE ====================
+    
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS staff (
             id SERIAL PRIMARY KEY,
@@ -582,168 +584,104 @@ def init_db():
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY(payroll_id)
                 REFERENCES payroll(id)
+                
+  
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS subjects (
+            id SERIAL PRIMARY KEY,
+            subject_name TEXT UNIQUE NOT NULL,
+            subject_code TEXT UNIQUE,
+            is_active INTEGER DEFAULT 1
         )
     """)
     # ==================== SAVE CHANGES ====================
+db.commit()
 
-    db.commit()
-        # Insert default data
-    cursor.execute("SELECT COUNT(*) AS count FROM role_limits")
-    if cursor.fetchone()['count'] == 0:
-        cursor.executemany(
-            "INSERT INTO role_limits (role_name, max_count) VALUES (%s, %s)",
-            [
-                ('admin', 1),
-                ('headteacher', 1),
-                ('management', 1),
-                ('bursar', 1),
-                ('dos', 1)
-            ]
-        )
+# ==================== DEFAULT DATA ====================
 
-    cursor.execute("SELECT COUNT(*) AS count FROM admission_settings")
-    if cursor.fetchone()['count'] == 0:
-        cursor.execute(
-            "INSERT INTO admission_settings (id, is_open, fee_amount) VALUES (1, 1, 50000)"
-        )
-
-    cursor.execute("SELECT COUNT(*) AS count FROM users")
-    if cursor.fetchone()['count'] == 0:
-        from werkzeug.security import generate_password_hash
-
-        hashed = generate_password_hash('admin123')
-
-        cursor.execute(
-            """
-            INSERT INTO users
-            (username, password, full_name, role, status, phone, must_change_password)
-            VALUES (%s, %s, %s, 'admin', 1, '0700000000', 0)
-            """,
-            ('admin', hashed, 'Administrator')
-        )
-
-    cursor.execute("SELECT COUNT(*) AS count FROM school_settings")
-    if cursor.fetchone()['count'] == 0:
-        cursor.execute("INSERT INTO school_settings (id) VALUES (1)")
-
-    cursor.execute("SELECT COUNT(*) AS count FROM houses")
-    if cursor.fetchone()['count'] == 0:
-        houses = [
-            ('AFRICA HOUSE', ''),
-            ('EUROPE HOUSE', ''),
-            ('NORTH AMERICA HOUSE', ''),
-            ('SOUTH AMERICA HOUSE', ''),
-            ('ASIA HOUSE', ''),
-            ('AUSTRALIA', '')
+cursor.execute("SELECT COUNT(*) AS count FROM role_limits")
+if cursor.fetchone()['count'] == 0:
+    cursor.executemany(
+        "INSERT INTO role_limits (role_name, max_count) VALUES (%s, %s)",
+        [
+            ('admin', 1),
+            ('headteacher', 1),
+            ('management', 1),
+            ('bursar', 1),
+            ('dos', 1)
         ]
+    )
 
-        cursor.executemany(
-            "INSERT INTO houses (name, description) VALUES (%s, %s)",
-            houses
-        )
+cursor.execute("SELECT COUNT(*) AS count FROM admission_settings")
+if cursor.fetchone()['count'] == 0:
+    cursor.execute(
+        "INSERT INTO admission_settings (id, is_open, fee_amount) VALUES (1, 1, 50000)"
+    )
 
-    cursor.execute("SELECT COUNT(*) AS count FROM sports_activities")
-    if cursor.fetchone()['count'] == 0:
-        sports = [
-            'Football',
-            'Basketball',
-            'Netball',
-            'Athletics',
-            'Swimming',
-            'Tennis',
-            'Table Tennis',
-            'Volleyball',
-            'Chess',
-            'Scouts'
+cursor.execute("SELECT COUNT(*) AS count FROM users")
+if cursor.fetchone()['count'] == 0:
+    from werkzeug.security import generate_password_hash
+
+    hashed = generate_password_hash('admin123')
+
+    cursor.execute(
+        """
+        INSERT INTO users
+        (username, password, full_name, role, status, phone, must_change_password)
+        VALUES (%s, %s, %s, 'admin', 1, '0700000000', 0)
+        """,
+        ('admin', hashed, 'Administrator')
+    )
+
+# ==================== DEFAULT CLASSES ====================
+
+cursor.execute("SELECT COUNT(*) AS count FROM classes")
+if cursor.fetchone()['count'] == 0:
+    cursor.executemany(
+        "INSERT INTO classes (class_name) VALUES (%s)",
+        [
+            ('Senior 1',),
+            ('Senior 2',),
+            ('Senior 3',),
+            ('Senior 4',),
+            ('Senior 5',),
+            ('Senior 6',)
         ]
+    )
 
-        cursor.executemany(
-            "INSERT INTO sports_activities (name) VALUES (%s)",
-            [(s,) for s in sports]
-        )
+# ==================== DEFAULT SUBJECTS ====================
 
-    cursor.execute("SELECT COUNT(*) AS count FROM grading_system")
-    if cursor.fetchone()['count'] == 0:
-        grading = [
-            (80, 100, 'A', 'Excellent'),
-            (70, 79, 'B', 'Very Good'),
-            (60, 69, 'C', 'Good'),
-            (50, 59, 'D', 'Pass'),
-            (0, 49, 'E', 'Fail')
+cursor.execute("SELECT COUNT(*) AS count FROM subjects")
+if cursor.fetchone()['count'] == 0:
+    cursor.executemany(
+        """
+        INSERT INTO subjects
+        (subject_name, subject_code)
+        VALUES (%s, %s)
+        """,
+        [
+            ('English Language', 'ENG'),
+            ('Mathematics', 'MTC'),
+            ('Biology', 'BIO'),
+            ('Chemistry', 'CHE'),
+            ('Physics', 'PHY'),
+            ('History', 'HIS'),
+            ('Geography', 'GEO'),
+            ('Christian Religious Education', 'CRE'),
+            ('Islamic Religious Education', 'IRE'),
+            ('Agriculture', 'AGR'),
+            ('Commerce', 'COM'),
+            ('Entrepreneurship', 'ENT'),
+            ('Information and Communication Technology', 'ICT'),
+            ('Literature in English', 'LIT'),
+            ('Fine Art', 'ART'),
+            ('Kiswahili', 'KIS')
         ]
+    )
 
-        cursor.executemany(
-            """
-            INSERT INTO grading_system
-            (min_score, max_score, grade, descriptor)
-            VALUES (%s, %s, %s, %s)
-            """,
-            grading
-        )
-    
-    
-    cursor.execute("SELECT COUNT(*) AS count FROM identifier_grading")
-    if cursor.fetchone()['count'] == 0:
-        identifier = [
-            (2.4, 3.0, 'Excellent'),
-            (1.8, 2.39, 'Very Good'),
-            (1.2, 1.79, 'Good'),
-            (0.6, 1.19, 'Satisfactory'),
-            (0.0, 0.59, 'Needs Improvement')
-        ]
-
-        cursor.executemany(
-            """
-            INSERT INTO identifier_grading
-            (min_value, max_value, descriptor)
-            VALUES (%s, %s, %s)
-            """,
-            identifier
-        )
-
-    cursor.execute("SELECT COUNT(*) AS count FROM alevel_grading")
-    if cursor.fetchone()['count'] == 0:
-        alevel = [
-            (80, 100, 'A', 5, 0),
-            (70, 79, 'B', 4, 0),
-            (60, 69, 'C', 3, 0),
-            (50, 59, 'D', 2, 0),
-            (0, 49, 'E', 1, 0)
-        ]
-
-        cursor.executemany(
-            """
-            INSERT INTO alevel_grading
-            (min_score, max_score, grade, points, is_subsidiary)
-            VALUES (%s, %s, %s, %s, %s)
-            """,
-            alevel
-        )
-
-    cursor.execute("SELECT COUNT(*) AS count FROM inventory_categories")
-    if cursor.fetchone()['count'] == 0:
-        categories = [
-            ('Furniture', 'Desks, chairs, tables, cabinets, etc.', 5),
-            ('Equipment', 'Computers, projectors, lab equipment, etc.', 3),
-            ('Stationery', 'Pens, papers, notebooks, printing materials', 20),
-            ('Food Items', 'Kitchen supplies, ingredients, meals', 10),
-            ('Lab Equipment', 'Microscopes, beakers, test tubes, etc.', 2),
-            ('Chemicals', 'Lab chemicals, cleaning agents', 5),
-            ('Sports Equipment', 'Balls, nets, uniforms, etc.', 5),
-            ('Electronics', 'TVs, speakers, cameras, etc.', 3),
-            ('Books', 'Textbooks, library books, reference materials', 10),
-            ('Maintenance', 'Tools, spare parts, repair items', 5)
-        ]
-
-        cursor.executemany(
-            """
-            INSERT INTO inventory_categories
-            (name, description, warning_level)
-            VALUES (%s, %s, %s)
-            """,
-            categories
-        )
-
+cursor.execute("SELECT COUNT(*) AS count FROM school_settings")
+if cursor.fetchone()['count'] == 0:
+    cursor.execute("INSERT INTO school_settings (id) VALUES (1)")
     db.commit()
 
     print("Database initialized successfully!")
