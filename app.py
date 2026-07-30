@@ -973,10 +973,8 @@ def get_notifications():
         ORDER BY created_at DESC
         LIMIT 30
     """,(user_role,))
-
     notifications=cur.fetchall()
     cur.close()
-
     result=[]
     for n in notifications:
         result.append({
@@ -987,7 +985,6 @@ def get_notifications():
             'is_read':n['is_read'],
             'created_at':str(n['created_at'])[:19] if n['created_at'] else ''
         })
-
     return jsonify(result)
 
 
@@ -995,7 +992,6 @@ def get_notifications():
 def mark_notifications_read():
     if not session.get('user_id'):
         return jsonify({'error':'Not logged in'})
-
     try:
         execute_db(
             "UPDATE notifications SET is_read=1 WHERE user_role=%s",
@@ -1247,10 +1243,8 @@ def login():
         """,(username,))
         user=cur.fetchone()
         cur.close()
-
         if user and user['status']==1:
             stored_password=user['password']
-
             if stored_password==password or check_password_hash(stored_password,password):
                 session['user_id']=user['id']
                 session['username']=user['username']
@@ -1260,7 +1254,6 @@ def login():
                 if user['must_change_password']==1:
                     flash('Please change your password.','warning')
                     return redirect(url_for('change_password'))
-
                 flash(f"Welcome {username}!",'success')
                 return redirect(url_for('dashboard'))
 
@@ -1351,27 +1344,90 @@ def dashboard():
         search = request.args.get('search', '').strip()
         page = request.args.get('page', 1, type=int)
         per_page = 10
-        cur = get_db().cursor()
+
+        cur = get_db_dict().cursor()
+
+        # Count users
         if search:
-            cur.execute("SELECT COUNT(*) FROM users WHERE username LIKE ?", (f'%{search}%',))
+            cur.execute(
+                """
+                SELECT COUNT(*) AS total
+                FROM users
+                WHERE username LIKE %s
+                """,
+                (f'%{search}%',)
+            )
         else:
-            cur.execute("SELECT COUNT(*) FROM users")
-        total = cur.fetchone()[0]
+            cur.execute(
+                """
+                SELECT COUNT(*) AS total
+                FROM users
+                """
+            )
+
+        total = cur.fetchone()['total']
         total_pages = (total + per_page - 1) // per_page
         offset = (page - 1) * per_page
+        # Fetch users
         if search:
-            cur.execute("SELECT id, username, role, phone, status, profile_pic FROM users WHERE username LIKE ? ORDER BY id LIMIT ? OFFSET ?", 
-                        (f'%{search}%', per_page, offset))
+            cur.execute(
+                """
+                SELECT 
+                    id,
+                    username,
+                    role,
+                    phone,
+                    status,
+                    profile_pic
+                FROM users
+                WHERE username LIKE %s
+                ORDER BY id
+                LIMIT %s OFFSET %s
+                """,
+                (
+                    f'%{search}%',
+                    per_page,
+                    offset
+                )
+            )
         else:
-            cur.execute("SELECT id, username, role, phone, status, profile_pic FROM users ORDER BY id LIMIT ? OFFSET ?", 
-                        (per_page, offset))
+            cur.execute(
+                """
+                SELECT 
+                    id,
+                    username,
+                    role,
+                    phone,
+                    status,
+                    profile_pic
+                FROM users
+                ORDER BY id
+                LIMIT %s OFFSET %s
+                """,
+                (
+                    per_page,
+                    offset
+                )
+            )
         users = cur.fetchall()
         cur.close()
-        return render_template('dashboard.html', role=role, data={'users': users, 'total_pages': total_pages, 'current_page': page}, search=search)
+        return render_template(
+            'dashboard.html',
+            role=role,
+            data={
+                'users': users,
+                'total_pages': total_pages,
+                'current_page': page
+            },
+            search=search
+        )
     elif role == 'bursar':
         return redirect(url_for('bursar_dashboard'))
     else:
-        return render_template('dashboard.html', role=role)
+        return render_template(
+            'dashboard.html',
+            role=role
+        )
 
 @app.route('/notifications')
 @login_required
