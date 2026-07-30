@@ -1402,7 +1402,7 @@ def mark_all_notifications_read_route():
 
 @app.route('/admin/dashboard')
 @login_required
-def dashboard():
+def admin_dashboard():
     role=session.get('role')
 
     if role=='admin':
