@@ -3817,29 +3817,38 @@ def teacher_upload_marks():
         flash('No classes assigned.', 'danger')
         return redirect(url_for('dashboard'))
     available_classes = list(
-        set([a['class_name'] for a in assignments])
+        set(
+            [a['class_name'] for a in assignments]
+        )
     )
     selected_class = request.args.get(
         'class_name',
-        session.get('selected_class', available_classes[0])
+        session.get(
+            'selected_class',
+            available_classes[0]
+        )
     )
-    session['selected_class'] = selected_class
     if selected_class not in available_classes:
         selected_class = available_classes[0]
+    session['selected_class'] = selected_class
     class_upper = selected_class.upper()
     level = (
         'alevel'
-        if class_upper in [
-            'S5',
-            'S6',
-            'A-LEVEL',
-            'A LEVEL',
-            'S.5',
-            'S.6'
-        ]
-        or (
-            class_upper.startswith('S')
-            and class_upper[1] in ['5','6']
+        if (
+            class_upper in [
+                'S5',
+                'S6',
+                'A-LEVEL',
+                'A LEVEL',
+                'S.5',
+                'S.6'
+            ]
+            or
+            (
+                class_upper.startswith('S')
+                and len(class_upper) >= 2
+                and class_upper[1] in ['5', '6']
+            )
         )
         else 'olevel'
     )
@@ -3860,22 +3869,52 @@ def teacher_upload_marks():
     )
     students = cur.fetchall()
     cur.close()
-   # ===============================
-# EXCEL UPLOAD
-# ===============================
-if request.method == "POST":
-    subject = request.form['subject'].strip()
-    term = request.form['term'].strip()
-    year = request.form['year'].strip()
-    is_subsidiary = (
-        request.form.get('is_subsidiary') == 'on'
-    )
-    file = request.files.get('marks_file')
-
-    if not file or not file.filename:
+    # ===============================
+    # EXCEL UPLOAD PROCESS
+    # ===============================
+    if request.method == "POST":
+        subject = request.form.get(
+            'subject',
+            ''
+        ).strip()
+        term = request.form.get(
+            'term',
+            'Term 1'
+        ).strip()
+        year = request.form.get(
+            'year',
+            current_year
+        )
+        is_subsidiary = (
+            request.form.get('is_subsidiary') == 'on'
+        )
+        file = request.files.get(
+            'marks_file'
+        )
+        if not file or not file.filename:
+            flash(
+                'Please upload an Excel file.',
+                'danger'
+            )
+            return redirect(
+                url_for(
+                    'teacher_upload_marks',
+                    class_name=selected_class
+                )
+            )
+        count = process_marks_upload(
+            file,
+            subject,
+            term,
+            year,
+            selected_class,
+            teacher_id,
+            level,
+            is_subsidiary
+        )
         flash(
-            'Please upload an Excel file.',
-            'danger'
+            f'{count} marks uploaded successfully.',
+            'success'
         )
         return redirect(
             url_for(
@@ -3883,35 +3922,17 @@ if request.method == "POST":
                 class_name=selected_class
             )
         )
-
-    count = process_marks_upload(
-        file,
-        subject,
-        term,
-        year,
-        selected_class,
-        teacher_id,
-        level,
-        is_subsidiary
-    )
-
-    flash(
-        f'{count} marks uploaded successfully.',
-        'success'
-    )
-
-    return redirect(
-        url_for(
-            'teacher_upload_marks',
-            class_name=selected_class
-        )
-    )
+    # ===============================
+    # LOAD TEMPLATE
+    # ===============================
     return render_template(
         f'teacher/upload_marks_{level}.html',
         assigned_class=selected_class,
         current_year=current_year,
         teacher_classes=[
-            {'class_name': c}
+            {
+                'class_name': c
+            }
             for c in available_classes
         ],
         selected_class=selected_class,
