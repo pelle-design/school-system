@@ -3736,94 +3736,157 @@ def teacher_attendance():
         selected_date=selected_date,
         assigned_class=selected_class
     )
-
-
+    
 @app.route("/save_manual_marks", methods=["POST"])
 def save_manual_marks():
+
+    if not check_permission(
+        ['classteacher','subject_teacher','dos']
+    ):
+        abort(403)
     db = get_db_dict()
     cursor = db.cursor()
-
-    student_ids = request.form.getlist("student_id[]")
-    paper1 = request.form.getlist("paper1[]")
-    paper2 = request.form.getlist("paper2[]")
-    initials = request.form.getlist("teacher_initials[]")
-
-    for sid, p1, p2, init in zip(student_ids, paper1, paper2, initials):
-
+    subject = request.form.get('subject')
+    term = request.form.get('term')
+    year = request.form.get('year')
+    student_ids = request.form.getlist(
+        "student_id[]"
+    )
+    paper1 = request.form.getlist(
+        "paper1[]"
+    )
+    paper2 = request.form.getlist(
+        "paper2[]"
+    )
+    initials = request.form.getlist(
+        "teacher_initials[]"
+    )
+    for sid, p1, p2, init in zip(
+        student_ids,
+        paper1,
+        paper2,
+        initials
+    ):
         cursor.execute(
             """
-            INSERT INTO alevel_marks
-            (student_id, paper1, paper2, teacher_initials)
-            VALUES (%s, %s, %s, %s)
+            INSERT INTO marks
+            (
+                student_id,
+                subject,
+                paper1,
+                paper2,
+                teacher_initials,
+                term,
+                year
+            )
+            VALUES
+            (%s,%s,%s,%s,%s,%s,%s)
+            ON CONFLICT(student_id,subject,term,year)
+            DO UPDATE SET
+            paper1=%s,
+            paper2=%s,
+            teacher_initials=%s
             """,
-            (sid, p1, p2, init)
+            (
+                sid,
+                subject,
+                p1,
+                p2,
+                init,
+                term,
+                year,
+                p1,
+                p2,
+                init
+            )
         )
-
     db.commit()
     cursor.close()
-
-    flash("Marks saved successfully.")
-    return redirect(url_for("upload_marks"))
-
+    flash(
+        "Marks entered manually successfully.",
+        "success"
+    )
+    return redirect(
+        url_for(
+            'teacher_upload_marks'
+        )
+    )
 
 @app.route('/teacher/upload_marks', methods=['GET', 'POST'])
 def teacher_upload_marks():
     if not check_permission(['classteacher', 'subject_teacher', 'dos']):
         abort(403)
-
     teacher_id = session.get('user_id')
     assignments = get_user_assignments(teacher_id)
-
     if not assignments:
         flash('No classes assigned.', 'danger')
         return redirect(url_for('dashboard'))
-
-    available_classes = list(set([a['class_name'] for a in assignments]))
-
+    available_classes = list(
+        set([a['class_name'] for a in assignments])
+    )
     selected_class = request.args.get(
         'class_name',
         session.get('selected_class', available_classes[0])
     )
-
     session['selected_class'] = selected_class
-
     if selected_class not in available_classes:
         selected_class = available_classes[0]
-
     class_upper = selected_class.upper()
-
     level = (
         'alevel'
-        if class_upper in ['S5', 'S6', 'A-LEVEL', 'A LEVEL', 'S.5', 'S.6']
+        if class_upper in [
+            'S5',
+            'S6',
+            'A-LEVEL',
+            'A LEVEL',
+            'S.5',
+            'S.6'
+        ]
         or (
             class_upper.startswith('S')
-            and len(class_upper) >= 2
-            and class_upper[1] in ['5', '6']
+            and class_upper[1] in ['5','6']
         )
         else 'olevel'
     )
-
     current_year = datetime.now().year
-
-    if request.method == 'POST':
-
+    # ===============================
+    # GET STUDENTS FOR MANUAL ENTRY
+    # ===============================
+    db = get_db_dict()
+    cur = db.cursor()
+    cur.execute(
+        """
+        SELECT student_id, full_name
+        FROM students
+        WHERE class=%s
+        ORDER BY full_name
+        """,
+        (selected_class,)
+    )
+    students = cur.fetchall()
+    cur.close()
+    # ===============================
+    # EXCEL UPLOAD
+    # ===============================
+    if request.method == "POST":
         subject = request.form['subject'].strip()
         term = request.form['term'].strip()
         year = request.form['year'].strip()
-
-        is_subsidiary = request.form.get('is_subsidiary') == 'on'
-
+        is_subsidiary = (
+            request.form.get('is_subsidiary') == 'on'
+        )
         file = request.files.get('marks_file')
-
         if not file or not file.filename:
-            flash('Please upload an Excel file.', 'danger')
+            flash(
+                'Please upload an Excel file.',
+                'danger'
+            )
             return redirect(
                 url_for(
                     'teacher_upload_marks',
                     class_name=selected_class
                 )
             )
-
         count = process_marks_upload(
             file,
             subject,
@@ -3834,36 +3897,28 @@ def teacher_upload_marks():
             level,
             is_subsidiary
         )
-
         flash(
-            f'{count} marks uploaded for {subject} '
-            f'(Class: {selected_class}, {term} {year}).',
+            f'{count} marks uploaded successfully.',
             'success'
         )
-
         return redirect(
             url_for(
                 'teacher_upload_marks',
                 class_name=selected_class
             )
         )
-
     return render_template(
         f'teacher/upload_marks_{level}.html',
         assigned_class=selected_class,
         current_year=current_year,
         teacher_classes=[
-        {'class_name': c}
-        for c in available_classes
+            {'class_name': c}
+            for c in available_classes
         ],
         selected_class=selected_class,
-        manual_link=url_for(
-        'manual_marks',
-        class_name=selected_class
-      )
-  )
-
-
+        students=students
+    )
+    
 @app.route("/save_olevel_marks", methods=["POST"])
 def save_olevel_marks():
 
