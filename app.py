@@ -1872,15 +1872,24 @@ def toggle_user(user_id):
 @admin_required
 def delete_user(user_id):
 
-    if user_id==session.get('user_id'):
-        flash('Cannot delete your own account.','warning')
+    if user_id == session.get('user_id'):
+        flash('Cannot delete your own account.', 'warning')
         return redirect(url_for('dashboard'))
 
-    execute_db("DELETE FROM users WHERE id=%s",(user_id,))
+    # Delete teacher assignments first
+    execute_db(
+        "DELETE FROM teacher_class_assignments WHERE user_id=%s",
+        (user_id,)
+    )
 
-    flash('User deleted.','success')
+    # Now delete the user
+    execute_db(
+        "DELETE FROM users WHERE id=%s",
+        (user_id,)
+    )
+
+    flash('User deleted.', 'success')
     return redirect(url_for('dashboard'))
-
 
 @app.route('/admin/role_counts')
 def admin_role_counts():
