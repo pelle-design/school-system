@@ -169,10 +169,6 @@
                 <a href="{{ url_for('teacher_upload_marks') }}"><i class="fas fa-upload"></i> Upload Marks</a>
                 <a href="{{ url_for('logout') }}"><i class="fas fa-sign-out-alt"></i> Logout</a>
 
-            {% elif session.role == 'parent' %}
-                <a href="{{ url_for('dashboard') }}"><i class="fas fa-home"></i> Dashboard</a>
-                <a href="{{ url_for('logout') }}"><i class="fas fa-sign-out-alt"></i> Logout</a>
-
             {% elif session.role == 'headteacher' %}
                 <a href="{{ url_for('headteacher_approvals') }}"><i class="fas fa-check-double"></i> Pending Approvals</a>
                 <a href="{{ url_for('headteacher_students') }}"><i class="fas fa-users"></i> View All Students</a>
