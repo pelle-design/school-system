@@ -1663,6 +1663,9 @@ def dashboard():
         )
     elif role == 'bursar':
         return redirect(url_for('bursar_dashboard'))
+
+    elif role =='parent':
+        return redirect(url_for('parent_dashboard'))
     else:
         return render_template(
             'dashboard.html',
