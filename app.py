@@ -7742,7 +7742,7 @@ def parent_dashboard():
     children = cursor.fetchall()
 
     return render_template(
-        'parent/dashboard.html',
+        'dash_parent.html',
         children=children
     )
 
