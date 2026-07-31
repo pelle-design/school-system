@@ -654,7 +654,7 @@ def init_db():
                 REFERENCES inventory_items(id)
         )
     """)
-    cursor.exexute("""CREATE TABLE IF NOT EXISTS payment_requests (
+    cursor.execute("""CREATE TABLE IF NOT EXISTS payment_requests (
 
            id SERIAL PRIMARY KEY,
 
