@@ -142,7 +142,7 @@ def init_db():
             disability TEXT,
             sports_activities TEXT,
             lin TEXT,
-            parent_id INTEGER
+            parent_id INTEGER,
             admission_source TEXT DEFAULT 'local',
             admission_status TEXT DEFAULT 'approved',
             application_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -656,22 +656,22 @@ def init_db():
     """)
     cursor.exexute("""CREATE TABLE IF NOT EXISTS payment_requests (
 
-     id SERIAL PRIMARY KEY,
+           id SERIAL PRIMARY KEY,
 
-    student_id TEXT,
+           student_id TEXT,
 
-    prn TEXT UNIQUE,
+           prn TEXT UNIQUE,
 
-    amount NUMERIC,
+           amount NUMERIC,
 
-    status TEXT DEFAULT 'pending',
+           status TEXT DEFAULT 'pending',
 
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
-    FOREIGN KEY(student_id)
-    REFERENCES students(student_id)
+           FOREIGN KEY(student_id)
+           REFERENCES students(student_id)
 
-) """)
+    ) """)
 
     # HOUSES
     cursor.execute("""
