@@ -5,294 +5,156 @@
 {% block content %}
 
 <style>
+.comment-edit-form{display:block}
+.comment-view-only{display:none}
+.school-header{text-align:center;margin-bottom:20px}
+.school-logo{max-width:100px;height:auto;display:block;margin:0 auto 10px}
+.student-photo{width:100px;height:100px;object-fit:cover;border-radius:10px}
+.stamp{max-width:100px;margin-top:10px}
+.comment-box{border:1px solid #ddd;padding:10px;border-radius:5px;background:#f9f9f9}
 
-    /* ========== BASE STYLES ========== */
+.marks-table{
+width:100%;
+border-collapse:collapse;
+margin-bottom:20px;
+}
 
-    .comment-edit-form { display: block; }
-    .comment-view-only { display: none; }
+.marks-table th,
+.marks-table td{
+text-align:center;
+vertical-align:middle;
+font-size:11px;
+padding:8px 5px;
+border:1px solid #ddd;
+}
 
-    .school-header {
-        text-align: center;
-        margin-bottom: 20px;
-    }
+.marks-table th{
+background:linear-gradient(135deg,#1a237e 0%,#283593 100%);
+color:white;
+font-weight:bold;
+text-transform:uppercase;
+}
 
-    .school-logo {
-        max-width: 100px;
-        height: auto;
-        display: block;
-        margin: 0 auto 10px auto;
-    }
+.marks-table tr:nth-child(even){
+background:#f9f9f9;
+}
 
-    .student-photo {
-        width: 100px;
-        height: 100px;
-        object-fit: cover;
-        border-radius: 10px;
-    }
+.grade-A{color:#2e7d32;font-weight:bold}
+.grade-B{color:#1565c0;font-weight:bold}
+.grade-C{color:#f57c00;font-weight:bold}
+.grade-D{color:#e65100;font-weight:bold}
+.grade-E{color:#9c27b0;font-weight:bold}
+.grade-F{color:#c62828;font-weight:bold}
 
-    .stamp {
-        max-width: 100px;
-        margin-top: 10px;
-    }
+.report-card-container{
+border:2px solid #1a237e;
+border-radius:15px;
+padding:25px;
+background:white;
+}
 
-    .comment-box {
-        border: 1px solid #ddd;
-        padding: 10px;
-        border-radius: 5px;
-        background: #f9f9f9;
-    }
+@media print{
+.no-print,
+.btn,
+form button,
+.action-buttons,
+.comment-edit-form{
+display:none!important;
+}
 
+.sidebar{
+display:none!important;
+}
 
-    /* ========== TABLE ========== */
+.report-card-container{
+border:2px solid black!important;
+box-shadow:none!important;
+}
 
-    .marks-table {
-        width: 100%;
-        border-collapse: collapse;
-        margin-bottom: 20px;
-    }
-
-
-    .marks-table th,
-    .marks-table td {
-
-        text-align: center;
-        vertical-align: middle;
-        font-size: 11px;
-        padding: 8px 5px;
-        border: 1px solid #ddd;
-
-    }
-
-
-    .marks-table th {
-
-        background: linear-gradient(
-            135deg,
-            #1a237e 0%,
-            #283593 100%
-        );
-
-        color: white;
-        font-weight: bold;
-        text-transform: uppercase;
-
-    }
-
-
-    .marks-table tr:nth-child(even){
-
-        background:#f9f9f9;
-
-    }
-
-
-
-    /* ========== GRADES ========== */
-
-    .grade-A { color:#2e7d32; font-weight:bold; }
-    .grade-B { color:#1565c0; font-weight:bold; }
-    .grade-C { color:#f57c00; font-weight:bold; }
-    .grade-D { color:#e65100; font-weight:bold; }
-    .grade-E { color:#9c27b0; font-weight:bold; }
-    .grade-F { color:#c62828; font-weight:bold; }
-
-
-
-    /* ========== CONTAINER ========== */
-
-    .report-card-container {
-
-        border:2px solid #1a237e;
-        border-radius:15px;
-        padding:25px;
-        background:white;
-
-    }
-
-
-
-    @media print {
-
-
-        .no-print,
-        .btn,
-        form button,
-        .action-buttons,
-        .comment-edit-form {
-
-            display:none!important;
-
-        }
-
-
-        .sidebar {
-
-            display:none!important;
-
-        }
-
-
-        .report-card-container {
-
-            border:2px solid black!important;
-            box-shadow:none!important;
-
-        }
-
-
-        .marks-table th,
-        .marks-table td {
-
-            border:1px solid black!important;
-            font-size:9px!important;
-
-        }
-
-
-    }
-
-
+.marks-table th,
+.marks-table td{
+border:1px solid black!important;
+font-size:9px!important;
+}
+}
 </style>
-
-
 
 <div class="report-card-container">
 
+<!-- PRINT BUTTON -->
+<div class="text-end mb-3 no-print">
+<button onclick="window.print()" class="btn btn-primary">
+🖨️ Print Report Card
+</button>
+</div>
 
 <div class="card">
-
-
 <div class="card-body">
 
-
-
 <!-- SCHOOL HEADER -->
-
 <div class="school-header">
 
-
 {% if school_logo_url %}
-
-<img src="{{ school_logo_url }}"
-     class="school-logo"
-     alt="School Logo">
-
+<img src="{{ school_logo_url }}" class="school-logo" alt="School Logo">
 {% else %}
-
-<img src="{{ url_for('static', filename='images/logo.png') }}"
-     class="school-logo"
-     alt="School Logo">
-
+<img src="{{ url_for('static', filename='images/logo.png') }}" class="school-logo" alt="School Logo">
 {% endif %}
 
-
-
-<h2>
-{{ school_name or 'YOUR SCHOOL NAME' }}
-</h2>
-
+<h2>{{ school_name or 'YOUR SCHOOL NAME' }}</h2>
 
 <p>
-
 {{ school_address or 'P.O. Box 123, Kampala, Uganda' }}
-
 |
-
 {{ school_phone or 'Tel: +256 712 345678' }}
-
 |
-
 {{ school_email or 'Email: info@school.com' }}
-
 </p>
-
 
 <hr>
 
-
-<h3>
-END OF TERM REPORT CARD
-</h3>
-
+<h3>END OF TERM REPORT CARD</h3>
 
 </div>
-
-
-
-
 
 <!-- STUDENT DETAILS -->
-
-
 <div class="row mb-4">
 
-
 <div class="col-md-2 text-center">
-
-
-<img src="{{ photo_url or url_for('static', filename='images/default_student.png') }}"
-     class="student-photo"
-     alt="Student Photo">
-
-
+<img src="{{ photo_url or url_for('static', filename='images/default_student.png') }}" class="student-photo" alt="Student Photo">
 </div>
 
-
-
 <div class="col-md-10">
-
 
 <p>
 <strong>Student Number:</strong>
 {{ student_id or '-' }}
 </p>
 
-
-
 <p>
 <strong>Full Name:</strong>
 {{ full_name or '-' }}
 </p>
 
-
-
 <p>
-
 <strong>Class:</strong>
 {{ class_name or '-' }}
-
 &nbsp; | &nbsp;
-
 <strong>Term:</strong>
 {{ term or '-' }}
-
 &nbsp; | &nbsp;
-
 <strong>Year:</strong>
 {{ year or '-' }}
-
 </p>
 
-
 </div>
 
-
 </div>
-
-
-
-
 
 <!-- MARKS TABLE -->
-
-
 <table class="marks-table">
 
-
 <thead>
-
 <tr>
-
 <th>Subject</th>
 <th>AI1</th>
 <th>AI2</th>
@@ -305,438 +167,226 @@ END OF TERM REPORT CARD
 <th>Identifier</th>
 <th>Descriptor</th>
 <th>Teacher Initials</th>
-
-
 </tr>
-
 </thead>
-
-
 
 <tbody>
 
-
 {% for m in marks %}
-
 
 <tr>
 
-
 <td>
-<strong>
-{{ m.subject_name or m.subject or 'N/A' }}
-</strong>
+<strong>{{ m.subject_name or m.subject or 'N/A' }}</strong>
 </td>
 
-
 <td>{{ m.ai1 or '-' }}</td>
-
 <td>{{ m.ai2 or '-' }}</td>
-
 <td>{{ m.ai3 or '-' }}</td>
-
 
 <td>
 {{ m.ai_average|round(1) if m.ai_average is not none else '-' }}
 </td>
 
-
 <td>
 {{ m.ai_contribution|round(1) if m.ai_contribution is not none else '-' }}
 </td>
-
 
 <td>
 {{ m.eot_score|round(1) if m.eot_score is not none else '-' }}
 </td>
 
-
 <td>
 {{ m.total_score|round(1) if m.total_score is not none else '-' }}
 </td>
 
-
 <td class="grade-{{ m.grade }}">
-
 {{ m.grade or '-' }}
-
 </td>
 
-
 <td>
-
 {{ m.identifier|round(2) if m.identifier is not none else '-' }}
-
 </td>
 
-
-
 <td>
-
 {{ m.descriptor or '-' }}
-
 </td>
-
-
 
 <td>
-
 {{ m.teacher_initials or '-' }}
-
 </td>
-
-
 
 </tr>
-
-
 
 {% else %}
 
-
 <tr>
-
 <td colspan="12">
-
 No marks recorded.
-
 </td>
-
 </tr>
-
 
 {% endfor %}
 
-
-
 </tbody>
-
 
 </table>
 <!-- SUMMARY SECTION -->
 
-<table class="summary-table" style="width:100%; margin-top:20px;">
+<table class="summary-table" style="width:100%;margin-top:20px;">
 
 <tr>
 
-
-<td style="width:33%; background:#e8eaf6; padding:10px;">
-
+<td style="width:33%;background:#e8eaf6;padding:10px;">
 <strong>📊 General Average:</strong>
-
 {% if report %}
-    {{ report.avg_out_of_3 or '-' }}
+{{ report.avg_out_of_3 or '-' }}
 {% else %}
-    -
+-
 {% endif %}
-
-
 </td>
 
-
-
-
-<td style="width:33%; background:#e8eaf6; padding:10px;">
-
+<td style="width:33%;background:#e8eaf6;padding:10px;">
 <strong>🎓 General Grade:</strong>
 
-
 {% if report %}
-
 <span class="grade-{{ report.general_grade }}">
-
 {{ report.general_grade or '-' }}
-
 </span>
-
-
 {% else %}
-
 -
-
 {% endif %}
-
 
 </td>
 
-
-
-
-<td style="width:33%; background:#e8eaf6; padding:10px;">
-
+<td style="width:33%;background:#e8eaf6;padding:10px;">
 <strong>📝 Descriptor:</strong>
 
-
 {% if report %}
-
 {{ report.general_descriptor or '-' }}
-
 {% else %}
-
 -
-
 {% endif %}
 
-
 </td>
-
-
 
 </tr>
 
 </table>
 
 
-
-
-
 <!-- COMMENTS SECTION -->
-
 
 <div class="row mt-4">
 
-
 <div class="col-md-6">
 
-
-<strong>
-👩‍🏫 Class Teacher's Comment:
-</strong>
-
-
+<strong>👩‍🏫 Class Teacher's Comment:</strong>
 
 <div class="comment-box">
 
-
 {% if report %}
-
-<p>
-{{ report.teacher_comment or 'No comment yet.' }}
-</p>
-
-
+<p>{{ report.teacher_comment or 'No comment yet.' }}</p>
 {% else %}
-
-
-<p>
-No comment yet.
-</p>
-
-
+<p>No comment yet.</p>
 {% endif %}
 
-
-
 </div>
 
-
 </div>
-
-
-
 
 
 <div class="col-md-6">
 
-
-<strong>
-👨‍🎓 Headteacher's Comment & Stamp
-</strong>
-
-
+<strong>👨‍🎓 Headteacher's Comment & Stamp</strong>
 
 <div class="comment-box">
 
-
 {% if report %}
-
-
-<p>
-
-{{ report.headteacher_comment or 'No comment yet.' }}
-
-</p>
-
-
-
+<p>{{ report.headteacher_comment or 'No comment yet.' }}</p>
 {% else %}
-
-
-<p>
-
-No comment yet.
-
-</p>
-
-
+<p>No comment yet.</p>
 {% endif %}
 
-
 </div>
-
-
 
 
 {% if stamp_url %}
 
-
 <div class="text-center mt-3">
 
-
 <img src="{{ stamp_url }}"
-     class="stamp"
-     style="max-width:80px;"
-     alt="Headteacher Stamp">
-
+class="stamp"
+style="max-width:80px;"
+alt="Headteacher Stamp">
 
 </div>
-
 
 {% endif %}
 
-
-
-
 </div>
 
-
 </div>
-
-
-
-
-
 
 
 <!-- SIGNATURES -->
 
-
 <div class="row mt-5 text-center">
 
+<div class="col-md-4">
+<hr>
+<strong>Class Teacher's Signature</strong>
+</div>
 
 <div class="col-md-4">
-
-
 <hr>
-
-<strong>
-Class Teacher's Signature
-</strong>
-
-
+<strong>Headteacher's Signature</strong>
 </div>
-
-
-
 
 <div class="col-md-4">
-
-
 <hr>
-
-<strong>
-Headteacher's Signature
-</strong>
-
-
+<strong>Parent's Signature</strong>
 </div>
 
-
-
-
-<div class="col-md-4">
-
-
-<hr>
-
-<strong>
-Parent's Signature
-</strong>
-
-
 </div>
-
-
-
-</div>
-
-
-
-
-
 
 
 <!-- TERM DATES -->
 
-
 <div class="row mt-3">
-
 
 <div class="col-md-12 text-center">
 
-
 <p style="font-size:10px;color:#666;">
 
-
-<strong>
-Next Term Begins:
-</strong>
-
-
+<strong>Next Term Begins:</strong>
 {{ next_term_begins or 'To be announced' }}
-
-
 
 |
 
-
-
-<strong>
-Next Term Ends:
-</strong>
-
-
+<strong>Next Term Ends:</strong>
 {{ next_term_ends or 'To be announced' }}
-
-
 
 </p>
 
-
 </div>
 
-
 </div>
-
-
-
-
-
-
 
 
 <!-- FOOTER -->
 
-
 <div class="text-center mt-2"
-     style="font-size:9px;color:#666;">
-
+style="font-size:9px;color:#666;">
 
 Generated on:
-
 {{ generated_date or '-' }}
 
-
 </div>
 
 
-
 </div>
-
 </div>
-
 </div>
-
-
 
 {% endblock %}
