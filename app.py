@@ -7723,6 +7723,30 @@ def management_resend_token(payroll_id):
 
     return redirect(url_for('management_pending_authorizations'))
 
+
+@app.route('/parent/dashboard')
+@login_required
+def parent_dashboard():
+
+    parent_id = session['user_id']
+
+    db = get_db()
+    cursor = db.cursor()
+
+    cursor.execute("""
+        SELECT student_id, full_name, class_name
+        FROM students
+        WHERE parent_id=%s
+    """, (parent_id,))
+
+    children = cursor.fetchall()
+
+    return render_template(
+        'parent/dashboard.html',
+        children=children
+    )
+
+
 # ==================== INVENTORY HELPERS ====================
 def generate_item_code(category_name):
     prefix = category_name[:3].upper()
