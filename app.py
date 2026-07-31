@@ -2632,7 +2632,6 @@ def dos_pending_admissions():
 
     cur.execute("""
         SELECT
-            id,
             student_id,
             full_name,
             sex,
