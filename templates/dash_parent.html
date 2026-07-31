@@ -1,60 +1,327 @@
-```html
-{% extends "base.html" %}
+<!-- SUMMARY SECTION -->
 
-{% block title %}Parent Dashboard{% endblock %}
+<table class="summary-table" style="width:100%; margin-top:20px;">
 
-{% block content %}
+<tr>
 
-<div class="card shadow">
-    <div class="card-header bg-primary text-white">
-        My Children
-    </div>
 
-    <div class="card-body">
+<td style="width:33%; background:#e8eaf6; padding:10px;">
 
-        {% if children %}
+<strong>📊 General Average:</strong>
 
-        <div class="table-responsive">
-            <table class="table table-bordered table-striped">
-                <thead class="table-light">
-                    <tr>
-                        <th>Student ID</th>
-                        <th>Full Name</th>
-                        <th>Class</th>
-                        <th>Action</th>
-                    </tr>
-                </thead>
+{% if report %}
+    {{ report.avg_out_of_3 or '-' }}
+{% else %}
+    -
+{% endif %}
 
-                <tbody>
-                    {% for child in children %}
-                    <tr>
-                        <td>{{ child[0] }}</td>
-                        <td>{{ child[1] }}</td>
-                        <td>{{ child[2] }}</td>
-                        <td>
-                            <a href="{{ url_for('teacher_report_card', student_id=child[0]) }}"
-                               class="btn btn-sm btn-info">
-                                <i class="bi bi-file-earmark-text"></i>
-                                View Report Card
-                            </a>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
 
-            </table>
-        </div>
+</td>
 
-        {% else %}
 
-        <div class="alert alert-info">
-            No children linked to your account.
-        </div>
 
-        {% endif %}
 
-    </div>
+<td style="width:33%; background:#e8eaf6; padding:10px;">
+
+<strong>🎓 General Grade:</strong>
+
+
+{% if report %}
+
+<span class="grade-{{ report.general_grade }}">
+
+{{ report.general_grade or '-' }}
+
+</span>
+
+
+{% else %}
+
+-
+
+{% endif %}
+
+
+</td>
+
+
+
+
+<td style="width:33%; background:#e8eaf6; padding:10px;">
+
+<strong>📝 Descriptor:</strong>
+
+
+{% if report %}
+
+{{ report.general_descriptor or '-' }}
+
+{% else %}
+
+-
+
+{% endif %}
+
+
+</td>
+
+
+
+</tr>
+
+</table>
+
+
+
+
+
+<!-- COMMENTS SECTION -->
+
+
+<div class="row mt-4">
+
+
+<div class="col-md-6">
+
+
+<strong>
+👩‍🏫 Class Teacher's Comment:
+</strong>
+
+
+
+<div class="comment-box">
+
+
+{% if report %}
+
+<p>
+{{ report.teacher_comment or 'No comment yet.' }}
+</p>
+
+
+{% else %}
+
+
+<p>
+No comment yet.
+</p>
+
+
+{% endif %}
+
+
+
 </div>
 
+
+</div>
+
+
+
+
+
+<div class="col-md-6">
+
+
+<strong>
+👨‍🎓 Headteacher's Comment & Stamp
+</strong>
+
+
+
+<div class="comment-box">
+
+
+{% if report %}
+
+
+<p>
+
+{{ report.headteacher_comment or 'No comment yet.' }}
+
+</p>
+
+
+
+{% else %}
+
+
+<p>
+
+No comment yet.
+
+</p>
+
+
+{% endif %}
+
+
+</div>
+
+
+
+
+{% if stamp_url %}
+
+
+<div class="text-center mt-3">
+
+
+<img src="{{ stamp_url }}"
+     class="stamp"
+     style="max-width:80px;"
+     alt="Headteacher Stamp">
+
+
+</div>
+
+
+{% endif %}
+
+
+
+
+</div>
+
+
+</div>
+
+
+
+
+
+
+
+<!-- SIGNATURES -->
+
+
+<div class="row mt-5 text-center">
+
+
+<div class="col-md-4">
+
+
+<hr>
+
+<strong>
+Class Teacher's Signature
+</strong>
+
+
+</div>
+
+
+
+
+<div class="col-md-4">
+
+
+<hr>
+
+<strong>
+Headteacher's Signature
+</strong>
+
+
+</div>
+
+
+
+
+<div class="col-md-4">
+
+
+<hr>
+
+<strong>
+Parent's Signature
+</strong>
+
+
+</div>
+
+
+
+</div>
+
+
+
+
+
+
+
+<!-- TERM DATES -->
+
+
+<div class="row mt-3">
+
+
+<div class="col-md-12 text-center">
+
+
+<p style="font-size:10px;color:#666;">
+
+
+<strong>
+Next Term Begins:
+</strong>
+
+
+{{ next_term_begins or 'To be announced' }}
+
+
+
+|
+
+
+
+<strong>
+Next Term Ends:
+</strong>
+
+
+{{ next_term_ends or 'To be announced' }}
+
+
+
+</p>
+
+
+</div>
+
+
+</div>
+
+
+
+
+
+
+
+
+<!-- FOOTER -->
+
+
+<div class="text-center mt-2"
+     style="font-size:9px;color:#666;">
+
+
+Generated on:
+
+{{ generated_date or '-' }}
+
+
+</div>
+
+
+
+</div>
+
+</div>
+
+</div>
+
+
+
 {% endblock %}
-```
