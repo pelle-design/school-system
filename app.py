@@ -2641,8 +2641,9 @@ def dos_pending_admissions():
             payment_status,
             admission_source
         FROM students
-        WHERE admission_source='online' AND admission_status='pending'
-        ORDER BY id DESC
+        WHERE admission_source='online'
+          AND admission_status='pending'
+        ORDER BY student_id DESC
     """)
 
     applications = cur.fetchall()
