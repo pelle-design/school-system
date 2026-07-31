@@ -142,6 +142,7 @@ def init_db():
             disability TEXT,
             sports_activities TEXT,
             lin TEXT,
+            parent_id INTEGER
             admission_source TEXT DEFAULT 'local',
             admission_status TEXT DEFAULT 'approved',
             application_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -653,7 +654,24 @@ def init_db():
                 REFERENCES inventory_items(id)
         )
     """)
+    cursor.exexute("""CREATE TABLE IF NOT EXISTS payment_requests (
 
+     id SERIAL PRIMARY KEY,
+
+    student_id TEXT,
+
+    prn TEXT UNIQUE,
+
+    amount NUMERIC,
+
+    status TEXT DEFAULT 'pending',
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    FOREIGN KEY(student_id)
+    REFERENCES students(student_id)
+
+) """)
 
     # HOUSES
     cursor.execute("""
@@ -7740,20 +7758,129 @@ def parent_dashboard():
     parent_id = session['user_id']
 
     db = get_db()
-    cursor = db.cursor()
+    cursor = db.cursor(cursor_factory=RealDictCursor)
+
 
     cursor.execute("""
-        SELECT student_id, full_name, class_name
+        SELECT
+            student_id,
+            full_name,
+            class,
+            photo_path,
+            fees_total,
+            fees_paid,
+            fees_balance,
+            payment_status
+
         FROM students
+
         WHERE parent_id=%s
-    """, (parent_id,))
+
+    """,(parent_id,))
+
 
     children = cursor.fetchall()
+
+
+    cursor.close()
+
 
     return render_template(
         'dash_parent.html',
         children=children
     )
+import random
+
+
+@app.route('/parent/generate_prn/<student_id>')
+@login_required
+def generate_prn(student_id):
+
+    parent_id=session['user_id']
+
+    db=get_db()
+    cursor=db.cursor()
+
+
+    cursor.execute("""
+        SELECT fees_balance
+        FROM students
+        WHERE student_id=%s
+        AND parent_id=%s
+
+    """,(student_id,parent_id))
+
+
+    student=cursor.fetchone()
+
+
+    if not student:
+        abort(403)
+
+
+    balance=student[0]
+
+
+    prn="PRN"+str(random.randint(100000000,999999999))
+
+
+    cursor.execute("""
+        INSERT INTO payment_requests
+        (student_id,prn,amount)
+
+        VALUES(%s,%s,%s)
+
+    """,(student_id,prn,balance))
+
+
+    db.commit()
+
+
+    return render_template(
+        'parent/prn.html',
+        prn=prn,
+        amount=balance
+    )
+
+
+@app.route('/parent/fees/<student_id>')
+@login_required
+def parent_fees(student_id):
+
+    parent_id=session['user_id']
+
+    db=get_db()
+    cursor=db.cursor(cursor_factory=RealDictCursor)
+
+
+    cursor.execute("""
+        SELECT
+            full_name,
+            fees_total,
+            fees_paid,
+            fees_balance
+
+        FROM students
+
+        WHERE student_id=%s
+        AND parent_id=%s
+
+    """,(student_id,parent_id))
+
+
+    fees=cursor.fetchone()
+
+
+    if not fees:
+        abort(403)
+
+
+
+    return render_template(
+        'parent/fees.html',
+        fees=fees
+    )
+
 
 
 # ==================== INVENTORY HELPERS ====================
