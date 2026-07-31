@@ -7881,7 +7881,54 @@ def parent_fees(student_id):
         fees=fees
     )
 
+@app.route('/parent/report_card/<student_id>')
+@login_required
+def parent_report_card(student_id):
 
+    parent_id=session['user_id']
+
+    db=get_db()
+    cursor=db.cursor(cursor_factory=RealDictCursor)
+
+
+    # confirm ownership
+    cursor.execute("""
+        SELECT *
+        FROM students
+        WHERE student_id=%s
+        AND parent_id=%s
+
+    """,(student_id,parent_id))
+
+
+    student=cursor.fetchone()
+
+
+    if not student:
+        abort(403)
+
+
+
+    cursor.execute("""
+        SELECT *
+        FROM marks
+
+        WHERE student_id=%s
+
+        ORDER BY subject
+
+    """,(student_id,))
+
+
+    marks=cursor.fetchall()
+
+
+
+    return render_template(
+        'parent/report_card.html',
+        student=student,
+        marks=marks
+    )
 
 # ==================== INVENTORY HELPERS ====================
 def generate_item_code(category_name):
