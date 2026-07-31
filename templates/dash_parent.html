@@ -1,187 +1,226 @@
-<!-- SUMMARY SECTION -->
+{% extends "base.html" %}
 
-<table class="summary-table" style="width:100%; margin-top:20px;">
-
-<tr>
-
-
-<td style="width:33%; background:#e8eaf6; padding:10px;">
-
-<strong>📊 General Average:</strong>
-
-{% if report %}
-    {{ report.avg_out_of_3 or '-' }}
-{% else %}
-    -
-{% endif %}
+{% block title %}
+Parent Dashboard
+{% endblock %}
 
 
-</td>
+{% block content %}
+
+<style>
+
+.parent-header{
+    background:#1a237e;
+    color:white;
+    padding:25px;
+    border-radius:15px;
+    margin-bottom:25px;
+}
+
+
+.child-card{
+
+    border-radius:15px;
+    border:1px solid #ddd;
+    padding:20px;
+    margin-bottom:25px;
+    background:white;
+    box-shadow:0 4px 15px rgba(0,0,0,0.1);
+
+}
+
+
+.student-photo{
+
+    width:100px;
+    height:100px;
+    object-fit:cover;
+    border-radius:50%;
+    border:3px solid #1a237e;
+
+}
+
+
+.balance-box{
+
+    background:#e8eaf6;
+    padding:15px;
+    border-radius:10px;
+
+}
+
+
+.status-paid{
+
+    color:green;
+    font-weight:bold;
+
+}
+
+
+.status-pending{
+
+    color:red;
+    font-weight:bold;
+
+}
+
+
+.action-btn{
+
+    margin:5px;
+
+}
+
+
+</style>
 
 
 
 
-<td style="width:33%; background:#e8eaf6; padding:10px;">
+<div class="parent-header">
 
-<strong>🎓 General Grade:</strong>
+<h2>
+👨‍👩‍👧 Parent Dashboard
+</h2>
+
+<p>
+Welcome. Here you can monitor your child's academic progress and school fees.
+</p>
 
 
-{% if report %}
+</div>
 
-<span class="grade-{{ report.general_grade }}">
 
-{{ report.general_grade or '-' }}
 
+
+
+{% if children %}
+
+
+
+{% for child in children %}
+
+
+
+<div class="child-card">
+
+
+<div class="row">
+
+
+<!-- PHOTO -->
+
+<div class="col-md-3 text-center">
+
+
+<img src="{{ url_for('static',
+filename='uploads/' + child.photo_path) }}"
+class="student-photo"
+alt="Student Photo">
+
+
+<h4 class="mt-3">
+
+{{ child.full_name }}
+
+</h4>
+
+
+<p>
+
+Class:
+<strong>
+{{ child.class }}
+</strong>
+
+</p>
+
+
+</div>
+
+
+
+
+
+<!-- DETAILS -->
+
+
+<div class="col-md-9">
+
+
+<h4>
+📚 Student Information
+</h4>
+
+
+<hr>
+
+
+<div class="row">
+
+
+<div class="col-md-4">
+
+<strong>
+Student ID
+</strong>
+
+<p>
+{{ child.student_id }}
+</p>
+
+
+</div>
+
+
+
+
+<div class="col-md-4">
+
+<strong>
+Class
+</strong>
+
+<p>
+{{ child.class }}
+</p>
+
+</div>
+
+
+
+
+<div class="col-md-4">
+
+<strong>
+Payment Status
+</strong>
+
+
+<p>
+
+
+{% if child.payment_status == 'paid' %}
+
+<span class="status-paid">
+Paid
 </span>
 
 
 {% else %}
 
--
-
-{% endif %}
-
-
-</td>
-
-
-
-
-<td style="width:33%; background:#e8eaf6; padding:10px;">
-
-<strong>📝 Descriptor:</strong>
-
-
-{% if report %}
-
-{{ report.general_descriptor or '-' }}
-
-{% else %}
-
--
-
-{% endif %}
-
-
-</td>
-
-
-
-</tr>
-
-</table>
-
-
-
-
-
-<!-- COMMENTS SECTION -->
-
-
-<div class="row mt-4">
-
-
-<div class="col-md-6">
-
-
-<strong>
-👩‍🏫 Class Teacher's Comment:
-</strong>
-
-
-
-<div class="comment-box">
-
-
-{% if report %}
-
-<p>
-{{ report.teacher_comment or 'No comment yet.' }}
-</p>
-
-
-{% else %}
-
-
-<p>
-No comment yet.
-</p>
+<span class="status-pending">
+{{ child.payment_status }}
+</span>
 
 
 {% endif %}
 
-
-
-</div>
-
-
-</div>
-
-
-
-
-
-<div class="col-md-6">
-
-
-<strong>
-👨‍🎓 Headteacher's Comment & Stamp
-</strong>
-
-
-
-<div class="comment-box">
-
-
-{% if report %}
-
-
-<p>
-
-{{ report.headteacher_comment or 'No comment yet.' }}
 
 </p>
 
 
-
-{% else %}
-
-
-<p>
-
-No comment yet.
-
-</p>
-
-
-{% endif %}
-
-
-</div>
-
-
-
-
-{% if stamp_url %}
-
-
-<div class="text-center mt-3">
-
-
-<img src="{{ stamp_url }}"
-     class="stamp"
-     style="max-width:80px;"
-     alt="Headteacher Stamp">
-
-
-</div>
-
-
-{% endif %}
-
-
-
-
 </div>
 
 
@@ -191,23 +230,29 @@ No comment yet.
 
 
 
+<!-- FEES -->
 
 
-<!-- SIGNATURES -->
+<h4 class="mt-4">
+💰 Fees Information
+</h4>
 
 
-<div class="row mt-5 text-center">
+<div class="balance-box">
+
+
+<div class="row">
 
 
 <div class="col-md-4">
 
-
-<hr>
-
 <strong>
-Class Teacher's Signature
+Total Fees
 </strong>
 
+<br>
+
+UGX {{ child.fees_total or 0 }}
 
 </div>
 
@@ -216,13 +261,13 @@ Class Teacher's Signature
 
 <div class="col-md-4">
 
-
-<hr>
-
 <strong>
-Headteacher's Signature
+Paid
 </strong>
 
+<br>
+
+UGX {{ child.fees_paid or 0 }}
 
 </div>
 
@@ -231,61 +276,16 @@ Headteacher's Signature
 
 <div class="col-md-4">
 
-
-<hr>
-
 <strong>
-Parent's Signature
+Balance
 </strong>
 
+<br>
+
+UGX {{ child.fees_balance or 0 }}
 
 </div>
 
-
-
-</div>
-
-
-
-
-
-
-
-<!-- TERM DATES -->
-
-
-<div class="row mt-3">
-
-
-<div class="col-md-12 text-center">
-
-
-<p style="font-size:10px;color:#666;">
-
-
-<strong>
-Next Term Begins:
-</strong>
-
-
-{{ next_term_begins or 'To be announced' }}
-
-
-
-|
-
-
-
-<strong>
-Next Term Ends:
-</strong>
-
-
-{{ next_term_ends or 'To be announced' }}
-
-
-
-</p>
 
 
 </div>
@@ -298,29 +298,88 @@ Next Term Ends:
 
 
 
+<!-- ACTIONS -->
 
 
-<!-- FOOTER -->
+<div class="mt-4">
 
 
-<div class="text-center mt-2"
-     style="font-size:9px;color:#666;">
+<a href="{{ url_for('parent_report_card',
+student_id=child.student_id) }}"
+class="btn btn-primary action-btn">
 
 
-Generated on:
+📄 View Report Card
 
-{{ generated_date or '-' }}
+
+</a>
+
+
+
+
+<a href="{{ url_for('parent_fees',
+student_id=child.student_id) }}"
+class="btn btn-success action-btn">
+
+
+💰 View Fees
+
+
+</a>
+
+
+
+
+{% if child.fees_balance and child.fees_balance > 0 %}
+
+
+<a href="{{ url_for('generate_prn',
+student_id=child.student_id) }}"
+class="btn btn-warning action-btn">
+
+
+🧾 Generate PRN
+
+
+</a>
+
+
+{% endif %}
+
+
 
 
 </div>
 
 
 
-</div>
 
 </div>
 
+
 </div>
+
+
+</div>
+
+
+
+{% endfor %}
+
+
+
+{% else %}
+
+
+
+<div class="alert alert-warning">
+
+No children linked to this parent account.
+
+</div>
+
+
+{% endif %}
 
 
 
