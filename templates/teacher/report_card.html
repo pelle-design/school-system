@@ -299,7 +299,9 @@ No marks recorded.
 
 <div class="row mt-4">
 
+
 <!-- CLASS TEACHER -->
+
 <div class="col-md-6">
 
 <table style="width:100%;">
@@ -307,100 +309,471 @@ No marks recorded.
 <tr>
 
 <td style="width:70%;vertical-align:top;">
+
 
 <strong>👩‍🏫 Class Teacher's Comment:</strong>
 
-{% if report %}
-<p>{{ report.teacher_comment or 'No comment yet.' }}</p>
+
+<div class="comment-edit-form">
+
+
+{% if can_edit_class_comment %}
+
+
+{% if report and report.teacher_comment %}
+
+
+<p class="mt-2">
+{{ report.teacher_comment }}
+</p>
+
+
+<form method="POST"
+action="{{ url_for('teacher_save_comment') }}"
+class="mt-2 no-print">
+
+
+<input type="hidden"
+name="student_id"
+value="{{ student_id }}">
+
+
+<input type="hidden"
+name="term"
+value="{{ term }}">
+
+
+<input type="hidden"
+name="year"
+value="{{ year }}">
+
+
+
+<select name="comment"
+class="form-select mb-2"
+id="classCommentSelect"
+onchange="toggleClassCustom()">
+
+
+
+<option value="">
+-- Edit Comment --
+</option>
+
+
+
+{% for c in predefined_class_comments %}
+
+<option value="{{ c.comment_text }}">
+{{ c.comment_text }}
+</option>
+
+{% endfor %}
+
+
+
+<option value="custom">
+-- Custom Comment --
+</option>
+
+
+</select>
+
+
+
+<div id="classCustomDiv"
+style="display:none;">
+
+
+<textarea name="custom_comment"
+class="form-control"
+rows="3"
+placeholder="Enter custom comment..."></textarea>
+
+
+</div>
+
+
+
+<button type="submit"
+class="btn btn-sm btn-primary mt-2">
+
+Update Comment
+
+</button>
+
+
+
+</form>
+
+
 {% else %}
-<p>No comment yet.</p>
+
+
+
+<form method="POST"
+action="{{ url_for('teacher_save_comment') }}"
+class="mt-2 no-print">
+
+
+<input type="hidden"
+name="student_id"
+value="{{ student_id }}">
+
+
+<input type="hidden"
+name="term"
+value="{{ term }}">
+
+
+<input type="hidden"
+name="year"
+value="{{ year }}">
+
+
+
+<select name="comment"
+class="form-select mb-2"
+id="classCommentSelect"
+onchange="toggleClassCustom()">
+
+
+
+<option value="">
+-- Select Predefined Comment --
+</option>
+
+
+
+{% for c in predefined_class_comments %}
+
+<option value="{{ c.comment_text }}">
+{{ c.comment_text }}
+</option>
+
+{% endfor %}
+
+
+
+<option value="custom">
+-- Custom Comment --
+</option>
+
+
+</select>
+
+
+
+<div id="classCustomDiv"
+style="display:none;">
+
+
+<textarea name="custom_comment"
+class="form-control"
+rows="3"
+placeholder="Enter custom comment..."></textarea>
+
+
+</div>
+
+
+
+<button type="submit"
+class="btn btn-sm btn-primary mt-2">
+
+Save Comment
+
+</button>
+
+
+
+</form>
+
+
 {% endif %}
 
-</td>
-
-<td style="width:30%;text-align:center;vertical-align:bottom;">
-
-<hr>
-<strong>Class Teacher's Signature</strong>
-
-</td>
-
-</tr>
-
-</table>
-
-</div>
 
 
-<!-- HEADTEACHER -->
-<div class="col-md-6">
-
-<table style="width:100%;">
-
-<tr>
-
-<td style="width:70%;vertical-align:top;">
-
-<strong>👨‍🎓 Headteacher's Comment:</strong>
-
-{% if report %}
-<p>{{ report.headteacher_comment or 'No comment yet.' }}</p>
 {% else %}
-<p>No comment yet.</p>
-{% endif %}
 
-</td>
 
-<td style="width:30%;text-align:center;vertical-align:bottom;">
 
-<hr>
-<strong>Headteacher's Signature</strong>
+<p class="mt-2">
 
-</td>
-
-</tr>
-
-</table>
-
-</div>
-
-</div>
-<!-- TERM DATES -->
-
-<div class="row mt-3">
-
-<div class="col-md-12 text-center">
-
-<p style="font-size:10px;color:#666;">
-
-<strong>Next Term Begins:</strong>
-{{ next_term_begins or 'To be announced' }}
-
-|
-
-<strong>Next Term Ends:</strong>
-{{ next_term_ends or 'To be announced' }}
+{{ report.teacher_comment if report else 'No comment yet.' }}
 
 </p>
 
-</div>
-
-</div>
 
 
-<!-- FOOTER -->
-
-<div class="text-center mt-2"
-style="font-size:9px;color:#666;">
-
-Generated on:
-{{ generated_date or '-' }}
-
-</div>
+{% endif %}
 
 
 </div>
-</div>
+
+
+
+</td>
+
+
+
+
+<td style="width:30%;text-align:center;vertical-align:bottom;">
+
+
+<hr>
+
+
+<strong>
+Class Teacher's Signature
+</strong>
+
+
+</td>
+
+
+</tr>
+
+
+</table>
+
+
 </div>
 
-{% endblock %}
+
+
+
+
+
+
+<!-- HEADTEACHER -->
+
+
+<div class="col-md-6">
+
+
+<table style="width:100%;">
+
+
+<tr>
+
+
+<td style="width:70%;vertical-align:top;">
+
+
+
+<strong>👨‍🎓 Headteacher's Comment:</strong>
+
+
+
+<div class="comment-edit-form">
+
+
+{% if can_edit_head_comment %}
+
+
+
+<p class="mt-2">
+
+{{ report.headteacher_comment if report else 'No comment yet.' }}
+
+</p>
+
+
+
+<form method="POST"
+action="{{ url_for('headteacher_update_comment') }}"
+class="mt-2 no-print">
+
+
+
+<input type="hidden"
+name="student_id"
+value="{{ student_id }}">
+
+
+<input type="hidden"
+name="term"
+value="{{ term }}">
+
+
+<input type="hidden"
+name="year"
+value="{{ year }}">
+
+
+
+<select name="comment"
+class="form-select mb-2"
+id="headCommentSelect"
+onchange="toggleHeadCustom()">
+
+
+
+<option value="">
+-- Select Predefined Comment --
+</option>
+
+
+
+{% for c in predefined_head_comments %}
+
+<option value="{{ c.comment_text }}">
+{{ c.comment_text }}
+</option>
+
+{% endfor %}
+
+
+
+<option value="custom">
+-- Custom Comment --
+</option>
+
+
+
+</select>
+
+
+
+<div id="headCustomDiv"
+style="display:none;">
+
+
+<textarea name="custom_comment"
+class="form-control"
+rows="3"
+placeholder="Enter custom comment..."></textarea>
+
+
+</div>
+
+
+
+<button type="submit"
+class="btn btn-sm btn-success mt-2">
+
+Save Comment
+
+</button>
+
+
+
+</form>
+
+
+
+{% else %}
+
+
+
+<p class="mt-2">
+
+{{ report.headteacher_comment if report else 'No comment yet.' }}
+
+</p>
+
+
+
+{% endif %}
+
+
+</div>
+
+
+
+</td>
+
+
+
+
+
+<td style="width:30%;text-align:center;vertical-align:bottom;">
+
+
+<hr>
+
+
+<strong>
+Headteacher's Signature
+</strong>
+
+
+
+{% if stamp_url %}
+
+
+<div class="mt-2">
+
+
+<img src="{{ stamp_url }}"
+class="stamp"
+style="max-width:80px;"
+alt="Headteacher Stamp">
+
+
+</div>
+
+
+{% endif %}
+
+
+
+</td>
+
+
+
+</tr>
+
+
+</table>
+
+
+</div>
+
+
+</div>
+<script>
+
+function toggleClassCustom(){
+
+var select=document.getElementById('classCommentSelect');
+
+var customDiv=document.getElementById('classCustomDiv');
+
+
+if(customDiv){
+
+customDiv.style.display =
+(select.value=='custom')
+?'block'
+:'none';
+
+}
+
+}
+
+
+
+function toggleHeadCustom(){
+
+var select=document.getElementById('headCommentSelect');
+
+var customDiv=document.getElementById('headCustomDiv');
+
+
+if(customDiv){
+
+customDiv.style.display =
+(select.value=='custom')
+?'block'
+:'none';
+
+}
+
+}
+
+</script>
+
+{ %endblock %}
+  
