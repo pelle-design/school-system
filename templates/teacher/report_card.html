@@ -226,9 +226,7 @@ END OF TERM REPORT CARD
 {{ m.grade or '-' }}
 </td>
 
-<td>
-{{ m.identifier|round(2) if m.identifier is not none else '-' }}
-</td>
+{{ m.identifier if m.identifier else '-' }}
 
 <td>
 {{ m.descriptor or '-' }}
