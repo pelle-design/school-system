@@ -5401,7 +5401,7 @@ def teacher_report_card(student_id):
         general_grade, general_descriptor = get_olevel_grade_details(
             general_average
         )
-            cur.close()
+        cur.close()
 
         return render_template(
             'teacher/report_card.html',
