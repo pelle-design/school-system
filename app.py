@@ -3451,6 +3451,35 @@ def dos_schedules():
         schedules=schedules
     )
 
+def get_olevel_grade_details(score):
+    db = get_db_dict()
+    cur = db.cursor()
+
+    cur.execute(
+        """
+        SELECT grade, descriptor
+        FROM grading_system
+        WHERE %s BETWEEN min_score AND max_score
+        LIMIT 1
+        """,
+        (score,)
+    )
+
+    result = cur.fetchone()
+
+    cur.close()
+
+    if result:
+        return (
+            result['grade'],
+            result['descriptor']
+        )
+
+    return (
+        '-',
+        '-'
+    )
+
 # ==================== O-LEVEL GRADING MANAGEMENT ====================
 
 @app.route('/dos/olevel_grading', methods=['GET', 'POST'])
@@ -4656,7 +4685,10 @@ def teacher_upload_marks():
     
 @app.route("/save_olevel_marks", methods=["POST"])
 def save_olevel_marks():
-    if not check_permission(['classteacher','subject_teacher','dos']):
+
+    if not check_permission(
+        ['classteacher','subject_teacher','dos']
+    ):
         abort(403)
 
     db = get_db_dict()
@@ -4666,16 +4698,32 @@ def save_olevel_marks():
     term = request.form.get('term')
     year = request.form.get('year')
 
-    student_ids = request.form.getlist("student_id[]")
+    student_ids = request.form.getlist(
+        "student_id[]"
+    )
 
-    ai1 = to_number(request.form.getlist("ai1[]"))
-    ai2 = to_number(request.form.getlist("ai2[]"))
-    ai3 = to_number(request.form.getlist("ai3[]"))
-    eot = to_number(request.form.getlist("eot_score[]"))
+    ai1 = to_number(
+        request.form.getlist("ai1[]")
+    )
 
-    initials = request.form.getlist("teacher_initials[]")
+    ai2 = to_number(
+        request.form.getlist("ai2[]")
+    )
 
-    for sid,a1,a2,a3,e,init in zip(
+    ai3 = to_number(
+        request.form.getlist("ai3[]")
+    )
+
+    eot = to_number(
+        request.form.getlist("eot_score[]")
+    )
+
+    initials = request.form.getlist(
+        "teacher_initials[]"
+    )
+
+
+    for sid, a1, a2, a3, e, init in zip(
         student_ids,
         ai1,
         ai2,
@@ -4686,16 +4734,17 @@ def save_olevel_marks():
 
         ai_scores = []
 
-        if a1 is not None:
+        if a1 not in [None, '']:
             ai_scores.append(float(a1))
 
-        if a2 is not None:
+        if a2 not in [None, '']:
             ai_scores.append(float(a2))
 
-        if a3 is not None:
+        if a3 not in [None, '']:
             ai_scores.append(float(a3))
 
 
+        # Average only available AIs
         ai_average = (
             sum(ai_scores) / len(ai_scores)
             if ai_scores
@@ -4703,10 +4752,10 @@ def save_olevel_marks():
         )
 
 
-        # AI contributes 20%
+        # AI contribution out of 20%
         ai_contribution = (
             (ai_average / 3) * 20
-            if ai_scores
+            if ai_average > 0
             else 0
         )
 
@@ -4714,25 +4763,25 @@ def save_olevel_marks():
         # EOT contributes 80%
         eot_contribution = (
             float(e) * 0.8
-            if e is not None
+            if e not in [None, '']
             else 0
         )
 
 
         total_score = (
-            ai_contribution + eot_contribution
+            ai_contribution +
+            eot_contribution
         )
 
 
-        # Grade and descriptor from DOS grading table
-        grade, descriptor = get_grade_and_descriptor(
+        grade, descriptor = get_olevel_grade_details(
             total_score
         )
 
 
-        # Identifier from DOS identifier grading
-        identifier = get_identifier(
-            total_score
+        identifier = round(
+            (total_score / 100) * 3,
+            2
         )
 
 
@@ -4768,17 +4817,17 @@ def save_olevel_marks():
 
             DO UPDATE SET
 
-                ai1=%s,
-                ai2=%s,
-                ai3=%s,
-                ai_average=%s,
-                ai_contribution=%s,
-                eot_score=%s,
-                total_score=%s,
-                grade=%s,
-                identifier=%s,
-                descriptor=%s,
-                teacher_initials=%s
+                ai1=EXCLUDED.ai1,
+                ai2=EXCLUDED.ai2,
+                ai3=EXCLUDED.ai3,
+                ai_average=EXCLUDED.ai_average,
+                ai_contribution=EXCLUDED.ai_contribution,
+                eot_score=EXCLUDED.eot_score,
+                total_score=EXCLUDED.total_score,
+                grade=EXCLUDED.grade,
+                identifier=EXCLUDED.identifier,
+                descriptor=EXCLUDED.descriptor,
+                teacher_initials=EXCLUDED.teacher_initials
 
             """,
 
@@ -4803,24 +4852,7 @@ def save_olevel_marks():
                 init,
 
                 term,
-                year,
-
-
-                a1,
-                a2,
-                a3,
-
-                ai_average,
-                ai_contribution,
-
-                e,
-                total_score,
-
-                grade,
-                identifier,
-                descriptor,
-
-                init
+                year
             )
         )
 
