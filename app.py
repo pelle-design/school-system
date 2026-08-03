@@ -4656,10 +4656,7 @@ def teacher_upload_marks():
     
 @app.route("/save_olevel_marks", methods=["POST"])
 def save_olevel_marks():
-
-    if not check_permission(
-        ['classteacher','subject_teacher','dos']
-    ):
+    if not check_permission(['classteacher','subject_teacher','dos']):
         abort(403)
 
     db = get_db_dict()
@@ -4669,195 +4666,172 @@ def save_olevel_marks():
     term = request.form.get('term')
     year = request.form.get('year')
 
-    student_ids = request.form.getlist(
-        "student_id[]"
-    )
+    student_ids = request.form.getlist("student_id[]")
 
-    ai1 = to_number(
-        request.form.getlist("ai1[]")
-    )
+    ai1 = to_number(request.form.getlist("ai1[]"))
+    ai2 = to_number(request.form.getlist("ai2[]"))
+    ai3 = to_number(request.form.getlist("ai3[]"))
+    eot = to_number(request.form.getlist("eot_score[]"))
 
-    ai2 = to_number(
-        request.form.getlist("ai2[]")
-    )
-
-    ai3 = to_number(
-        request.form.getlist("ai3[]")
-    )
-
-    eot = to_number(
-        request.form.getlist("eot_score[]")
-    )
-
-    initials = request.form.getlist(
-        "teacher_initials[]"
-    )
-
+    initials = request.form.getlist("teacher_initials[]")
 
     for sid,a1,a2,a3,e,init in zip(
-    student_ids,
-    ai1,
-    ai2,
-    ai3,
-    eot,
-    initials
-):
-    ai_scores = []
+        student_ids,
+        ai1,
+        ai2,
+        ai3,
+        eot,
+        initials
+    ):
 
-    if a1 is not None and ai1 != '':
-        ai_scores.append(float(ai1))
+        ai_scores = []
 
-    if ai2 is not None and ai2 != '':
-        ai_scores.append(float(ai2))
+        if a1 is not None:
+            ai_scores.append(float(a1))
 
-    if ai3 is not None and ai3 != '':
-        ai_scores.append(float(ai3))
+        if a2 is not None:
+            ai_scores.append(float(a2))
 
-    ai_average = (
-        sum(ai_scores) / len(ai_scores)
-        if ai_scores
-        else 0
-    )
+        if a3 is not None:
+            ai_scores.append(float(a3))
 
-    # AI contribution is out of 20% #
-    ai_contribution = (
-        (ai_average / 3) * 20
-        if ai_average
-        else 0
-    )
 
-    # EOT contributes 60% #
-    eot_contribution = (
-        float(e) * 0.8
-        if e is not None and e != ''
-        else 0
-    )
+        ai_average = (
+            sum(ai_scores) / len(ai_scores)
+            if ai_scores
+            else 0
+        )
 
-    total_score = ai_contribution + eot_contribution
 
-        # ===========================
-        # GRADE + DESCRIPTOR
-        # ===========================
+        # AI contributes 20%
+        ai_contribution = (
+            (ai_average / 3) * 20
+            if ai_scores
+            else 0
+        )
 
+
+        # EOT contributes 80%
+        eot_contribution = (
+            float(e) * 0.8
+            if e is not None
+            else 0
+        )
+
+
+        total_score = (
+            ai_contribution + eot_contribution
+        )
+
+
+        # Grade and descriptor from DOS grading table
         grade, descriptor = get_grade_and_descriptor(
             total_score
         )
 
 
-        # ===========================
-        # IDENTIFIER
-        # ===========================
-
-        identifier = (
-            round(total_score / 10,2)
-            if total_score
-            else 0
+        # Identifier from DOS identifier grading
+        identifier = get_identifier(
+            total_score
         )
 
 
         cursor.execute(
-        """
-        INSERT INTO marks
-        (
-            student_id,
-            subject,
-            ai1,
-            ai2,
-            ai3,
-            ai_average,
-            ai_contribution,
-            eot_score,
-            total_score,
-            grade,
-            identifier,
-            descriptor,
-            teacher_initials,
-            term,
-            year
-        )
+            """
+            INSERT INTO marks
+            (
+                student_id,
+                subject,
+                ai1,
+                ai2,
+                ai3,
+                ai_average,
+                ai_contribution,
+                eot_score,
+                total_score,
+                grade,
+                identifier,
+                descriptor,
+                teacher_initials,
+                term,
+                year
+            )
+            VALUES
+            (
+                %s,%s,%s,%s,%s,
+                %s,%s,%s,%s,
+                %s,%s,%s,%s,
+                %s,%s
+            )
 
-        VALUES
-        (
-            %s,%s,%s,%s,%s,
-            %s,%s,%s,%s,
-            %s,%s,%s,%s,
-            %s,%s
-        )
+            ON CONFLICT(student_id,subject,term,year)
 
-        ON CONFLICT(student_id,subject,term,year)
+            DO UPDATE SET
 
-        DO UPDATE SET
+                ai1=%s,
+                ai2=%s,
+                ai3=%s,
+                ai_average=%s,
+                ai_contribution=%s,
+                eot_score=%s,
+                total_score=%s,
+                grade=%s,
+                identifier=%s,
+                descriptor=%s,
+                teacher_initials=%s
 
-            ai1=%s,
-            ai2=%s,
-            ai3=%s,
-            ai_average=%s,
-            ai_contribution=%s,
-            eot_score=%s,
-            total_score=%s,
-            grade=%s,
-            identifier=%s,
-            descriptor=%s,
-            teacher_initials=%s
+            """,
 
-        """,
+            (
+                sid,
+                subject,
 
-        (
+                a1,
+                a2,
+                a3,
 
-        sid,
-        subject,
+                ai_average,
+                ai_contribution,
 
-        a1,
-        a2,
-        a3,
+                e,
+                total_score,
 
-        ai_average,
-        ai_contribution,
+                grade,
+                identifier,
+                descriptor,
 
-        e,
-        total_score,
+                init,
 
-        grade,
-        identifier,
-        descriptor,
-
-        init,
-
-        term,
-        year,
+                term,
+                year,
 
 
-        # UPDATE VALUES
+                a1,
+                a2,
+                a3,
 
-        a1,
-        a2,
-        a3,
+                ai_average,
+                ai_contribution,
 
-        ai_average,
-        ai_contribution,
+                e,
+                total_score,
 
-        e,
-        total_score,
+                grade,
+                identifier,
+                descriptor,
 
-        grade,
-        identifier,
-        descriptor,
-
-        init
-
-        )
+                init
+            )
         )
 
 
     db.commit()
     cursor.close()
 
-
     flash(
         "O-Level marks entered successfully.",
         "success"
     )
-
 
     return redirect(
         url_for(
