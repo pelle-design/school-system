@@ -257,7 +257,7 @@ No marks recorded.
 
 <tr>
 
-<td style="width:33%;background:#e8eaf6;padding:10px;">
+<td style="width:25%;background:#e8eaf6;padding:10px;">
 <strong>📊 General Average:</strong>
 {% if report %}
 {{ report.avg_out_of_3 or '-' }}
@@ -266,7 +266,7 @@ No marks recorded.
 {% endif %}
 </td>
 
-<td style="width:33%;background:#e8eaf6;padding:10px;">
+<td style="width:25%;background:#e8eaf6;padding:10px;">
 <strong>🎓 General Grade:</strong>
 
 {% if report %}
@@ -279,11 +279,22 @@ No marks recorded.
 
 </td>
 
-<td style="width:33%;background:#e8eaf6;padding:10px;">
+<td style="width:25%;background:#e8eaf6;padding:10px;">
 <strong>📝 Descriptor:</strong>
 
 {% if report %}
 {{ report.general_descriptor or '-' }}
+{% else %}
+-
+{% endif %}
+
+</td>
+
+<td style="width:25%;background:#e8eaf6;padding:10px;">
+<strong>📌 Identifier:</strong>
+
+{% if report %}
+{{ report.general_identifier or '-' }}
 {% else %}
 -
 {% endif %}
