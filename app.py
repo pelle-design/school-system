@@ -4894,6 +4894,7 @@ def save_olevel_marks():
             class_name=session.get('selected_class')
         )
     )
+
 @app.route('/teacher/report_card/<student_id>')
 def teacher_report_card(student_id):
     if not check_permission(['classteacher','subject_teacher','parent','dos','headteacher']):
@@ -4903,10 +4904,61 @@ def teacher_report_card(student_id):
     db = get_db_dict()
     cur = db.cursor()
 
+    if role in ['classteacher','subject_teacher']:
+        selected_class = session.get('selected_class')
+
+        if not selected_class:
+            flash('No class selected','danger')
+            return redirect(url_for('teacher_students'))
+
+        cur.execute(
+            "SELECT class FROM students WHERE student_id=%s",
+            (student_id,)
+        )
+
+        res = cur.fetchone()
+
+        if not res or res['class'] != selected_class:
+            flash('Student not in your class.','danger')
+            return redirect(url_for('teacher_students'))
+
+    elif role == 'parent':
+        parent_phone = session.get('phone')
+
+        if not parent_phone:
+            flash('No phone linked.','danger')
+            return redirect(url_for('dashboard'))
+
+        cur.execute(
+            "SELECT parent_phone FROM students WHERE student_id=%s",
+            (student_id,)
+        )
+
+        res = cur.fetchone()
+
+        if not res or res['parent_phone'] != parent_phone:
+            flash('Not authorized.','danger')
+            return redirect(url_for('dashboard'))
+
+    elif role in ['dos','headteacher']:
+        cur.execute(
+            "SELECT class FROM students WHERE student_id=%s",
+            (student_id,)
+        )
+
+        if not cur.fetchone():
+            flash('Student not found.','danger')
+            return redirect(url_for('dashboard'))
+
     cur.execute(
-        "SELECT full_name,class,photo_path FROM students WHERE student_id=%s",
+        """
+        SELECT full_name,class,photo_path
+        FROM students
+        WHERE student_id=%s
+        """,
         (student_id,)
     )
+
     student = cur.fetchone()
 
     if not student:
@@ -4917,56 +4969,39 @@ def teacher_report_card(student_id):
     class_name = student['class']
     photo_url = get_photo_url(student['photo_path'])
 
-    if role in ['classteacher','subject_teacher']:
-        selected_class = session.get('selected_class')
-        if not selected_class:
-            flash('No class selected','danger')
-            return redirect(url_for('teacher_students'))
-
-        if selected_class != class_name:
-            flash('Student not in your class.','danger')
-            return redirect(url_for('teacher_students'))
-
-    elif role == 'parent':
-        parent_phone = session.get('phone')
-        cur.execute(
-            "SELECT parent_phone FROM students WHERE student_id=%s",
-            (student_id,)
-        )
-        res = cur.fetchone()
-        if not parent_phone or not res or res['parent_phone'] != parent_phone:
-            flash('Not authorized.','danger')
-            return redirect(url_for('dashboard'))
-
-    elif role in ['dos','headteacher']:
-        pass
-
     term = request.args.get('term','Term 1')
     year = request.args.get('year',datetime.now().year)
 
     cur.execute(
         """
-        SELECT school_name,school_address,school_phone,
-               school_email,logo_url
+        SELECT school_name,
+               school_address,
+               school_phone,
+               school_email,
+               logo_url
         FROM school_settings
         WHERE id=1
         """
     )
+
     school = cur.fetchone()
 
     school_name = school['school_name'] if school else 'YOUR SCHOOL NAME'
-    school_address = school['school_address'] if school else 'P.O. Box 123'
-    school_phone = school['school_phone'] if school else ''
-    school_email = school['school_email'] if school else ''
+    school_address = school['school_address'] if school else 'P.O. Box 123, Kampala, Uganda'
+    school_phone = school['school_phone'] if school else 'Tel: +256 712 345678'
+    school_email = school['school_email'] if school else 'Email: info@school.com'
     school_logo_url = school['logo_url'] if school else url_for('static',filename='images/logo.png')
 
     cur.execute(
         """
-        SELECT next_term_begins,next_term_ends,headteacher_stamp
+        SELECT next_term_begins,
+               next_term_ends,
+               headteacher_stamp
         FROM school_settings
         WHERE id=1
         """
     )
+
     settings = cur.fetchone()
 
     next_term_begins = settings['next_term_begins'] if settings else None
@@ -4980,23 +5015,29 @@ def teacher_report_card(student_id):
 
     cur.execute(
         """
-        SELECT comment,headteacher_comment,
+        SELECT comment,
+               headteacher_comment,
                class_teacher_comment_locked,
                headteacher_comment_locked
         FROM teacher_comments
-        WHERE student_id=%s AND term=%s AND year=%s
+        WHERE student_id=%s
+        AND term=%s
+        AND year=%s
         """,
         (student_id,term,year)
     )
+
     comments = cur.fetchone()
 
     teacher_comment = comments['comment'] if comments else ''
     headteacher_comment = comments['headteacher_comment'] if comments else ''
+
     teacher_comment_locked = comments['class_teacher_comment_locked'] if comments else 0
     headteacher_comment_locked = comments['headteacher_comment_locked'] if comments else 0
 
     can_edit_class_comment = role == 'classteacher' and not teacher_comment_locked
     can_edit_head_comment = role == 'headteacher' and not headteacher_comment_locked
+
     can_view_only = role in ['subject_teacher','parent','dos']
 
     predefined_class_comments = get_predefined_comments('class_teacher')
@@ -5011,15 +5052,21 @@ def teacher_report_card(student_id):
             and len(class_upper)>=2
             and class_upper[1] in ['5','6']
         )
-    )
-
+    )    
     if is_alevel:
         cur.execute(
             """
-            SELECT subject,paper1,paper2,total_score,
-                   grade,points,teacher_initials
+            SELECT subject,
+                   paper1,
+                   paper2,
+                   total_score,
+                   grade,
+                   points,
+                   teacher_initials
             FROM marks
-            WHERE student_id=%s AND term=%s AND year=%s
+            WHERE student_id=%s
+            AND term=%s
+            AND year=%s
             ORDER BY subject
             """,
             (student_id,term,year)
@@ -5028,9 +5075,10 @@ def teacher_report_card(student_id):
         marks = cur.fetchall()
 
         total_points = sum(
-            m['points'] for m in marks
+            m['points']
+            for m in marks
             if m['points'] is not None
-        )
+        ) if marks else 0
 
         cur.close()
 
@@ -5062,12 +5110,21 @@ def teacher_report_card(student_id):
             predefined_class_comments=predefined_class_comments,
             predefined_head_comments=predefined_head_comments
         )
+
     else:
         cur.execute(
             """
-            SELECT subject,ai1,ai2,ai3,ai_average,
-                   ai_contribution,eot_score,total_score,
-                   grade,identifier,descriptor,
+            SELECT subject,
+                   ai1,
+                   ai2,
+                   ai3,
+                   ai_average,
+                   ai_contribution,
+                   eot_score,
+                   total_score,
+                   grade,
+                   identifier,
+                   descriptor,
                    teacher_initials
             FROM marks
             WHERE student_id=%s
@@ -5080,29 +5137,27 @@ def teacher_report_card(student_id):
 
         marks = cur.fetchall()
 
-        updated_marks = []
-
         for m in marks:
-            ai_scores = [
-                float(m['ai1']) if m['ai1'] is not None else None,
-                float(m['ai2']) if m['ai2'] is not None else None,
-                float(m['ai3']) if m['ai3'] is not None else None
+
+            ai_values = [
+                m['ai1'],
+                m['ai2'],
+                m['ai3']
             ]
 
-            ai_scores = [
-                x for x in ai_scores
+            ai_values = [
+                float(x)
+                for x in ai_values
                 if x is not None
             ]
 
             ai_average = (
-                sum(ai_scores) / len(ai_scores)
-                if ai_scores
+                sum(ai_values) / len(ai_values)
+                if ai_values
                 else 0
             )
 
-            ai_contribution = (
-                (ai_average / 100) * 20
-            )
+            ai_contribution = ai_average * 0.2
 
             eot_score = (
                 float(m['eot_score'])
@@ -5112,55 +5167,95 @@ def teacher_report_card(student_id):
 
             total_score = (
                 ai_contribution +
-                ((eot_score / 100) * 80)
+                (eot_score * 0.6)
             )
 
-            grade, descriptor = get_grade_and_descriptor(
-                total_score
+            cur.execute(
+                """
+                SELECT grade,descriptor
+                FROM grading_system
+                WHERE %s BETWEEN min_score AND max_score
+                LIMIT 1
+                """,
+                (total_score,)
             )
 
-            identifier = get_identifier(
-                total_score
+            grade_row = cur.fetchone()
+
+            grade = grade_row['grade'] if grade_row else ''
+            descriptor = grade_row['descriptor'] if grade_row else ''
+
+            cur.execute(
+                """
+                SELECT descriptor
+                FROM identifier_grading
+                WHERE %s BETWEEN min_value AND max_value
+                LIMIT 1
+                """,
+                (total_score,)
             )
 
-            updated_marks.append(
-                {
-                    'subject': m['subject'],
-                    'ai1': m['ai1'],
-                    'ai2': m['ai2'],
-                    'ai3': m['ai3'],
-                    'ai_average': round(ai_average,2),
-                    'ai_contribution': round(ai_contribution,2),
-                    'eot_score': eot_score,
-                    'total_score': round(total_score,2),
-                    'grade': grade,
-                    'descriptor': descriptor,
-                    'identifier': identifier,
-                    'teacher_initials': m['teacher_initials']
-                }
-            )
+            identifier_row = cur.fetchone()
 
-        marks = updated_marks
+            identifier = identifier_row['descriptor'] if identifier_row else ''
+
+            m['ai_average'] = round(ai_average,2)
+            m['ai_contribution'] = round(ai_contribution,2)
+            m['total_score'] = round(total_score,2)
+            m['grade'] = grade
+            m['descriptor'] = descriptor
+            m['identifier'] = identifier
 
         total_final = sum(
-            m['total_score']
+            float(m['total_score'])
             for m in marks
+            if m['total_score'] is not None
         ) if marks else 0
 
-        subject_count = len(marks)
+        count = len(marks)
 
         general_average = (
-            total_final / subject_count
-            if subject_count
+            total_final / count
+            if count
             else 0
         )
 
-        general_grade, general_descriptor = get_grade_and_descriptor(
-            general_average
+        cur.execute(
+            """
+            SELECT grade,descriptor
+            FROM grading_system
+            WHERE %s BETWEEN min_score AND max_score
+            LIMIT 1
+            """,
+            (general_average,)
         )
 
-        general_identifier = get_identifier(
-            general_average
+        general_grade_row = cur.fetchone()
+
+        general_grade = general_grade_row['grade'] if general_grade_row else ''
+        general_descriptor = general_grade_row['descriptor'] if general_grade_row else ''
+
+        cur.execute(
+            """
+            SELECT descriptor
+            FROM identifier_grading
+            WHERE %s BETWEEN min_value AND max_value
+            LIMIT 1
+            """,
+            (general_average,)
+        )
+
+        general_identifier_row = cur.fetchone()
+
+        general_identifier = (
+            general_identifier_row['descriptor']
+            if general_identifier_row
+            else ''
+        )
+
+        avg_out_of_3 = round(
+            (general_average / 100) * 3,
+            2
         )
 
         cur.close()
@@ -5174,8 +5269,8 @@ def teacher_report_card(student_id):
             term=term,
             year=year,
             marks=marks,
+            avg_out_of_3=avg_out_of_3,
             general_average=round(general_average,2),
-            avg_out_of_3=round((general_average/100)*3,2),
             general_grade=general_grade,
             general_descriptor=general_descriptor,
             general_identifier=general_identifier,
