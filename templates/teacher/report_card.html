@@ -151,28 +151,27 @@ END OF TERM REPORT CARD
 <p>
 <strong>Student Number:</strong>
 {{ student_id or '-' }}
-</p>
+&nbsp; | &nbsp;
 
-<p>
-<strong>Full Name:</strong>
-{{ full_name or '-' }}
-</p>
-
-<p>
 <strong>Class:</strong>
 {{ class_name or '-' }}
 &nbsp; | &nbsp;
+
 <strong>Term:</strong>
 {{ term or '-' }}
+</p>
+<p>
+<strong>Full Name:</strong>
+{{ full_name or '-' }}
 &nbsp; | &nbsp;
 <strong>Year:</strong>
 {{ year or '-' }}
+&nbsp; | &nbsp;
+<strong>LIN:</strong>
+{{ lin or '-' }}
 </p>
-
 </div>
-
 </div>
-
 <!-- MARKS TABLE -->
 <table class="marks-table">
 
@@ -296,38 +295,36 @@ No marks recorded.
 </tr>
 
 </table>
-<!-- COMMENTS SECTION -->
+<!-- COMMENTS AND SIGNATURES SECTION -->
+
 <div class="row mt-4">
+
+<!-- CLASS TEACHER -->
 <div class="col-md-6">
+
 <strong>👩‍🏫 Class Teacher's Comment:</strong>
 {% if report %}
 <p>{{ report.teacher_comment or 'No comment yet.' }}</p>
 {% else %}
 <p>No comment yet.</p>
 {% endif %}
+<div class="text-center mt-4">
+<hr>
+<strong>Class Teacher's Signature</strong>
 </div>
+</div>
+<!-- HEADTEACHER -->
 <div class="col-md-6">
-
-<strong>👨‍🎓 Headteacher's Comment</strong>
+<strong>👨‍🎓 Headteacher's Comment </strong>
 {% if report %}
 <p>{{ report.headteacher_comment or 'No comment yet.' }}</p>
 {% else %}
 <p>No comment yet.</p>
 {% endif %}
 </div>
-</div>
-<!-- SIGNATURES -->
-
-<div class="row mt-5 text-center">
-
-<div class="col-md-4">
+<div class="text-center mt-4">
 <hr>
-<strong>Class Teacher's Signature</strong>
-</div>
-
-<div class="col-md-4">
-<hr>
-<strong>Headteacher's Signature % Stamp</strong>
+<strong>Headteacher's Signature</strong>
 </div>
 </div>
 <!-- TERM DATES -->
