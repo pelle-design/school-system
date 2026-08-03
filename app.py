@@ -4695,74 +4695,45 @@ def save_olevel_marks():
 
 
     for sid,a1,a2,a3,e,init in zip(
-        student_ids,
-        ai1,
-        ai2,
-        ai3,
-        eot,
-        initials
-    ):
+    student_ids,
+    ai1,
+    ai2,
+    ai3,
+    eot,
+    initials
+):
+    ai_scores = []
 
-        # ===========================
-        # CALCULATE AI AVERAGE
-        # ===========================
+    if a1 is not None and ai1 != '':
+        ai_scores.append(float(ai1))
 
-        ai_values = []
+    if ai2 is not None and ai2 != '':
+        ai_scores.append(float(ai2))
 
-        if a1 is not None:
-            ai_values.append(float(a1))
+    if ai3 is not None and ai3 != '':
+        ai_scores.append(float(ai3))
 
-        if a2 is not None:
-            ai_values.append(float(a2))
+    ai_average = (
+        sum(ai_scores) / len(ai_scores)
+        if ai_scores
+        else 0
+    )
 
-        if a3 is not None:
-            ai_values.append(float(a3))
+    # AI contribution is out of 20% #
+    ai_contribution = (
+        (ai_average / 3) * 20
+        if ai_average
+        else 0
+    )
 
+    # EOT contributes 60% #
+    eot_contribution = (
+        float(e) * 0.8
+        if e is not None and e != ''
+        else 0
+    )
 
-        if ai_values:
-
-            ai_average = (
-                sum(ai_values)
-                /
-                len(ai_values)
-            )
-
-        else:
-
-            ai_average = 0
-
-
-
-        # ===========================
-        # AI CONTRIBUTION 20%
-        # ===========================
-
-        ai_contribution = (
-            ai_average * 0.20
-        )
-
-
-        # ===========================
-        # EOT CONTRIBUTION 80%
-        # ===========================
-
-        eot_contribution = (
-            float(e) * 0.80
-            if e is not None
-            else 0
-        )
-
-
-        # ===========================
-        # FINAL TOTAL
-        # ===========================
-
-        total_score = (
-            ai_contribution
-            +
-            eot_contribution
-        )
-
+    total_score = ai_contribution + eot_contribution
 
         # ===========================
         # GRADE + DESCRIPTOR
