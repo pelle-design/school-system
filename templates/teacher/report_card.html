@@ -721,9 +721,11 @@ var customDiv=document.getElementById('classCustomDiv');
 if(customDiv){
 
 customDiv.style.display =
-(select.value=='custom')
-?'block'
-:'none';
+(select.value == 'custom')
+?
+'block'
+:
+'none';
 
 }
 
@@ -741,9 +743,11 @@ var customDiv=document.getElementById('headCustomDiv');
 if(customDiv){
 
 customDiv.style.display =
-(select.value=='custom')
-?'block'
-:'none';
+(select.value == 'custom')
+?
+'block'
+:
+'none';
 
 }
 
@@ -751,5 +755,5 @@ customDiv.style.display =
 
 </script>
 
-{ %endblock %}
+{% endblock %}
   
