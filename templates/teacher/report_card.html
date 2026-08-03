@@ -94,15 +94,27 @@ font-size:9px!important;
 <!-- SCHOOL HEADER -->
 <div class="school-header">
 
+<div class="row align-items-center">
+
+<!-- SCHOOL LOGO -->
+<div class="col-2 text-start">
+
 {% if school_logo_url %}
 <img src="{{ school_logo_url }}" class="school-logo" alt="School Logo">
 {% else %}
 <img src="{{ url_for('static', filename='images/logo.png') }}" class="school-logo" alt="School Logo">
 {% endif %}
 
-<h2>{{ school_name or 'YOUR SCHOOL NAME' }}</h2>
+</div>
 
-<p>
+<!-- SCHOOL DETAILS -->
+<div class="col-8 text-center">
+
+<h2 style="font-size:24px;margin-bottom:5px;">
+{{ school_name or 'YOUR SCHOOL NAME' }}
+</h2>
+
+<p style="font-size:12px;margin-bottom:5px;">
 {{ school_address or 'P.O. Box 123, Kampala, Uganda' }}
 |
 {{ school_phone or 'Tel: +256 712 345678' }}
@@ -110,20 +122,31 @@ font-size:9px!important;
 {{ school_email or 'Email: info@school.com' }}
 </p>
 
+</div>
+
+<!-- STUDENT PHOTO -->
+<div class="col-2 text-end">
+
+<img src="{{ photo_url or url_for('static', filename='images/default_student.png') }}"
+class="student-photo"
+alt="Student Photo">
+
+</div>
+
+</div>
+
 <hr>
 
-<h3>END OF TERM REPORT CARD</h3>
+<h3 style="font-size:18px;margin-top:10px;">
+END OF TERM REPORT CARD
+</h3>
 
 </div>
 
 <!-- STUDENT DETAILS -->
 <div class="row mb-4">
 
-<div class="col-md-2 text-center">
-<img src="{{ photo_url or url_for('static', filename='images/default_student.png') }}" class="student-photo" alt="Student Photo">
-</div>
-
-<div class="col-md-10">
+<div class="col-md-12">
 
 <p>
 <strong>Student Number:</strong>
@@ -273,62 +296,26 @@ No marks recorded.
 </tr>
 
 </table>
-
-
 <!-- COMMENTS SECTION -->
-
 <div class="row mt-4">
-
 <div class="col-md-6">
-
 <strong>👩‍🏫 Class Teacher's Comment:</strong>
-
-<div class="comment-box">
-
 {% if report %}
 <p>{{ report.teacher_comment or 'No comment yet.' }}</p>
 {% else %}
 <p>No comment yet.</p>
 {% endif %}
-
 </div>
-
-</div>
-
-
 <div class="col-md-6">
 
-<strong>👨‍🎓 Headteacher's Comment & Stamp</strong>
-
-<div class="comment-box">
-
+<strong>👨‍🎓 Headteacher's Comment</strong>
 {% if report %}
 <p>{{ report.headteacher_comment or 'No comment yet.' }}</p>
 {% else %}
 <p>No comment yet.</p>
 {% endif %}
-
 </div>
-
-
-{% if stamp_url %}
-
-<div class="text-center mt-3">
-
-<img src="{{ stamp_url }}"
-class="stamp"
-style="max-width:80px;"
-alt="Headteacher Stamp">
-
 </div>
-
-{% endif %}
-
-</div>
-
-</div>
-
-
 <!-- SIGNATURES -->
 
 <div class="row mt-5 text-center">
@@ -340,17 +327,9 @@ alt="Headteacher Stamp">
 
 <div class="col-md-4">
 <hr>
-<strong>Headteacher's Signature</strong>
+<strong>Headteacher's Signature % Stamp</strong>
 </div>
-
-<div class="col-md-4">
-<hr>
-<strong>Parent's Signature</strong>
 </div>
-
-</div>
-
-
 <!-- TERM DATES -->
 
 <div class="row mt-3">
