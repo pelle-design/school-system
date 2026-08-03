@@ -704,10 +704,48 @@ Headteacher's Signature
 
 </table>
 
+<!-- TERM DATES -->
+<div class="row mt-4">
+<div class="col-md-12 text-center">
+<p>
 
+<strong>
+Next Term Begins:
+</strong>
+
+{{ next_term_begins or 'To be announced' }}
+
+
+|
+
+<strong>
+Next Term Ends:
+</strong>
+{{ next_term_ends or 'To be announced' }}
+</p>
+</div>
 </div>
 
+<!-- BACK BUTTON -->
+<div class="text-center mt-4 no-print">
 
+<a href="
+{% if session.role == 'dos' %}
+
+{{ url_for('dos_class_lists') }}
+
+{% else %}
+
+{{ url_for('teacher_students') }}
+
+{% endif %}
+"
+class="btn btn-outline-secondary">
+Back
+
+</a>
+</div>
+</div>
 </div>
 <script>
 
