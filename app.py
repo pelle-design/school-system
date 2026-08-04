@@ -1283,6 +1283,30 @@ def stores_get_notifications():
 @app.route('/stores/mark_notifications_read',methods=['POST'])
 def stores_mark_notifications_read():
     return mark_notifications_read()
+# ==================== GRADING HELPERS ====================
+
+def get_grade_and_descriptor(percentage):
+    db = get_db()
+    cur = db.cursor()
+    cur.execute(
+        """
+        SELECT grade, descriptor
+        FROM grading_system
+        WHERE %s BETWEEN min_score AND max_score
+        ORDER BY min_score DESC
+        LIMIT 1
+        """,
+        (percentage,)
+    )
+    result = cur.fetchone()
+    cur.close()
+
+    if result:
+        return result['grade'], result['descriptor']
+
+    return None, None
+
+
 def get_identifier(total_score):
     db = get_db()
     cur = db.cursor()
@@ -1303,32 +1327,8 @@ def get_identifier(total_score):
         return result['identifier']
 
     return None
-def get_alevel_grade_and_points(score,is_subsidiary=False):
-    if score is None:
-        return 'N/A',0
 
-    if is_subsidiary:
-        return ('Pass',1) if score>=50 else ('Fail',0)
-
-    db=get_db()
-    cur=db.cursor()
-    cur.execute("""
-        SELECT grade,points
-        FROM alevel_grading
-        WHERE %s BETWEEN min_score AND max_score
-        AND is_subsidiary=0
-        LIMIT 1
-    """,(score,))
-
-    result=cur.fetchone()
-    cur.close()
-
-    if result:
-        return result['grade'],result['points']
-
-    return 'E',1
-
-
+    
 def get_predefined_comments(comment_type):
     db=get_db()
     cur=db.cursor()
