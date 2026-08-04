@@ -304,9 +304,7 @@ def init_db():
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
-
-
-    # GRADING SYSTEM
+    # ==================== GRADING SYSTEM ====================
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS grading_system (
             id SERIAL PRIMARY KEY,
@@ -316,9 +314,8 @@ def init_db():
             descriptor TEXT
         )
     """)
-
-
-    # A LEVEL GRADING
+    
+    # ==================== A-LEVEL GRADING ====================
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS alevel_grading (
             id SERIAL PRIMARY KEY,
@@ -329,16 +326,21 @@ def init_db():
             is_subsidiary INTEGER DEFAULT 0
         )
     """)
-
-
-    # IDENTIFIER GRADING
+    
+    # ==================== IDENTIFIER GRADING ====================
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS identifier_grading (
             id SERIAL PRIMARY KEY,
             min_value NUMERIC(5,2),
             max_value NUMERIC(5,2),
-            descriptor TEXT
+            identifier NUMERIC(5,2)
         )
+    """)
+    
+    # Add identifier column to existing PostgreSQL installations
+    cursor.execute("""
+        ALTER TABLE identifier_grading
+        ADD COLUMN IF NOT EXISTS identifier NUMERIC(5,2)
     """)
 
 
@@ -1281,37 +1283,12 @@ def stores_get_notifications():
 @app.route('/stores/mark_notifications_read',methods=['POST'])
 def stores_mark_notifications_read():
     return mark_notifications_read()
-
-# ==================== GRADING HELPERS ====================
-
-def get_grade_and_descriptor(percentage):
-    db = get_db()
-    cur = db.cursor()
-    cur.execute(
-        """
-        SELECT grade, descriptor
-        FROM grading_system
-        WHERE %s BETWEEN min_score AND max_score
-        ORDER BY min_score DESC
-        LIMIT 1
-        """,
-        (percentage,)
-    )
-    result = cur.fetchone()
-    cur.close()
-
-    if result:
-        return result['grade'], result['descriptor']
-
-    return None, None
-
-
 def get_identifier(total_score):
     db = get_db()
     cur = db.cursor()
     cur.execute(
         """
-        SELECT descriptor
+        SELECT identifier
         FROM identifier_grading
         WHERE %s BETWEEN min_value AND max_value
         ORDER BY min_value DESC
@@ -1323,10 +1300,9 @@ def get_identifier(total_score):
     cur.close()
 
     if result:
-        return result['descriptor']
+        return result['identifier']
 
     return None
-
 def get_alevel_grade_and_points(score,is_subsidiary=False):
     if score is None:
         return 'N/A',0
