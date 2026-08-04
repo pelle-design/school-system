@@ -1282,40 +1282,50 @@ def stores_get_notifications():
 def stores_mark_notifications_read():
     return mark_notifications_read()
 
-
 # ==================== GRADING HELPERS ====================
 
 def get_grade_and_descriptor(percentage):
-    db=get_db()
-    cur=db.cursor()
+    db = get_db()
+    cur = db.cursor()
     cur.execute(
-        "SELECT grade,descriptor FROM grading_system WHERE %s BETWEEN min_score AND max_score",
+        """
+        SELECT grade, descriptor
+        FROM grading_system
+        WHERE %s BETWEEN min_score AND max_score
+        ORDER BY min_score DESC
+        LIMIT 1
+        """,
         (percentage,)
     )
-    result=cur.fetchone()
+    result = cur.fetchone()
     cur.close()
 
     if result:
-        return result['grade'],result['descriptor']
+        return result['grade'], result['descriptor']
 
-    return 'O','Fail'
+    return None, None
 
 
-def get_descriptor_by_identifier(identifier):
-    db=get_db()
-    cur=db.cursor()
+def get_identifier(total_score):
+    db = get_db()
+    cur = db.cursor()
     cur.execute(
-        "SELECT descriptor FROM identifier_grading WHERE %s BETWEEN min_value AND max_value LIMIT 1",
-        (identifier,)
+        """
+        SELECT descriptor
+        FROM identifier_grading
+        WHERE %s BETWEEN min_value AND max_value
+        ORDER BY min_value DESC
+        LIMIT 1
+        """,
+        (total_score,)
     )
-    result=cur.fetchone()
+    result = cur.fetchone()
     cur.close()
 
     if result:
         return result['descriptor']
 
-    return 'No descriptor defined'
-
+    return None
 
 def get_alevel_grade_and_points(score,is_subsidiary=False):
     if score is None:
