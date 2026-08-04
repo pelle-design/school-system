@@ -174,7 +174,6 @@ END OF TERM REPORT CARD
 </div>
 <!-- MARKS TABLE -->
 <table class="marks-table">
-
 <thead>
 <tr>
 <th>Subject</th>
@@ -191,65 +190,28 @@ END OF TERM REPORT CARD
 <th>Teacher Initials</th>
 </tr>
 </thead>
-
 <tbody>
-
 {% for m in marks %}
-
 <tr>
-
-<td>
-<strong>{{ m.subject_name or m.subject or 'N/A' }}</strong>
-</td>
-
-<td>{{ m.ai1 or '-' }}</td>
-<td>{{ m.ai2 or '-' }}</td>
-<td>{{ m.ai3 or '-' }}</td>
-
-<td>
-{{ m.ai_average|round(1) if m.ai_average is not none else '-' }}
-</td>
-
-<td>
-{{ m.ai_contribution|round(1) if m.ai_contribution is not none else '-' }}
-</td>
-
-<td>
-{{ m.eot_score|round(1) if m.eot_score is not none else '-' }}
-</td>
-
-<td>
-{{ m.total_score|round(1) if m.total_score is not none else '-' }}
-</td>
-
-<td class="grade-{{ m.grade }}">
-{{ m.grade or '-' }}
-</td>
-
-{{ m.identifier if m.identifier else '-' }}
-
-<td>
-{{ m.descriptor or '-' }}
-</td>
-
-<td>
-{{ m.teacher_initials or '-' }}
-</td>
-
+<td><strong>{{ m.subject_name or m.subject or 'N/A' }}</strong></td>
+<td>{{ m.ai1 if m.ai1 is not none else '-' }}</td>
+<td>{{ m.ai2 if m.ai2 is not none else '-' }}</td>
+<td>{{ m.ai3 if m.ai3 is not none else '-' }}</td>
+<td>{{ m.ai_average|round(1) if m.ai_average is not none else '-' }}</td>
+<td>{{ m.ai_contribution|round(1) if m.ai_contribution is not none else '-' }}</td>
+<td>{{ m.eot_score|round(1) if m.eot_score is not none else '-' }}</td>
+<td>{{ m.total_score|round(1) if m.total_score is not none else '-' }}</td>
+<td class="grade-{{ m.grade }}">{{ m.grade or '-' }}</td>
+<td>{{ '%.2f'|format(m.identifier|float) if m.identifier is not none else '-' }}</td>
+<td>{{ m.descriptor or '-' }}</td>
+<td>{{ m.teacher_initials or '-' }}</td>
 </tr>
-
 {% else %}
-
 <tr>
-<td colspan="12">
-No marks recorded.
-</td>
+<td colspan="12">No marks recorded.</td>
 </tr>
-
 {% endfor %}
-
 </tbody>
-
 </table>
 <!-- SUMMARY SECTION -->
 
