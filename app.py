@@ -4685,10 +4685,7 @@ def teacher_upload_marks():
     
 @app.route("/save_olevel_marks", methods=["POST"])
 def save_olevel_marks():
-
-    if not check_permission(
-        ['classteacher','subject_teacher','dos']
-    ):
+    if not check_permission(['classteacher', 'subject_teacher', 'dos']):
         abort(403)
 
     db = get_db_dict()
@@ -4698,92 +4695,45 @@ def save_olevel_marks():
     term = request.form.get('term')
     year = request.form.get('year')
 
-    student_ids = request.form.getlist(
-        "student_id[]"
-    )
+    student_ids = request.form.getlist("student_id[]")
+    ai1 = to_number(request.form.getlist("ai1[]"))
+    ai2 = to_number(request.form.getlist("ai2[]"))
+    ai3 = to_number(request.form.getlist("ai3[]"))
+    eot = to_number(request.form.getlist("eot_score[]"))
+    initials = request.form.getlist("teacher_initials[]")
 
-    ai1 = to_number(
-        request.form.getlist("ai1[]")
-    )
-
-    ai2 = to_number(
-        request.form.getlist("ai2[]")
-    )
-
-    ai3 = to_number(
-        request.form.getlist("ai3[]")
-    )
-
-    eot = to_number(
-        request.form.getlist("eot_score[]")
-    )
-
-    initials = request.form.getlist(
-        "teacher_initials[]"
-    )
-
-
-    for sid, a1, a2, a3, e, init in zip(
-        student_ids,
-        ai1,
-        ai2,
-        ai3,
-        eot,
-        initials
-    ):
-
+    for sid, a1, a2, a3, e, init in zip(student_ids, ai1, ai2, ai3, eot, initials):
         ai_scores = []
 
-        if a1 not in [None, '']:
+        if a1 is not None:
             ai_scores.append(float(a1))
 
-        if a2 not in [None, '']:
+        if a2 is not None:
             ai_scores.append(float(a2))
 
-        if a3 not in [None, '']:
+        if a3 is not None:
             ai_scores.append(float(a3))
 
-
-        # Average only available AIs
         ai_average = (
             sum(ai_scores) / len(ai_scores)
-            if ai_scores
-            else 0
+            if ai_scores else None
         )
 
-
-        # AI contribution out of 20%
         ai_contribution = (
             (ai_average / 3) * 20
-            if ai_average > 0
-            else 0
+            if ai_average is not None else 0
         )
 
-
-        # EOT contributes 80%
         eot_contribution = (
-            float(e) * 0.8
-            if e not in [None, '']
-            else 0
+            (float(e) / 100) * 80
+            if e is not None else 0
         )
 
+        total_score = ai_contribution + eot_contribution
 
-        total_score = (
-            ai_contribution +
-            eot_contribution
-        )
+        grade, descriptor = get_grade_and_descriptor(total_score)
 
-
-        grade, descriptor = get_olevel_grade_details(
-            total_score
-        )
-
-
-        identifier = round(
-            (total_score / 100) * 3,
-            2
-        )
-
+        identifier = get_identifier(total_score)
 
         cursor.execute(
             """
@@ -4806,64 +4756,55 @@ def save_olevel_marks():
                 year
             )
             VALUES
-            (
-                %s,%s,%s,%s,%s,
-                %s,%s,%s,%s,
-                %s,%s,%s,%s,
-                %s,%s
-            )
-
+            (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
             ON CONFLICT(student_id,subject,term,year)
-
             DO UPDATE SET
-
-                ai1=EXCLUDED.ai1,
-                ai2=EXCLUDED.ai2,
-                ai3=EXCLUDED.ai3,
-                ai_average=EXCLUDED.ai_average,
-                ai_contribution=EXCLUDED.ai_contribution,
-                eot_score=EXCLUDED.eot_score,
-                total_score=EXCLUDED.total_score,
-                grade=EXCLUDED.grade,
-                identifier=EXCLUDED.identifier,
-                descriptor=EXCLUDED.descriptor,
-                teacher_initials=EXCLUDED.teacher_initials
-
+                ai1=%s,
+                ai2=%s,
+                ai3=%s,
+                ai_average=%s,
+                ai_contribution=%s,
+                eot_score=%s,
+                total_score=%s,
+                grade=%s,
+                identifier=%s,
+                descriptor=%s,
+                teacher_initials=%s
             """,
-
             (
                 sid,
                 subject,
-
                 a1,
                 a2,
                 a3,
-
                 ai_average,
                 ai_contribution,
-
                 e,
                 total_score,
-
                 grade,
                 identifier,
                 descriptor,
-
                 init,
-
                 term,
-                year
+                year,
+                a1,
+                a2,
+                a3,
+                ai_average,
+                ai_contribution,
+                e,
+                total_score,
+                grade,
+                identifier,
+                descriptor,
+                init
             )
         )
-
 
     db.commit()
     cursor.close()
 
-    flash(
-        "O-Level marks entered successfully.",
-        "success"
-    )
+    flash("O-Level marks entered successfully.", "success")
 
     return redirect(
         url_for(
@@ -4871,7 +4812,7 @@ def save_olevel_marks():
             class_name=session.get('selected_class')
         )
     )
-
+    
 @app.route('/teacher/report_card/<student_id>')
 def teacher_report_card(student_id):
 
