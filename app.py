@@ -4696,23 +4696,31 @@ def save_olevel_marks():
     year = request.form.get('year')
 
     student_ids = request.form.getlist("student_id[]")
-    ai1 = to_number(request.form.getlist("ai1[]"))
-    ai2 = to_number(request.form.getlist("ai2[]"))
-    ai3 = to_number(request.form.getlist("ai3[]"))
-    eot = to_number(request.form.getlist("eot_score[]"))
+    ai1_raw = request.form.getlist("ai1[]")
+    ai2_raw = request.form.getlist("ai2[]")
+    ai3_raw = request.form.getlist("ai3[]")
+    eot_raw = request.form.getlist("eot_score[]")
     initials = request.form.getlist("teacher_initials[]")
 
-    for sid, a1, a2, a3, e, init in zip(student_ids, ai1, ai2, ai3, eot, initials):
-        ai_scores = []
+    def clean_score(value):
+        if value is None:
+            return None
+        value = str(value).strip()
+        if value == '':
+            return None
+        try:
+            return float(value)
+        except (ValueError, TypeError):
+            return None
 
-        if a1 is not None:
-            ai_scores.append(float(a1))
+    for i, sid in enumerate(student_ids):
+        a1 = clean_score(ai1_raw[i] if i < len(ai1_raw) else None)
+        a2 = clean_score(ai2_raw[i] if i < len(ai2_raw) else None)
+        a3 = clean_score(ai3_raw[i] if i < len(ai3_raw) else None)
+        e = clean_score(eot_raw[i] if i < len(eot_raw) else None)
+        init = initials[i].strip() if i < len(initials) else ''
 
-        if a2 is not None:
-            ai_scores.append(float(a2))
-
-        if a3 is not None:
-            ai_scores.append(float(a3))
+        ai_scores = [score for score in [a1, a2, a3] if score is not None]
 
         ai_average = (
             sum(ai_scores) / len(ai_scores)
@@ -4725,7 +4733,7 @@ def save_olevel_marks():
         )
 
         eot_contribution = (
-            (float(e) / 100) * 80
+            (e / 100) * 80
             if e is not None else 0
         )
 
@@ -4812,7 +4820,6 @@ def save_olevel_marks():
             class_name=session.get('selected_class')
         )
     )
-    
 @app.route('/teacher/report_card/<student_id>')
 def teacher_report_card(student_id):
 
