@@ -202,7 +202,7 @@ END OF TERM REPORT CARD
 <td>{{ m.eot_score|round(1) if m.eot_score is not none else '-' }}</td>
 <td>{{ m.total_score|round(1) if m.total_score is not none else '-' }}</td>
 <td class="grade-{{ m.grade }}">{{ m.grade or '-' }}</td>
-<td>{{ '%.2f'|format(m.identifier|float) if m.identifier is not none else '-' }}</td>
+<td>{{ m.identifier or '-' }}</td>
 <td>{{ m.descriptor or '-' }}</td>
 <td>{{ m.teacher_initials or '-' }}</td>
 </tr>
