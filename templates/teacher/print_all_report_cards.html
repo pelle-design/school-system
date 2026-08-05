@@ -289,9 +289,6 @@ alt="Student Photo">
 
 
 </div>
-
-
-
 <!-- STUDENT INFORMATION -->
 
 <div class="student-info"
@@ -321,35 +318,22 @@ style="background:#f5f5f5;padding:12px;border-radius:8px;margin-bottom:20px;">
 
 
 </tr>
-
-
-
 <tr>
 
 <td>
 <strong>Full Name:</strong>
 {{ report.full_name }}
 </td>
-
-
 <td>
 <strong>Year:</strong>
 {{ year }}
 </td>
-
-
 <td>
 <strong>LIN:</strong>
 {{ report.lin or '-' }}
 </td>
-
-
 </tr>
-
-
 </table>
-
-
 </div>
 <!-- ========== MARKS TABLE ========== -->
 
@@ -383,14 +367,10 @@ style="background:#f5f5f5;padding:12px;border-radius:8px;margin-bottom:20px;">
 
 
 {% for m in report.marks %}
-
 <tr>
-
 <td style="font-weight:bold;">
 {{ m.subject_name or m.subject or m.get('subject','N/A') }}
 </td>
-
-
 <td>
 {{ m.ai1 if m.ai1 else '-' }}
 </td>
@@ -399,133 +379,69 @@ style="background:#f5f5f5;padding:12px;border-radius:8px;margin-bottom:20px;">
 <td>
 {{ m.ai2 if m.ai2 else '-' }}
 </td>
-
-
 <td>
 {{ m.ai3 if m.ai3 else '-' }}
 </td>
-
-
 <td>
 {{ m.ai_average|round(1) if m.ai_average else '-' }}
 </td>
-
-
 <td>
 {{ m.ai_contribution|round(1) if m.ai_contribution else '-' }}
 </td>
-
-
 <td>
 {{ m.eot_score|round(1) if m.eot_score else '-' }}
 </td>
-
-
 <td>
 {{ m.total_score|round(1) if m.total_score else '-' }}
 </td>
-
-
 <td class="grade-{{ m.grade }}">
 {{ m.grade or '-' }}
 </td>
-
-
 <td>
 {{ m.identifier|round(2) if m.identifier else '-' }}
 </td>
-
-
 <td>
 {{ m.descriptor or '-' }}
 </td>
-
-
 <td>
 {{ m.teacher_initials or '-' }}
 </td>
-
-
 </tr>
-
-
 {% else %}
-
-
 <tr>
-
 <td colspan="12">
 No marks recorded.
 </td>
 
 </tr>
-
-
 {% endfor %}
-
-
 </tbody>
-
 </table>
-
 </div>
 
-
-
-
-<!-- ========== SUMMARY SECTION ========== -->
-
-
-<table class="summary-table">
-
-
+<!-- SUMMARY SECTION -->
+<table class="summary-table" style="width:100%;margin-top:20px;">
 <tr>
-
-
-<td style="width:33%;">
-
+<td style="width:25%;background:#e8eaf6;padding:10px;">
 <strong>📊 General Average:</strong>
-
-{{ report.avg_out_of_3 or '-' }}
-
+{{ general_average if general_average is not none else '-' }}
 </td>
-
-
-
-<td style="width:33%;">
-
+<td style="width:25%;background:#e8eaf6;padding:10px;">
 <strong>🎓 General Grade:</strong>
-
-<span class="grade-{{ report.general_grade }}">
-
-{{ report.general_grade or '-' }}
-
+<span class="grade-{{ general_grade }}">
+{{ general_grade if general_grade else '-' }}
 </span>
-
-
 </td>
-
-
-
-<td style="width:33%;">
-
+<td style="width:25%;background:#e8eaf6;padding:10px;">
 <strong>📝 Descriptor:</strong>
-
-{{ report.general_descriptor or '-' }}
-
+{{ general_descriptor if general_descriptor else '-' }}
 </td>
-
-
+<td style="width:25%;background:#e8eaf6;padding:10px;">
+<strong>📌 Identifier:</strong>
+{{ general_identifier if general_identifier is not none else '-' }}
+</td>
 </tr>
-
-
 </table>
-
-
-
-
-
-
 <!-- ========== COMMENTS AND SIGNATURES SECTION ========== -->
 
 
