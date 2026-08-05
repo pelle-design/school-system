@@ -3831,89 +3831,6 @@ def dos_predefined_comments_delete(comment_id):
     flash('Comment deleted successfully.', 'success')
     return redirect(url_for('dos_predefined_comments'))
 
-@app.route('/dos/identifier_grading', methods=['GET', 'POST'])
-def dos_identifier_grading():
-    if not check_permission(['dos']):
-        abort(403)
-
-    if request.method == 'POST':
-        file = request.files.get('grading_file')
-
-        if not file or not file.filename:
-            flash('Please upload an Excel file.', 'danger')
-            return redirect(url_for('dos_identifier_grading'))
-
-        try:
-            from openpyxl import load_workbook
-
-            wb = load_workbook(file, data_only=True)
-            sheet = wb.active
-
-            headers = []
-            for cell in sheet[1]:
-                headers.append(str(cell.value).strip().lower() if cell.value else '')
-
-            min_col = None
-            max_col = None
-            desc_col = None
-
-            for idx, h in enumerate(headers):
-                if h == 'min_value':
-                    min_col = idx
-                elif h == 'max_value':
-                    max_col = idx
-                elif h == 'descriptor':
-                    desc_col = idx
-
-            if None in [min_col, max_col, desc_col]:
-                flash('Missing required columns: min_value, max_value, descriptor', 'danger')
-                return redirect(url_for('dos_identifier_grading'))
-
-            execute_db("DELETE FROM identifier_grading")
-
-            count = 0
-
-            for row_idx in range(2, sheet.max_row + 1):
-                min_val = sheet.cell(row=row_idx, column=min_col + 1).value
-                max_val = sheet.cell(row=row_idx, column=max_col + 1).value
-                desc_val = sheet.cell(row=row_idx, column=desc_col + 1).value
-
-                if None in [min_val, max_val, desc_val]:
-                    continue
-
-                try:
-                    execute_db(
-                        """
-                        INSERT INTO identifier_grading
-                        (min_value, max_value, descriptor)
-                        VALUES (%s, %s, %s)
-                        """,
-                        (
-                            float(min_val),
-                            float(max_val),
-                            str(desc_val).strip()
-                        )
-                    )
-                    count += 1
-                except Exception:
-                    continue
-
-            flash(f'{count} Identifier grading rules uploaded.', 'success')
-
-        except Exception as e:
-            flash(f'Error: {str(e)}', 'danger')
-
-        return redirect(url_for('dos_identifier_grading'))
-
-    cur = get_db().cursor()
-    cur.execute(
-        "SELECT min_value, max_value, descriptor FROM identifier_grading ORDER BY min_value DESC"
-    )
-    rules = cur.fetchall()
-    cur.close()
-
-    return render_template('dos/identifier_grading.html', rules=rules)
-
 @app.route('/dos/upload_teachers', methods=['GET', 'POST'])
 def dos_upload_teachers():
     if not check_permission(['dos']):
@@ -4642,12 +4559,7 @@ def save_olevel_marks():
             (ai_average / 3) * 20
             if ai_average is not None else 0
         )
-
-        eot_contribution = (
-            (e / 100) * 80
-            if e is not None else 0
-        )
-
+        eot_contribution = max(0, min(e, 80)) if e is not None else 0
         total_score = ai_contribution + eot_contribution
         grade, descriptor = get_grade_and_descriptor(total_score)
         identifier = (
@@ -4870,8 +4782,6 @@ def teacher_report_card(student_id):
         'year',
         datetime.now().year
     )
-
-
     cur.execute(
         """
         SELECT
@@ -5168,46 +5078,29 @@ def teacher_report_card(student_id):
                 ai_scores.append(
                     float(m['ai3'])
                 )
-
-
             ai_average = (
                 sum(ai_scores) / len(ai_scores)
                 if ai_scores
                 else 0
             )
-
-
             ai_contribution = (
                 (ai_average / 3) * 20
                 if ai_average > 0
                 else 0
             )
-
-
-            eot_contribution = (
-                float(m['eot_score']) * 0.8
-                if m['eot_score'] not in [None,'']
-                else 0
+            eot_contribution = max(0, min(e, 80)) if e is not None else 0
             )
-
-
             total_score = (
                 ai_contribution +
                 eot_contribution
             )
-
-
             grade, descriptor = get_olevel_grade_details(
                 total_score
             )
-
-
             identifier = round(
                 (total_score / 100) * 3,
                 2
             )
-
-
             marks.append(
                 {
                     'subject': m['subject'],
@@ -5233,35 +5126,34 @@ def teacher_report_card(student_id):
                     'teacher_initials': m['teacher_initials']
                 }
             )
-
-
+        valid_marks = [
+            m for m in marks
+            if m['total_score'] is not None and float(m['total_score']) > 0
+        ]
+        
         total_final = sum(
-            m['total_score']
-            for m in marks
+            float(m['total_score'])
+            for m in valid_marks
         )
-
-
-        count = len(marks)
-
-
+        
+        count = len(valid_marks)
+        
         general_average = (
             total_final / count
             if count > 0
             else 0
         )
-
-
+        
         general_identifier = round(
             (general_average / 100) * 3,
             2
         )
-
-
+        
         general_grade, general_descriptor = get_olevel_grade_details(
             general_average
         )
+        
         cur.close()
-
         return render_template(
             'teacher/report_card.html',
             student_id=student_id,
