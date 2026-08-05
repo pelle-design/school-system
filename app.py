@@ -5089,7 +5089,6 @@ def teacher_report_card(student_id):
                 else 0
             )
             eot_contribution = max(0, min(e, 80)) if e is not None else 0
-            )
             total_score = (
                 ai_contribution +
                 eot_contribution
