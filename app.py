@@ -5088,18 +5088,30 @@ def teacher_report_card(student_id):
                 if ai_average > 0
                 else 0
             )
-            eot_contribution = max(0, min(e, 80)) if e is not None else 0
+            eot_score = m['eot_score']
+            
+            # EOT is already marked out of 80.
+            # Only constrain it to the allowed range 0–80.
+            eot_contribution = (
+                max(0, min(float(eot_score), 80))
+                if eot_score is not None
+                else 0
+            )
+            
             total_score = (
                 ai_contribution +
                 eot_contribution
             )
+            
             grade, descriptor = get_olevel_grade_details(
                 total_score
             )
+            
             identifier = round(
                 (total_score / 100) * 3,
                 2
             )
+            
             marks.append(
                 {
                     'subject': m['subject'],
@@ -5114,7 +5126,7 @@ def teacher_report_card(student_id):
                         ai_contribution,
                         2
                     ),
-                    'eot_score': m['eot_score'],
+                    'eot_score': eot_score,
                     'total_score': round(
                         total_score,
                         2
@@ -5125,34 +5137,36 @@ def teacher_report_card(student_id):
                     'teacher_initials': m['teacher_initials']
                 }
             )
-        valid_marks = [
-            m for m in marks
-            if m['total_score'] is not None and float(m['total_score']) > 0
-        ]
-        
-        total_final = sum(
-            float(m['total_score'])
-            for m in valid_marks
-        )
-        
-        count = len(valid_marks)
-        
-        general_average = (
-            total_final / count
-            if count > 0
-            else 0
-        )
-        
-        general_identifier = round(
-            (general_average / 100) * 3,
-            2
-        )
-        
-        general_grade, general_descriptor = get_olevel_grade_details(
-            general_average
-        )
-        
-        cur.close()
+            
+            valid_marks = [
+                m for m in marks
+                if m['total_score'] is not None
+                and float(m['total_score']) > 0
+            ]
+            
+            total_final = sum(
+                float(m['total_score'])
+                for m in valid_marks
+            )
+            
+            count = len(valid_marks)
+            
+            general_average = (
+                total_final / count
+                if count > 0
+                else 0
+            )
+            
+            general_identifier = round(
+                (general_average / 100) * 3,
+                2
+            )
+            
+            general_grade, general_descriptor = get_olevel_grade_details(
+                general_average
+            )
+            
+            cur.close()
         return render_template(
             'teacher/report_card.html',
             student_id=student_id,
