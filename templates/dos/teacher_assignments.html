@@ -1,3 +1,4 @@
+```html
 {% extends "base.html" %}
 {% block title %}Teacher Assignments{% endblock %}
 
@@ -14,7 +15,7 @@
 
 <div class="alert alert-info">
 <i class="fas fa-info-circle"></i>
-A teacher can have multiple roles. Example: A teacher can be a Class Teacher and also teach different subjects.
+A teacher can have multiple roles. A teacher assigned to a class such as <strong>S.1</strong> will be considered assigned to all streams belonging to that class, such as <strong>S.1A, S.1B, S.1C</strong>, etc.
 </div>
 
 <div class="card mb-4">
@@ -29,34 +30,39 @@ A teacher can have multiple roles. Example: A teacher can be a Class Teacher and
 <div class="row">
 
 <div class="col-md-3">
-<label>Teacher</label>
+<label class="form-label">Teacher</label>
 <select name="teacher_id" class="form-control" required>
+<option value="">-- Select Teacher --</option>
 {% for t in teachers %}
-<option value="{{t.id}}">{{t.full_name}}</option>
+<option value="{{ t.id }}">{{ t.full_name }}{% if t.username %} ({{ t.username }}){% endif %}</option>
 {% endfor %}
 </select>
 </div>
 
 <div class="col-md-3">
-<label>Role</label>
-<select name="assignment_type" class="form-control" id="role" onchange="showSubject()">
+<label class="form-label">Role</label>
+<select name="assignment_type" class="form-control" id="role" onchange="showSubject()" required>
 <option value="classteacher">Class Teacher</option>
 <option value="subject_teacher">Subject Teacher</option>
 </select>
 </div>
 
 <div class="col-md-3">
-<label>Class</label>
+<label class="form-label">Class</label>
 <select name="class_name" class="form-control" required>
+<option value="">-- Select Class --</option>
 {% for c in classes %}
-<option value="{{c.class}}">{{c.class}}</option>
+<option value="{{ c.class }}">{{ c.class }}</option>
 {% endfor %}
 </select>
+<small class="text-muted">
+Select the main class, e.g. S.1, rather than an individual stream.
+</small>
 </div>
 
 <div class="col-md-3" id="subjectDiv">
-<label>Subject</label>
-<input type="text" name="subject" class="form-control" placeholder="Mathematics">
+<label class="form-label">Subject</label>
+<input type="text" name="subject" id="subject" class="form-control" placeholder="Mathematics">
 </div>
 
 </div>
@@ -67,7 +73,7 @@ A teacher can have multiple roles. Example: A teacher can be a Class Teacher and
 <i class="fas fa-save"></i> Save Assignment
 </button>
 
-<a href="{{url_for('dos_upload_teachers')}}" class="btn btn-secondary">
+<a href="{{ url_for('dos_upload_teachers') }}" class="btn btn-secondary">
 <i class="fas fa-upload"></i> Upload Teachers
 </a>
 
@@ -76,19 +82,20 @@ A teacher can have multiple roles. Example: A teacher can be a Class Teacher and
 </div>
 </div>
 
-
 <h5 class="mb-3">
 <i class="fas fa-list"></i> Existing Teacher Assignments
 </h5>
 
 <div class="table-responsive">
 
-<table class="table table-bordered table-hover">
+<table class="table table-bordered table-hover align-middle">
 
 <thead class="table-dark">
 <tr>
+<th>#</th>
 <th>Teacher</th>
 <th>Class</th>
+<th>Streams Covered</th>
 <th>Subject</th>
 <th>Role</th>
 <th>Assigned By</th>
@@ -98,42 +105,64 @@ A teacher can have multiple roles. Example: A teacher can be a Class Teacher and
 
 <tbody>
 
-{% for a in all_assignments %}
+{% for a in assignments %}
 
 <tr>
 
+<td>{{ loop.index }}</td>
+
 <td>
-{{a.full_name}}
+<strong>{{ a.full_name }}</strong>
+{% if a.username %}
 <br>
-<small>{{a.username}}</small>
+<small class="text-muted">{{ a.username }}</small>
+{% endif %}
+{% if a.phone %}
+<br>
+<small class="text-muted">{{ a.phone }}</small>
+{% endif %}
 </td>
 
 <td>
-{{a.class_name}}
+<strong>{{ a.class_name }}</strong>
+</td>
+
+<td>
+<span class="badge bg-info text-dark">
+{{ a.class_name }} + all streams
+</span>
 </td>
 
 <td>
 {% if a.subject %}
-{{a.subject}}
+{{ a.subject }}
 {% else %}
--
+<span class="text-muted">-</span>
 {% endif %}
 </td>
 
 <td>
 {% if a.assignment_type == 'classteacher' %}
-<span class="badge bg-primary">Class Teacher</span>
+<span class="badge bg-primary">
+<i class="fas fa-user-tie"></i> Class Teacher
+</span>
+{% elif a.assignment_type == 'subject_teacher' %}
+<span class="badge bg-success">
+<i class="fas fa-book"></i> Subject Teacher
+</span>
 {% else %}
-<span class="badge bg-success">Subject Teacher</span>
+<span class="badge bg-secondary">
+{{ a.assignment_type }}
+</span>
 {% endif %}
 </td>
 
 <td>
-{{a.assigned_by or 'System'}}
+{{ a.assigned_by or 'System' }}
 </td>
 
 <td>
-{{a.assigned_at}}
+{{ a.assigned_at or '-' }}
 </td>
 
 </tr>
@@ -141,8 +170,9 @@ A teacher can have multiple roles. Example: A teacher can be a Class Teacher and
 {% else %}
 
 <tr>
-<td colspan="6" class="text-center text-muted">
-No teacher assignments found
+<td colspan="8" class="text-center text-muted py-4">
+<i class="fas fa-info-circle"></i>
+No teacher assignments found.
 </td>
 </tr>
 
@@ -157,19 +187,26 @@ No teacher assignments found
 </div>
 </div>
 
-
 <script>
-function showSubject(){
-let role=document.getElementById("role").value;
-let box=document.getElementById("subjectDiv");
+function showSubject() {
+    const role = document.getElementById("role").value;
+    const box = document.getElementById("subjectDiv");
+    const subject = document.getElementById("subject");
 
-if(role=="classteacher"){
-box.style.display="none";
-}else{
-box.style.display="block";
+    if (role === "classteacher") {
+        box.style.display = "none";
+        subject.value = "";
+        subject.removeAttribute("required");
+    } else {
+        box.style.display = "block";
+        subject.setAttribute("required", "required");
+    }
 }
-}
-showSubject();
+
+document.addEventListener("DOMContentLoaded", function() {
+    showSubject();
+});
 </script>
 
 {% endblock %}
+```
