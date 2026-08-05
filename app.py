@@ -2946,12 +2946,11 @@ def dos_class_lists():
     )
 
 # ==================== DOS TEACHER ASSIGNMENTS ====================
-
 @app.route('/dos/teacher_assignments', methods=['GET', 'POST'])
 def dos_teacher_assignments():
-
     if not check_permission(['dos']):
         abort(403)
+
     db = get_db_dict()
     cur = db.cursor()
 
@@ -2961,16 +2960,26 @@ def dos_teacher_assignments():
         class_name = request.form.get('class_name')
         subject = request.form.get('subject') or None
 
+        if not teacher_id or not assignment_type or not class_name:
+            flash("Please complete all required fields.", "danger")
+            cur.close()
+            return redirect(url_for('dos_teacher_assignments'))
+
+        # Class-teacher assignments do not have a subject
         if assignment_type == 'classteacher':
             subject = None
+
+        # ---------------------------------------------------------
+        # CHECK FOR DUPLICATE ASSIGNMENT
+        # ---------------------------------------------------------
         cur.execute(
             """
             SELECT id
             FROM teacher_class_assignments
-            WHERE user_id=%s
-            AND class_name=%s
-            AND assignment_type=%s
-            AND subject IS NOT DISTINCT FROM %s
+            WHERE user_id = %s
+              AND class_name = %s
+              AND assignment_type = %s
+              AND subject IS NOT DISTINCT FROM %s
             """,
             (
                 teacher_id,
@@ -2985,14 +2994,19 @@ def dos_teacher_assignments():
                 "This assignment already exists.",
                 "warning"
             )
+            cur.close()
             return redirect(url_for('dos_teacher_assignments'))
-        if assignment_type == "classteacher":
+
+        # ---------------------------------------------------------
+        # ONLY ONE CLASS TEACHER PER CLASS
+        # ---------------------------------------------------------
+        if assignment_type == 'classteacher':
             cur.execute(
                 """
                 SELECT id
                 FROM teacher_class_assignments
-                WHERE class_name=%s
-                AND assignment_type='classteacher'
+                WHERE class_name = %s
+                  AND assignment_type = 'classteacher'
                 """,
                 (class_name,)
             )
@@ -3002,10 +3016,18 @@ def dos_teacher_assignments():
                     f"{class_name} already has a class teacher.",
                     "danger"
                 )
+                cur.close()
                 return redirect(
                     url_for('dos_teacher_assignments')
                 )
 
+        # ---------------------------------------------------------
+        # SAVE ASSIGNMENT
+        #
+        # If S.1 is selected, store S.1.
+        # The system will later treat S.1 as covering:
+        # S.1A, S.1B, S.1C, etc.
+        # ---------------------------------------------------------
         cur.execute(
             """
             INSERT INTO teacher_class_assignments
@@ -3016,7 +3038,7 @@ def dos_teacher_assignments():
                 assignment_type,
                 assigned_by
             )
-            VALUES(%s,%s,%s,%s,%s)
+            VALUES (%s, %s, %s, %s, %s)
             """,
             (
                 teacher_id,
@@ -3033,15 +3055,24 @@ def dos_teacher_assignments():
             "Teacher assignment added successfully.",
             "success"
         )
+
+        cur.close()
+
         return redirect(
             url_for('dos_teacher_assignments')
         )
+
+    # =============================================================
+    # GET TEACHERS
+    # =============================================================
     cur.execute(
         """
-        SELECT id, username, full_name
+        SELECT
+            id,
+            username,
+            full_name
         FROM users
-        WHERE role IN
-        (
+        WHERE role IN (
             'teacher',
             'subject_teacher',
             'classteacher'
@@ -3052,30 +3083,43 @@ def dos_teacher_assignments():
 
     teachers = cur.fetchall()
 
-
+    # =============================================================
+    # GET CLASSES
+    # =============================================================
     cur.execute(
         """
         SELECT DISTINCT class
         FROM students
         WHERE class IS NOT NULL
+          AND TRIM(class) <> ''
         ORDER BY class
         """
     )
 
     classes = cur.fetchall()
 
-
+    # =============================================================
+    # GET ALL ASSIGNMENTS
+    # =============================================================
     cur.execute(
         """
         SELECT
-            tca.*,
+            tca.id,
+            tca.user_id,
+            tca.class_name,
+            tca.subject,
+            tca.assignment_type,
+            tca.assigned_by,
             u.username,
             u.full_name,
             u.phone
         FROM teacher_class_assignments tca
         JOIN users u
-        ON tca.user_id=u.id
-        ORDER BY u.full_name
+          ON tca.user_id = u.id
+        ORDER BY
+            u.full_name,
+            tca.class_name,
+            tca.subject
         """
     )
 
@@ -3083,82 +3127,110 @@ def dos_teacher_assignments():
 
     cur.close()
 
-
+    # =============================================================
+    # ORGANIZE ASSIGNMENTS BY TEACHER
+    # =============================================================
     teachers_data = {}
 
-    for a in assignments:
+    for assignment in assignments:
+        user_id = assignment['user_id']
 
-        uid = a['user_id']
-
-        if uid not in teachers_data:
-
-            teachers_data[uid] = {
-                "username": a['username'],
-                "full_name": a['full_name'],
-                "phone": a['phone'],
-                "class_teacher": None,
-                "subjects": []
+        if user_id not in teachers_data:
+            teachers_data[user_id] = {
+                'username': assignment['username'],
+                'full_name': assignment['full_name'],
+                'phone': assignment['phone'],
+                'class_teacher': None,
+                'subjects': []
             }
 
-        if a['assignment_type'] == 'classteacher':
+        # ---------------------------------------------------------
+        # CLASS TEACHER
+        # ---------------------------------------------------------
+        if assignment['assignment_type'] == 'classteacher':
+            teachers_data[user_id]['class_teacher'] = (
+                assignment['class_name']
+            )
 
-            teachers_data[uid]['class_teacher'] = a['class_name']
-
+        # ---------------------------------------------------------
+        # SUBJECT TEACHER
+        # ---------------------------------------------------------
         else:
-
-            teachers_data[uid]['subjects'].append(
+            teachers_data[user_id]['subjects'].append(
                 {
-                    "class": a['class_name'],
-                    "subject": a['subject']
+                    'class': assignment['class_name'],
+                    'subject': assignment['subject']
                 }
             )
 
-
+    # =============================================================
+    # SEPARATE TEACHERS BY ROLE
+    # =============================================================
     class_teachers = []
     subject_teachers = []
     both_roles = []
 
-
     for teacher in teachers_data.values():
 
-        has_class = teacher['class_teacher'] is not None
-        has_subject = len(teacher['subjects']) > 0
+        has_class = (
+            teacher['class_teacher'] is not None
+        )
 
+        has_subject = (
+            len(teacher['subjects']) > 0
+        )
+
+        # ---------------------------------------------------------
+        # TEACHER HAS BOTH ROLES
+        # ---------------------------------------------------------
         if has_class and has_subject:
 
-            teacher['classteacher_class'] = teacher['class_teacher']
+            teacher['classteacher_class'] = (
+                teacher['class_teacher']
+            )
+
             both_roles.append(teacher)
 
+        # ---------------------------------------------------------
+        # CLASS TEACHER ONLY
+        # ---------------------------------------------------------
         elif has_class:
 
-            teacher['class_name'] = teacher['class_teacher']
+            teacher['class_name'] = (
+                teacher['class_teacher']
+            )
+
             class_teachers.append(teacher)
 
+        # ---------------------------------------------------------
+        # SUBJECT TEACHER ONLY
+        # ---------------------------------------------------------
         elif has_subject:
 
-            for subject in teacher['subjects']:
+            for subject_assignment in teacher['subjects']:
 
                 subject_teachers.append(
                     {
-                        "username": teacher['username'],
-                        "full_name": teacher['full_name'],
-                        "phone": teacher['phone'],
-                        "class_name": subject['class'],
-                        "subject": subject['subject']
+                        'username': teacher['username'],
+                        'full_name': teacher['full_name'],
+                        'phone': teacher['phone'],
+                        'class_name': subject_assignment['class'],
+                        'subject': subject_assignment['subject']
                     }
                 )
 
-
+    # =============================================================
+    # RETURN TEMPLATE
+    # =============================================================
     return render_template(
         'dos/teacher_assignments.html',
         teachers=teachers,
         classes=classes,
+        assignments=assignments,
         class_teachers=class_teachers,
         subject_teachers=subject_teachers,
         both_roles=both_roles
     )
-
-
 # ==================== REMOVE STUDENT ====================
 
 @app.route('/dos/remove_student/<student_id>', methods=['POST'])
