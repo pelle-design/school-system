@@ -2628,6 +2628,7 @@ def generate_unique_number(prefix, table, column, year_format=False):
         return f"{prefix}-{year}-{number:04d}"
 
     return f"{prefix}-{number:04d}"
+
 @app.route('/dos/pending_admissions')
 @login_required
 def dos_pending_admissions():
@@ -2661,6 +2662,7 @@ def dos_pending_admissions():
         'dos/pending_admissions.html',
         applications=applications
     )
+    
 @app.route('/dos/approve_admission/<student_id>', methods=['GET','POST'])
 @login_required
 def approve_admission(student_id):
@@ -2818,8 +2820,6 @@ def reject_admission(student_id):
         cur.close()
         flash("Student application not found.", "danger")
         return redirect(url_for('dos_pending_admissions'))
-
-
     # Update status
     cur.execute("""
         UPDATE students
@@ -2844,9 +2844,7 @@ def reject_admission(student_id):
 @app.route('/admission_letter/<student_id>')
 @login_required
 def admission_letter(student_id):
-
     cur = get_db().cursor()
-
     cur.execute("""
         SELECT 
             student_id,
@@ -2862,19 +2860,13 @@ def admission_letter(student_id):
     student = cur.fetchone()
 
     cur.close()
-
-
     if not student:
         flash("Admission record not found.", "danger")
         return redirect(url_for('dashboard'))
-
-
     return render_template(
         'admissions/admission_letter.html',
         student=student
     )
-
-
 
 @app.route('/dos/class_lists')
 def dos_class_lists():
@@ -2933,23 +2925,17 @@ def dos_class_lists():
             OR full_name ILIKE %s
         )
         """
-
         pattern = f"%{search}%"
         params.extend([pattern, pattern])
-
     query += " ORDER BY full_name"
-
     cur.execute(query, params)
-
     students = cur.fetchall()
 
     for student in students:
         student['photo_url'] = get_photo_url(
             student.get('photo_path')
         )
-
     cur.close()
-
     return render_template(
         'dos/class_lists.html',
         classes=classes,
@@ -2966,12 +2952,10 @@ def dos_teacher_assignments():
 
     if not check_permission(['dos']):
         abort(403)
-
     db = get_db_dict()
     cur = db.cursor()
 
     if request.method == 'POST':
-
         teacher_id = request.form.get('teacher_id')
         assignment_type = request.form.get('assignment_type')
         class_name = request.form.get('class_name')
@@ -2979,7 +2963,6 @@ def dos_teacher_assignments():
 
         if assignment_type == 'classteacher':
             subject = None
-
         cur.execute(
             """
             SELECT id
@@ -3003,9 +2986,7 @@ def dos_teacher_assignments():
                 "warning"
             )
             return redirect(url_for('dos_teacher_assignments'))
-
         if assignment_type == "classteacher":
-
             cur.execute(
                 """
                 SELECT id
@@ -3017,12 +2998,10 @@ def dos_teacher_assignments():
             )
 
             if cur.fetchone():
-
                 flash(
                     f"{class_name} already has a class teacher.",
                     "danger"
                 )
-
                 return redirect(
                     url_for('dos_teacher_assignments')
                 )
@@ -3054,12 +3033,9 @@ def dos_teacher_assignments():
             "Teacher assignment added successfully.",
             "success"
         )
-
         return redirect(
             url_for('dos_teacher_assignments')
         )
-
-
     cur.execute(
         """
         SELECT id, username, full_name
@@ -3665,73 +3641,47 @@ def dos_alevel_grading():
 
     if not check_permission(['dos']):
         abort(403)
-
-
     if request.method == 'POST':
-
         file = request.files.get('grading_file')
-
-
         if not file or not file.filename:
-
             flash(
                 'Please upload an Excel file.',
                 'danger'
             )
-
             return redirect(
                 url_for('dos_alevel_grading')
             )
-
-
         try:
-
             from openpyxl import load_workbook
-
             wb = load_workbook(
                 file,
                 data_only=True
             )
-
             sheet = wb.active
-
-
             headers = [
                 str(cell.value).strip().lower()
                 if cell.value else ''
                 for cell in sheet[1]
             ]
-
-
             cols = {}
-
-
             for idx, header in enumerate(headers):
-
                 if header in [
                     'min_score',
                     'max_score',
                     'grade',
                     'points'
                 ]:
-
                     cols[header] = idx
-
-
-
             required = [
                 'min_score',
                 'max_score',
                 'grade',
                 'points'
             ]
-
-
             if not all(
                 item in cols
                 for item in required
             ):
-
                 flash(
                     'Missing required columns: min_score, max_score, grade, points',
                     'danger'
@@ -3740,19 +3690,13 @@ def dos_alevel_grading():
                 return redirect(
                     url_for('dos_alevel_grading')
                 )
-
-
             execute_db(
                 """
                 DELETE FROM alevel_grading
                 WHERE is_subsidiary=FALSE
                 """
             )
-
-
             count = 0
-
-
             for row_idx in range(
                 2,
                 sheet.max_row + 1
@@ -3777,8 +3721,6 @@ def dos_alevel_grading():
                     row=row_idx,
                     column=cols['points'] + 1
                 ).value
-
-
                 if None in [
                     min_val,
                     max_val,
@@ -3786,10 +3728,7 @@ def dos_alevel_grading():
                     points_val
                 ]:
                     continue
-
-
                 try:
-
                     execute_db(
                         """
                         INSERT INTO alevel_grading
@@ -3812,20 +3751,13 @@ def dos_alevel_grading():
                     )
 
                     count += 1
-
-
                 except Exception:
 
                     continue
-
-
-
             flash(
                 f'{count} A-Level grading rules uploaded.',
                 'success'
             )
-
-
         except Exception as e:
 
             flash(
@@ -3837,9 +3769,6 @@ def dos_alevel_grading():
         return redirect(
             url_for('dos_alevel_grading')
         )
-
-
-
     db = get_db_dict()
     cur = db.cursor()
 
@@ -3855,13 +3784,9 @@ def dos_alevel_grading():
         ORDER BY min_score DESC
         """
     )
-
-
     rules = cur.fetchall()
 
     cur.close()
-
-
     return render_template(
         'dos/alevel_grading.html',
         rules=rules
