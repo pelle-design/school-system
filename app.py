@@ -4649,11 +4649,11 @@ def save_olevel_marks():
         )
 
         total_score = ai_contribution + eot_contribution
-
         grade, descriptor = get_grade_and_descriptor(total_score)
-
-        identifier = get_identifier(total_score)
-
+        identifier = (
+            round((total_score / 100) * 3, 2)
+            if total_score is not None else None
+        )
         cursor.execute(
             """
             INSERT INTO marks
