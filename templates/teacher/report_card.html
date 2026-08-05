@@ -214,57 +214,27 @@ END OF TERM REPORT CARD
 </tbody>
 </table>
 <!-- SUMMARY SECTION -->
-
 <table class="summary-table" style="width:100%;margin-top:20px;">
-
 <tr>
-
 <td style="width:25%;background:#e8eaf6;padding:10px;">
 <strong>📊 General Average:</strong>
-{% if report %}
-{{ report.avg_out_of_3 or '-' }}
-{% else %}
--
-{% endif %}
+{{ general_average if general_average is not none else '-' }}
 </td>
-
 <td style="width:25%;background:#e8eaf6;padding:10px;">
 <strong>🎓 General Grade:</strong>
-
-{% if report %}
-<span class="grade-{{ report.general_grade }}">
-{{ report.general_grade or '-' }}
+<span class="grade-{{ general_grade }}">
+{{ general_grade if general_grade else '-' }}
 </span>
-{% else %}
--
-{% endif %}
-
 </td>
-
 <td style="width:25%;background:#e8eaf6;padding:10px;">
 <strong>📝 Descriptor:</strong>
-
-{% if report %}
-{{ report.general_descriptor or '-' }}
-{% else %}
--
-{% endif %}
-
+{{ general_descriptor if general_descriptor else '-' }}
 </td>
-
 <td style="width:25%;background:#e8eaf6;padding:10px;">
 <strong>📌 Identifier:</strong>
-
-{% if report %}
-{{ report.general_identifier or '-' }}
-{% else %}
--
-{% endif %}
-
+{{ general_identifier if general_identifier is not none else '-' }}
 </td>
-
 </tr>
-
 </table>
 <!-- COMMENTS AND SIGNATURES SECTION -->
 
