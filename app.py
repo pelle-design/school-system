@@ -1343,50 +1343,131 @@ def get_predefined_comments(comment_type):
     return comments
 
 # ==================== TEACHER ASSIGNMENT HELPERS ====================
-
 def get_user_assignments(user_id=None):
     if user_id is None:
-        user_id=session.get('user_id')
-    db=get_db()
-    cur=db.cursor()
+        user_id = session.get('user_id')
+
+    if not user_id:
+        return []
+
+    db = get_db_dict()
+    cur = db.cursor()
+
     cur.execute("""
-        SELECT *
+        SELECT
+            id,
+            user_id,
+            class_name,
+            subject,
+            assignment_type,
+            assigned_by
         FROM teacher_class_assignments
-        WHERE user_id=%s
-        ORDER BY assignment_type,class_name,subject
-    """,(user_id,))
-    assignments=cur.fetchall()
+        WHERE user_id = %s
+        ORDER BY assignment_type, class_name, subject
+    """, (user_id,))
+
+    assignments = cur.fetchall()
+
     cur.close()
+
     return assignments
 
 
-def get_user_classes(user_id=None,assignment_type=None):
+def get_user_classes(user_id=None, assignment_type=None):
     if user_id is None:
-        user_id=session.get('user_id')
+        user_id = session.get('user_id')
 
-    db=get_db()
-    cur=db.cursor()
+    if not user_id:
+        return []
+
+    db = get_db_dict()
+    cur = db.cursor()
 
     if assignment_type:
         cur.execute("""
             SELECT DISTINCT class_name
             FROM teacher_class_assignments
-            WHERE user_id=%s AND assignment_type=%s
+            WHERE user_id = %s
+              AND assignment_type = %s
             ORDER BY class_name
-        """,(user_id,assignment_type))
+        """, (user_id, assignment_type))
     else:
         cur.execute("""
             SELECT DISTINCT class_name
             FROM teacher_class_assignments
-            WHERE user_id=%s
+            WHERE user_id = %s
             ORDER BY class_name
-        """,(user_id,))
+        """, (user_id,))
 
-    rows=cur.fetchall()
+    rows = cur.fetchall()
+
     cur.close()
 
     return [row['class_name'] for row in rows]
-    
+
+
+def teacher_has_class_access(user_id, student_class, assignment_type=None):
+    """
+    Checks whether a teacher has access to a particular student class/stream.
+
+    Examples:
+
+        Assignment S.1  -> S.1A, S.1B, S.1C
+        Assignment S.2  -> S.2A, S.2B, S.2C
+        Assignment S.1A -> S.1A only
+    """
+
+    if not user_id or not student_class:
+        return False
+
+    assignments = get_user_assignments(user_id)
+
+    student_class = student_class.strip().upper()
+
+    for assignment in assignments:
+
+        if assignment_type and assignment['assignment_type'] != assignment_type:
+            continue
+
+        assigned_class = (assignment.get('class_name') or '').strip().upper()
+
+        if not assigned_class:
+            continue
+
+        # Exact match
+        if student_class == assigned_class:
+            return True
+
+        # Main class assignment covers its streams.
+        # Example:
+        # S.1 -> S.1A
+        # S.1 -> S.1B
+        # S.2 -> S.2A
+        #
+        # But S.1 must NOT match S.10A.
+        if re.match(
+            r'^' + re.escape(assigned_class) + r'[A-Z]+$',
+            student_class
+        ):
+            return True
+
+    return False
+
+
+def get_teacher_accessible_classes(user_id=None, assignment_type=None):
+    """
+    Returns the classes assigned to the teacher.
+
+    Assignments are kept at the main-class level where possible,
+    e.g. S.1, S.2, S.3.
+
+    The actual students can still be stored as S.1A, S.1B, etc.
+    """
+
+    return get_user_classes(
+        user_id=user_id,
+        assignment_type=assignment_type
+    )
 # ==================== BANK PAYMENT PROCESSING ====================
 def process_bank_payment(payroll):
     import random
@@ -2946,6 +3027,7 @@ def dos_class_lists():
     )
 
 # ==================== DOS TEACHER ASSIGNMENTS ====================
+
 @app.route('/dos/teacher_assignments', methods=['GET', 'POST'])
 def dos_teacher_assignments():
     if not check_permission(['dos']):
@@ -2954,24 +3036,33 @@ def dos_teacher_assignments():
     db = get_db_dict()
     cur = db.cursor()
 
+    # =============================================================
+    # SAVE NEW ASSIGNMENT
+    # =============================================================
     if request.method == 'POST':
+
         teacher_id = request.form.get('teacher_id')
         assignment_type = request.form.get('assignment_type')
         class_name = request.form.get('class_name')
         subject = request.form.get('subject') or None
 
         if not teacher_id or not assignment_type or not class_name:
-            flash("Please complete all required fields.", "danger")
+            flash(
+                "Please complete all required fields.",
+                "danger"
+            )
             cur.close()
             return redirect(url_for('dos_teacher_assignments'))
 
-        # Class-teacher assignments do not have a subject
+        class_name = class_name.strip().upper()
+
+        # Class teachers do not have a subject
         if assignment_type == 'classteacher':
             subject = None
 
-        # ---------------------------------------------------------
+        # =========================================================
         # CHECK FOR DUPLICATE ASSIGNMENT
-        # ---------------------------------------------------------
+        # =========================================================
         cur.execute(
             """
             SELECT id
@@ -2995,12 +3086,15 @@ def dos_teacher_assignments():
                 "warning"
             )
             cur.close()
-            return redirect(url_for('dos_teacher_assignments'))
+            return redirect(
+                url_for('dos_teacher_assignments')
+            )
 
-        # ---------------------------------------------------------
-        # ONLY ONE CLASS TEACHER PER CLASS
-        # ---------------------------------------------------------
+        # =========================================================
+        # ONLY ONE CLASS TEACHER PER MAIN CLASS
+        # =========================================================
         if assignment_type == 'classteacher':
+
             cur.execute(
                 """
                 SELECT id
@@ -3021,13 +3115,18 @@ def dos_teacher_assignments():
                     url_for('dos_teacher_assignments')
                 )
 
-        # ---------------------------------------------------------
+        # =========================================================
         # SAVE ASSIGNMENT
         #
-        # If S.1 is selected, store S.1.
-        # The system will later treat S.1 as covering:
-        # S.1A, S.1B, S.1C, etc.
-        # ---------------------------------------------------------
+        # S.1 is deliberately stored as S.1.
+        #
+        # Later, the teacher system interprets S.1 as:
+        #
+        # S.1A
+        # S.1B
+        # S.1C
+        # etc.
+        # =========================================================
         cur.execute(
             """
             INSERT INTO teacher_class_assignments
@@ -3084,15 +3183,33 @@ def dos_teacher_assignments():
     teachers = cur.fetchall()
 
     # =============================================================
-    # GET CLASSES
+    # GET MAIN CLASSES
+    #
+    # Students are stored as:
+    #
+    # S.1A
+    # S.1B
+    # S.2A
+    #
+    # But assignments are made to:
+    #
+    # S.1
+    # S.2
+    #
+    # PostgreSQL removes the stream letter here.
     # =============================================================
     cur.execute(
         """
-        SELECT DISTINCT class
+        SELECT DISTINCT
+            REGEXP_REPLACE(
+                TRIM(class),
+                '[A-Za-z]+$',
+                ''
+            ) AS class_name
         FROM students
         WHERE class IS NOT NULL
           AND TRIM(class) <> ''
-        ORDER BY class
+        ORDER BY class_name
         """
     )
 
@@ -3133,6 +3250,7 @@ def dos_teacher_assignments():
     teachers_data = {}
 
     for assignment in assignments:
+
         user_id = assignment['user_id']
 
         if user_id not in teachers_data:
@@ -3144,18 +3262,20 @@ def dos_teacher_assignments():
                 'subjects': []
             }
 
-        # ---------------------------------------------------------
+        # =========================================================
         # CLASS TEACHER
-        # ---------------------------------------------------------
+        # =========================================================
         if assignment['assignment_type'] == 'classteacher':
+
             teachers_data[user_id]['class_teacher'] = (
                 assignment['class_name']
             )
 
-        # ---------------------------------------------------------
+        # =========================================================
         # SUBJECT TEACHER
-        # ---------------------------------------------------------
+        # =========================================================
         else:
+
             teachers_data[user_id]['subjects'].append(
                 {
                     'class': assignment['class_name'],
@@ -3180,9 +3300,9 @@ def dos_teacher_assignments():
             len(teacher['subjects']) > 0
         )
 
-        # ---------------------------------------------------------
-        # TEACHER HAS BOTH ROLES
-        # ---------------------------------------------------------
+        # =========================================================
+        # BOTH CLASS TEACHER AND SUBJECT TEACHER
+        # =========================================================
         if has_class and has_subject:
 
             teacher['classteacher_class'] = (
@@ -3191,9 +3311,9 @@ def dos_teacher_assignments():
 
             both_roles.append(teacher)
 
-        # ---------------------------------------------------------
+        # =========================================================
         # CLASS TEACHER ONLY
-        # ---------------------------------------------------------
+        # =========================================================
         elif has_class:
 
             teacher['class_name'] = (
@@ -3202,9 +3322,9 @@ def dos_teacher_assignments():
 
             class_teachers.append(teacher)
 
-        # ---------------------------------------------------------
+        # =========================================================
         # SUBJECT TEACHER ONLY
-        # ---------------------------------------------------------
+        # =========================================================
         elif has_subject:
 
             for subject_assignment in teacher['subjects']:
@@ -4102,50 +4222,177 @@ def dos_upload_teachers():
 
     return render_template('dos/upload_teachers.html')
 
-def assign_user_to_class(user_id, class_name, subject=None, assignment_type='subject_teacher'):
-    """Helper function to assign a teacher to a class with proper conflict handling"""
+def assign_user_to_class(
+    user_id,
+    class_name,
+    subject=None,
+    assignment_type='subject_teacher'
+):
+    """
+    Assign a teacher to a class.
+
+    Main classes such as S.1, S.2, S.3 are stored exactly as assigned.
+
+    A main-class assignment automatically covers its streams:
+
+        S.1  -> S.1A, S.1B, S.1C
+        S.2  -> S.2A, S.2B, S.2C
+
+    A specific stream assignment such as S.1A only covers S.1A.
+    """
+
+    db = None
+    cur = None
+
     try:
+        # ---------------------------------------------------------
+        # BASIC VALIDATION
+        # ---------------------------------------------------------
+        if not user_id or not class_name:
+            return False
+
+        class_name = class_name.strip().upper()
+
+        # Class teachers do not have a subject
+        if assignment_type == 'classteacher':
+            subject = None
+
+        # ---------------------------------------------------------
+        # GET DATABASE
+        # ---------------------------------------------------------
         db = get_db_dict()
         cur = db.cursor()
 
-        cur.execute(
-            """
-            SELECT id FROM teacher_class_assignments
-            WHERE user_id=%s
-            AND class_name=%s
-            AND assignment_type=%s
-            """,
-            (user_id, class_name, assignment_type)
-        )
+        # ---------------------------------------------------------
+        # CHECK EXISTING ASSIGNMENT
+        #
+        # For subject teachers, the same teacher can have:
+        #
+        # S.1 Mathematics
+        # S.1 English
+        #
+        # Therefore subject is included in the duplicate check.
+        # ---------------------------------------------------------
+        if assignment_type == 'subject_teacher':
+
+            cur.execute(
+                """
+                SELECT id
+                FROM teacher_class_assignments
+                WHERE user_id = %s
+                  AND class_name = %s
+                  AND assignment_type = %s
+                  AND subject IS NOT DISTINCT FROM %s
+                """,
+                (
+                    user_id,
+                    class_name,
+                    assignment_type,
+                    subject
+                )
+            )
+
+        else:
+
+            cur.execute(
+                """
+                SELECT id
+                FROM teacher_class_assignments
+                WHERE user_id = %s
+                  AND class_name = %s
+                  AND assignment_type = %s
+                """,
+                (
+                    user_id,
+                    class_name,
+                    assignment_type
+                )
+            )
 
         existing = cur.fetchone()
 
+        # ---------------------------------------------------------
+        # UPDATE EXISTING ASSIGNMENT
+        # ---------------------------------------------------------
         if existing:
+
             if assignment_type == 'subject_teacher':
+
                 cur.execute(
                     """
                     UPDATE teacher_class_assignments
-                    SET subject=%s,
-                        assigned_at=CURRENT_TIMESTAMP
-                    WHERE id=%s
+                    SET subject = %s,
+                        assigned_at = CURRENT_TIMESTAMP
+                    WHERE id = %s
                     """,
-                    (subject, existing['id'])
+                    (
+                        subject,
+                        existing['id']
+                    )
                 )
+
             else:
+
                 cur.execute(
                     """
                     UPDATE teacher_class_assignments
-                    SET assigned_at=CURRENT_TIMESTAMP
-                    WHERE id=%s
+                    SET assigned_at = CURRENT_TIMESTAMP
+                    WHERE id = %s
                     """,
-                    (existing['id'],)
+                    (
+                        existing['id'],
+                    )
                 )
+
+        # ---------------------------------------------------------
+        # CREATE NEW ASSIGNMENT
+        # ---------------------------------------------------------
         else:
+
+            # -----------------------------------------------------
+            # ONLY ONE CLASS TEACHER PER CLASS
+            # -----------------------------------------------------
+            if assignment_type == 'classteacher':
+
+                cur.execute(
+                    """
+                    SELECT id
+                    FROM teacher_class_assignments
+                    WHERE class_name = %s
+                      AND assignment_type = 'classteacher'
+                    LIMIT 1
+                    """,
+                    (
+                        class_name,
+                    )
+                )
+
+                class_teacher_exists = cur.fetchone()
+
+                if class_teacher_exists:
+                    cur.close()
+
+                    app.logger.warning(
+                        f"Class {class_name} already has a class teacher."
+                    )
+
+                    return False
+
+            # -----------------------------------------------------
+            # INSERT ASSIGNMENT
+            # -----------------------------------------------------
             cur.execute(
                 """
                 INSERT INTO teacher_class_assignments
-                (user_id, class_name, subject, assignment_type, assigned_by)
-                VALUES (%s,%s,%s,%s,%s)
+                (
+                    user_id,
+                    class_name,
+                    subject,
+                    assignment_type,
+                    assigned_by,
+                    assigned_at
+                )
+                VALUES (%s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
                 """,
                 (
                     user_id,
@@ -4156,15 +4403,34 @@ def assign_user_to_class(user_id, class_name, subject=None, assignment_type='sub
                 )
             )
 
+        # ---------------------------------------------------------
+        # SAVE
+        # ---------------------------------------------------------
         db.commit()
+
         cur.close()
+
         return True
 
     except Exception as e:
-        app.logger.error(f"Error in assign_user_to_class: {str(e)}")
+
+        if db:
+            try:
+                db.rollback()
+            except Exception:
+                pass
+
+        if cur:
+            try:
+                cur.close()
+            except Exception:
+                pass
+
+        app.logger.error(
+            f"Error in assign_user_to_class: {str(e)}"
+        )
+
         return False
-
-
 @app.route('/dos/delete_assignment/<int:assignment_id>', methods=['POST'])
 def dos_delete_assignment(assignment_id):
     if not check_permission(['dos']):
@@ -4254,6 +4520,7 @@ def dos_edit_assignment(assignment_id):
     )
     
 # ==================== UNIFIED TEACHER MODULE ====================
+# ==================== TEACHER STUDENTS ====================
 
 @app.route('/teacher/students')
 def teacher_students():
@@ -4262,33 +4529,173 @@ def teacher_students():
 
     term = request.args.get('term', 'Term 1')
     user_id = session.get('user_id')
+
+    # =========================================================
+    # GET TEACHER ASSIGNMENTS
+    # =========================================================
     assignments = get_user_assignments(user_id)
 
     if not assignments:
-        flash('No classes assigned to you. Please contact admin.', 'danger')
+        flash(
+            'No classes assigned to you. Please contact admin.',
+            'danger'
+        )
         return redirect(url_for('dashboard'))
 
-    available_classes = list(set([a['class_name'] for a in assignments]))
-    selected_class = request.args.get('class_name', session.get('selected_class', available_classes[0]))
-    session['selected_class'] = selected_class
+    # =========================================================
+    # GET ASSIGNED CLASSES
+    # =========================================================
+    available_classes = sorted(
+        list(
+            set(
+                (a['class_name'] or '').strip().upper()
+                for a in assignments
+                if a.get('class_name')
+            )
+        )
+    )
 
-    if selected_class not in available_classes:
+    if not available_classes:
+        flash(
+            'No classes assigned to you. Please contact admin.',
+            'danger'
+        )
+        return redirect(url_for('dashboard'))
+
+    # =========================================================
+    # SELECT CLASS
+    # =========================================================
+    selected_class = request.args.get(
+        'class_name',
+        session.get(
+            'selected_class',
+            available_classes[0]
+        )
+    )
+
+    selected_class = selected_class.strip().upper()
+
+    # =========================================================
+    # CHECK WHETHER TEACHER HAS ACCESS
+    #
+    # Example:
+    #
+    # Assignment: S.1
+    #
+    # Allowed:
+    # S.1A
+    # S.1B
+    # S.1C
+    #
+    # Assignment: S.1A
+    #
+    # Allowed:
+    # S.1A only
+    # =========================================================
+    if not teacher_has_class_access(
+        user_id,
+        selected_class
+    ):
         selected_class = available_classes[0]
+
         session['selected_class'] = selected_class
+    else:
+        session['selected_class'] = selected_class
+
+    # =========================================================
+    # GET STUDENTS
+    # =========================================================
     db = get_db_dict()
     cur = db.cursor()
-    cur.execute(
-        "SELECT student_id, full_name, photo_path, parent_phone FROM students WHERE class=%s ORDER BY full_name",
-        (selected_class,)
-    )
+
+    # =========================================================
+    # MAIN CLASS
+    #
+    # If assignment is S.1, retrieve:
+    #
+    # S.1A
+    # S.1B
+    # S.1C
+    # etc.
+    #
+    # =========================================================
+    if re.match(
+        r'^S\.\d+$',
+        selected_class
+    ):
+
+        cur.execute(
+            """
+            SELECT
+                student_id,
+                full_name,
+                photo_path,
+                parent_phone,
+                class
+            FROM students
+            WHERE class ~ %s
+            ORDER BY class, full_name
+            """,
+            (
+                '^' + selected_class + r'[A-Za-z]+$',
+            )
+        )
+
+    # =========================================================
+    # SPECIFIC STREAM
+    #
+    # If selected class is S.1A, retrieve only S.1A.
+    #
+    # =========================================================
+    else:
+
+        cur.execute(
+            """
+            SELECT
+                student_id,
+                full_name,
+                photo_path,
+                parent_phone,
+                class
+            FROM students
+            WHERE class = %s
+            ORDER BY full_name
+            """,
+            (selected_class,)
+        )
+
     students = cur.fetchall()
-    for s in students:
-        s['photo_url'] = get_photo_url(s.get('photo_path'))
+
+    # =========================================================
+    # ADD PHOTO URL
+    # =========================================================
+    for student in students:
+        student['photo_url'] = get_photo_url(
+            student.get('photo_path')
+        )
+
     cur.close()
-    is_classteacher = any(
-        a['assignment_type'] == 'classteacher' and a['class_name'] == selected_class
-        for a in assignments
+
+    # =========================================================
+    # CHECK CLASS TEACHER STATUS
+    #
+    # If teacher is class teacher of S.1,
+    # they remain class teacher for:
+    #
+    # S.1A
+    # S.1B
+    # S.1C
+    #
+    # =========================================================
+    is_classteacher = teacher_has_class_access(
+        user_id,
+        selected_class,
+        assignment_type='classteacher'
     )
+
+    # =========================================================
+    # RETURN TEMPLATE
+    # =========================================================
     return render_template(
         'teacher/students.html',
         students=students,
@@ -4297,7 +4704,7 @@ def teacher_students():
         is_classteacher=is_classteacher,
         term=term
     )
-
+    
 @app.route('/teacher/attendance', methods=['GET', 'POST'])
 def teacher_attendance():
     if not check_permission(['classteacher']):
