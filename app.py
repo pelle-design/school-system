@@ -3036,9 +3036,9 @@ def dos_teacher_assignments():
     db = get_db_dict()
     cur = db.cursor()
 
-    # =============================================================
-    # SAVE NEW ASSIGNMENT
-    # =============================================================
+    # =========================================================
+    # POST - ADD TEACHER ASSIGNMENT
+    # =========================================================
     if request.method == 'POST':
 
         teacher_id = request.form.get('teacher_id')
@@ -3060,9 +3060,9 @@ def dos_teacher_assignments():
         if assignment_type == 'classteacher':
             subject = None
 
-        # =========================================================
+        # =====================================================
         # CHECK FOR DUPLICATE ASSIGNMENT
-        # =========================================================
+        # =====================================================
         cur.execute(
             """
             SELECT id
@@ -3086,13 +3086,11 @@ def dos_teacher_assignments():
                 "warning"
             )
             cur.close()
-            return redirect(
-                url_for('dos_teacher_assignments')
-            )
+            return redirect(url_for('dos_teacher_assignments'))
 
-        # =========================================================
-        # ONLY ONE CLASS TEACHER PER MAIN CLASS
-        # =========================================================
+        # =====================================================
+        # ONLY ONE CLASS TEACHER PER CLASS
+        # =====================================================
         if assignment_type == 'classteacher':
 
             cur.execute(
@@ -3101,6 +3099,7 @@ def dos_teacher_assignments():
                 FROM teacher_class_assignments
                 WHERE class_name = %s
                   AND assignment_type = 'classteacher'
+                LIMIT 1
                 """,
                 (class_name,)
             )
@@ -3111,22 +3110,11 @@ def dos_teacher_assignments():
                     "danger"
                 )
                 cur.close()
-                return redirect(
-                    url_for('dos_teacher_assignments')
-                )
+                return redirect(url_for('dos_teacher_assignments'))
 
-        # =========================================================
-        # SAVE ASSIGNMENT
-        #
-        # S.1 is deliberately stored as S.1.
-        #
-        # Later, the teacher system interprets S.1 as:
-        #
-        # S.1A
-        # S.1B
-        # S.1C
-        # etc.
-        # =========================================================
+        # =====================================================
+        # INSERT ASSIGNMENT
+        # =====================================================
         cur.execute(
             """
             INSERT INTO teacher_class_assignments
@@ -3135,9 +3123,17 @@ def dos_teacher_assignments():
                 class_name,
                 subject,
                 assignment_type,
-                assigned_by
+                assigned_by,
+                assigned_at
             )
-            VALUES (%s, %s, %s, %s, %s)
+            VALUES (
+                %s,
+                %s,
+                %s,
+                %s,
+                %s,
+                CURRENT_TIMESTAMP
+            )
             """,
             (
                 teacher_id,
@@ -3157,13 +3153,11 @@ def dos_teacher_assignments():
 
         cur.close()
 
-        return redirect(
-            url_for('dos_teacher_assignments')
-        )
+        return redirect(url_for('dos_teacher_assignments'))
 
-    # =============================================================
+    # =========================================================
     # GET TEACHERS
-    # =============================================================
+    # =========================================================
     cur.execute(
         """
         SELECT
@@ -3182,42 +3176,100 @@ def dos_teacher_assignments():
 
     teachers = cur.fetchall()
 
-    # =============================================================
-    # GET MAIN CLASSES
+    # =========================================================
+    # GET STUDENT CLASSES
     #
     # Students are stored as:
     #
     # S.1A
     # S.1B
+    # S.1C
     # S.2A
+    # S.2B
     #
-    # But assignments are made to:
+    # We convert them into main classes:
     #
     # S.1
     # S.2
     #
-    # PostgreSQL removes the stream letter here.
-    # =============================================================
+    # IMPORTANT:
+    # We return the key as "class" because your existing
+    # HTML template uses c.class.
+    # =========================================================
     cur.execute(
         """
-        SELECT DISTINCT
-            REGEXP_REPLACE(
-                TRIM(class),
-                '[A-Za-z]+$',
-                ''
-            ) AS class_name
+        SELECT DISTINCT class
         FROM students
         WHERE class IS NOT NULL
           AND TRIM(class) <> ''
-        ORDER BY class_name
+        ORDER BY class
         """
     )
 
-    classes = cur.fetchall()
+    student_class_rows = cur.fetchall()
 
-    # =============================================================
+    main_classes = set()
+
+    for row in student_class_rows:
+
+        student_class = (
+            row['class']
+            if isinstance(row, dict)
+            else row[0]
+        )
+
+        if not student_class:
+            continue
+
+        student_class = student_class.strip().upper()
+
+        # -----------------------------------------------------
+        # Convert:
+        #
+        # S.1A -> S.1
+        # S.1B -> S.1
+        # S.2A -> S.2
+        #
+        # If a class is already S.1, keep it as S.1.
+        # -----------------------------------------------------
+        if (
+            len(student_class) >= 4
+            and student_class[-1].isalpha()
+        ):
+            main_class = student_class[:-1]
+        else:
+            main_class = student_class
+
+        main_classes.add(main_class)
+
+    # =========================================================
+    # BUILD CLASSES FOR THE EXISTING HTML
+    #
+    # Your template expects:
+    #
+    # c.class
+    #
+    # Therefore we deliberately use "class" here.
+    # =========================================================
+    classes = [
+        {
+            'class': class_name
+        }
+        for class_name in sorted(
+            main_classes,
+            key=lambda x: (
+                int(x.split('.')[1])
+                if '.' in x
+                and x.split('.')[1].isdigit()
+                else 999,
+                x
+            )
+        )
+    ]
+
+    # =========================================================
     # GET ALL ASSIGNMENTS
-    # =============================================================
+    # =========================================================
     cur.execute(
         """
         SELECT
@@ -3227,6 +3279,7 @@ def dos_teacher_assignments():
             tca.subject,
             tca.assignment_type,
             tca.assigned_by,
+            tca.assigned_at,
             u.username,
             u.full_name,
             u.phone
@@ -3244,9 +3297,9 @@ def dos_teacher_assignments():
 
     cur.close()
 
-    # =============================================================
+    # =========================================================
     # ORGANIZE ASSIGNMENTS BY TEACHER
-    # =============================================================
+    # =========================================================
     teachers_data = {}
 
     for assignment in assignments:
@@ -3262,18 +3315,18 @@ def dos_teacher_assignments():
                 'subjects': []
             }
 
-        # =========================================================
+        # =====================================================
         # CLASS TEACHER
-        # =========================================================
+        # =====================================================
         if assignment['assignment_type'] == 'classteacher':
 
             teachers_data[user_id]['class_teacher'] = (
                 assignment['class_name']
             )
 
-        # =========================================================
+        # =====================================================
         # SUBJECT TEACHER
-        # =========================================================
+        # =====================================================
         else:
 
             teachers_data[user_id]['subjects'].append(
@@ -3283,9 +3336,9 @@ def dos_teacher_assignments():
                 }
             )
 
-    # =============================================================
+    # =========================================================
     # SEPARATE TEACHERS BY ROLE
-    # =============================================================
+    # =========================================================
     class_teachers = []
     subject_teachers = []
     both_roles = []
@@ -3300,9 +3353,9 @@ def dos_teacher_assignments():
             len(teacher['subjects']) > 0
         )
 
-        # =========================================================
-        # BOTH CLASS TEACHER AND SUBJECT TEACHER
-        # =========================================================
+        # =====================================================
+        # BOTH ROLES
+        # =====================================================
         if has_class and has_subject:
 
             teacher['classteacher_class'] = (
@@ -3311,9 +3364,9 @@ def dos_teacher_assignments():
 
             both_roles.append(teacher)
 
-        # =========================================================
+        # =====================================================
         # CLASS TEACHER ONLY
-        # =========================================================
+        # =====================================================
         elif has_class:
 
             teacher['class_name'] = (
@@ -3322,9 +3375,9 @@ def dos_teacher_assignments():
 
             class_teachers.append(teacher)
 
-        # =========================================================
+        # =====================================================
         # SUBJECT TEACHER ONLY
-        # =========================================================
+        # =====================================================
         elif has_subject:
 
             for subject_assignment in teacher['subjects']:
@@ -3339,9 +3392,9 @@ def dos_teacher_assignments():
                     }
                 )
 
-    # =============================================================
-    # RETURN TEMPLATE
-    # =============================================================
+    # =========================================================
+    # RENDER TEMPLATE
+    # =========================================================
     return render_template(
         'dos/teacher_assignments.html',
         teachers=teachers,
