@@ -4484,6 +4484,7 @@ def assign_user_to_class(
         )
 
         return False
+        
 @app.route('/dos/delete_assignment/<int:assignment_id>', methods=['POST'])
 def dos_delete_assignment(assignment_id):
     if not check_permission(['dos']):
@@ -4686,10 +4687,11 @@ def teacher_students():
                 parent_phone,
                 class
             FROM students
-            WHERE class ~ %s
+            WHERE class=%s OR class ~ %s
             ORDER BY class, full_name
             """,
             (
+                selected_class, 
                 '^' + selected_class + r'[A-Za-z]+$',
             )
         )
