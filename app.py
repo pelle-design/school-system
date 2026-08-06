@@ -5669,36 +5669,30 @@ def teacher_report_card(student_id):
                     'teacher_initials': m['teacher_initials']
                 }
             )
-            
-            valid_marks = [
-                m for m in marks
-                if m['total_score'] is not None
-                and float(m['total_score']) > 0
-            ]
-            
-            total_final = sum(
-                float(m['total_score'])
-                for m in valid_marks
+
+        valid_marks = [
+            m for m in marks
+            if m['total_score'] is not None
+            and float(m['total_score']) > 0
+        ]
+        total_final = sum(
+            float(m['total_score'])
+            for m in valid_marks
+        )
+        count = len(valid_marks)
+        general_average = (
+            total_final / count
+            if count > 0
+            else 0
+        ) 
+        general_identifier = round(
+            (general_average / 100) * 3,
+            2
+        )   
+        general_grade, general_descriptor = get_olevel_grade_details(
+            general_average
             )
-            
-            count = len(valid_marks)
-            
-            general_average = (
-                total_final / count
-                if count > 0
-                else 0
-            )
-            
-            general_identifier = round(
-                (general_average / 100) * 3,
-                2
-            )
-            
-            general_grade, general_descriptor = get_olevel_grade_details(
-                general_average
-            )
-            
-            cur.close()
+        cur.close()
         return render_template(
             'teacher/report_card.html',
             student_id=student_id,
