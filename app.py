@@ -2459,7 +2459,7 @@ def admission_submitted():
         data=admission_data
     )
 # ==================== DOS MODULE ====================
-SCHOOL_ABBR = "TSS"
+SCHOOL_ABBR = "KSS"
 def generate_student_id():
     return generate_unique_number(SCHOOL_ABBR, 'students', 'student_id', year_format=True)
 
