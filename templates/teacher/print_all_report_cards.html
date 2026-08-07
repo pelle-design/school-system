@@ -1,10 +1,156 @@
 {% extends "base.html" %}
-{% block title %}My Students{% endblock %}
+
+{% block title %}
+Print All O-Level Report Cards
+{% endblock %}
 
 {% block content %}
 
 <style>
+
+    /* =========================================================
+       GENERAL
+       ========================================================= */
+
+    body {
+        background: #f5f5f5;
+    }
+
+    .print-controls {
+        margin-bottom: 20px;
+    }
+
+    .report-card-container {
+        border: 2px solid #1a237e;
+        border-radius: 15px;
+        padding: 25px;
+        background: white;
+        margin-bottom: 30px;
+        page-break-after: always;
+    }
+
+    .report-card-container:last-child {
+        page-break-after: auto;
+    }
+
+
+    /* =========================================================
+       SCHOOL HEADER
+       ========================================================= */
+
+    .school-header {
+        text-align: center;
+        margin-bottom: 20px;
+    }
+
+    .school-logo {
+        max-width: 100px;
+        height: auto;
+        display: block;
+        margin: 0 auto 10px;
+    }
+
+    .student-photo {
+        width: 100px;
+        height: 100px;
+        object-fit: cover;
+        border-radius: 10px;
+    }
+
+
+    /* =========================================================
+       MARKS TABLE
+       ========================================================= */
+
+    .marks-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-bottom: 20px;
+    }
+
+    .marks-table th,
+    .marks-table td {
+        text-align: center;
+        vertical-align: middle;
+        font-size: 11px;
+        padding: 8px 5px;
+        border: 1px solid #ddd;
+    }
+
+    .marks-table th {
+        background: linear-gradient(
+            135deg,
+            #1a237e 0%,
+            #283593 100%
+        );
+        color: white;
+        font-weight: bold;
+        text-transform: uppercase;
+    }
+
+    .marks-table tr:nth-child(even) {
+        background: #f9f9f9;
+    }
+
+
+    /* =========================================================
+       GRADES
+       ========================================================= */
+
+    .grade-A {
+        color: #2e7d32;
+        font-weight: bold;
+    }
+
+    .grade-B {
+        color: #1565c0;
+        font-weight: bold;
+    }
+
+    .grade-C {
+        color: #f57c00;
+        font-weight: bold;
+    }
+
+    .grade-D {
+        color: #e65100;
+        font-weight: bold;
+    }
+
+    .grade-E {
+        color: #9c27b0;
+        font-weight: bold;
+    }
+
+    .grade-F {
+        color: #c62828;
+        font-weight: bold;
+    }
+
+
+    /* =========================================================
+       COMMENTS
+       ========================================================= */
+
+    .comment-box {
+        border: 1px solid #ddd;
+        padding: 10px;
+        border-radius: 5px;
+        background: #f9f9f9;
+        min-height: 60px;
+    }
+
+
+    /* =========================================================
+       PRINT
+       ========================================================= */
+
     @media print {
+
+        body {
+            background: white !important;
+        }
+
         .no-print {
             display: none !important;
         }
@@ -19,588 +165,709 @@
             width: 100% !important;
         }
 
-        .card {
-            box-shadow: none;
-            border: 1px solid #ddd;
+        .report-card-container {
+            border: 2px solid black !important;
+            box-shadow: none !important;
+            margin: 0 !important;
+            padding: 15px !important;
+            page-break-after: always;
         }
 
-        .card-header {
-            background: white !important;
+        .report-card-container:last-child {
+            page-break-after: auto;
+        }
+
+        .marks-table th,
+        .marks-table td {
+            border: 1px solid black !important;
+            font-size: 9px !important;
+            padding: 5px 3px !important;
+        }
+
+        .marks-table th {
+            background: #ddd !important;
             color: black !important;
         }
 
-        .table th,
-        .table td {
-            padding: 6px !important;
-            font-size: 12px;
-        }
-
-        .student-photo {
-            width: 30px !important;
-            height: 30px !important;
-        }
-
-        .print-title {
-            display: block !important;
-        }
-
-        .action-column {
-            display: none !important;
-        }
-
-        .class-selector {
-            display: none !important;
-        }
-
-        .btn {
-            display: none;
+        @page {
+            size: A4;
+            margin: 10mm;
         }
     }
 
-    .print-title {
-        display: none;
-        margin-bottom: 20px;
-        text-align: center;
-    }
-
-    .print-title h3 {
-        margin: 0;
-    }
-
-    .print-title p {
-        margin: 5px 0;
-        color: #666;
-    }
-
-    .student-photo {
-        width: 40px;
-        height: 40px;
-        object-fit: cover;
-        border-radius: 50%;
-    }
 </style>
 
-<div class="card shadow">
 
-```
-<!-- ==================== HEADER ==================== -->
+<!-- =========================================================
+     PRINT CONTROLS
+     ========================================================= -->
 
-<div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+<div class="text-end no-print print-controls">
 
-    <span>
-        <i class="fas fa-users"></i>
-        My Students - Class {{ selected_class }}
-    </span>
+    <button
+        onclick="window.print()"
+        class="btn btn-primary">
 
-    <div class="no-print">
+        🖨️ Print All Report Cards
 
-        <button onclick="window.print()" class="btn btn-light btn-sm">
-            <i class="fas fa-print"></i>
-            Print List
-        </button>
+    </button>
 
-        <a href="{{ url_for('teacher_print_all_report_cards',
-                            term=request.args.get('term', 'Term 1'),
-                            year=request.args.get('year', datetime.now().year)) }}"
-           class="btn btn-light btn-sm">
+    <a
+        href="{{ url_for(
+            'teacher_students',
+            class_name=class_name,
+            term=term,
+            year=year
+        ) }}"
+        class="btn btn-outline-secondary">
 
-            <i class="fas fa-print"></i>
-            Print All Report Cards
+        Back
 
-        </a>
-
-    </div>
+    </a>
 
 </div>
 
 
-<div class="card-body">
+
+<!-- =========================================================
+     REPORT CARDS
+     ========================================================= -->
+
+{% for report in reports %}
+
+<div class="report-card-container">
 
 
-    <!-- ==================== PRINT TITLE ==================== -->
+    <!-- =====================================================
+         SCHOOL HEADER
+         ===================================================== -->
 
-    <div class="print-title">
+    <div class="school-header">
 
-        <h3>Student Class List</h3>
+        <div class="row align-items-center">
 
-        <p>
 
-            <strong>Class:</strong>
-            {{ selected_class }}
+            <!-- SCHOOL LOGO -->
 
-            &nbsp;|&nbsp;
+            <div class="col-2 text-start">
 
-            <strong>Term:</strong>
-            {{ request.args.get('term', 'Term 1') }}
+                {% if school_logo_url %}
 
-            &nbsp;|&nbsp;
+                    <img
+                        src="{{ school_logo_url }}"
+                        class="school-logo"
+                        alt="School Logo">
 
-            <strong>Year:</strong>
-            {{ request.args.get('year', datetime.now().year) }}
+                {% else %}
 
-            &nbsp;|&nbsp;
+                    <img
+                        src="{{ url_for(
+                            'static',
+                            filename='images/logo.png'
+                        ) }}"
+                        class="school-logo"
+                        alt="School Logo">
 
-            <strong>Date:</strong>
-            {{ datetime.now().strftime('%d/%m/%Y') }}
+                {% endif %}
 
-        </p>
+            </div>
+
+
+            <!-- SCHOOL DETAILS -->
+
+            <div class="col-8 text-center">
+
+                <h2 style="font-size:24px;margin-bottom:5px;">
+
+                    {{ school_name or 'YOUR SCHOOL NAME' }}
+
+                </h2>
+
+                <p style="font-size:12px;margin-bottom:5px;">
+
+                    {{ school_address or
+                    'P.O. Box 123, Kampala, Uganda' }}
+
+                    |
+
+                    {{ school_phone or
+                    'Tel: +256 712 345678' }}
+
+                    |
+
+                    {{ school_email or
+                    'Email: info@school.com' }}
+
+                </p>
+
+            </div>
+
+
+            <!-- STUDENT PHOTO -->
+
+            <div class="col-2 text-end">
+
+                <img
+                    src="{{ report.photo_url or
+                    url_for(
+                        'static',
+                        filename='images/default_student.png'
+                    ) }}"
+                    class="student-photo"
+                    alt="Student Photo">
+
+            </div>
+
+        </div>
+
 
         <hr>
 
+
+        <h3 style="font-size:18px;margin-top:10px;">
+
+            END OF TERM REPORT CARD
+
+        </h3>
+
     </div>
 
 
-    <!-- ==================== CLASS AND TERM SELECTOR ==================== -->
 
-    {% if available_classes|length > 1 %}
+    <!-- =====================================================
+         STUDENT DETAILS
+         ===================================================== -->
 
-    <div class="row mb-3 class-selector no-print">
+    <div class="row mb-4">
 
-        <!-- CLASS -->
+        <div class="col-md-12">
 
-        <div class="col-md-3">
+            <p>
 
-            <label class="form-label">
-                Select Class
-            </label>
+                <strong>Student Number:</strong>
 
-            <select id="classSelect"
-                    class="form-select"
-                    onchange="updateClass()">
+                {{ report.student_id or '-' }}
 
-                {% for cls in available_classes %}
+                &nbsp; | &nbsp;
 
-                <option value="{{ cls }}"
-                    {% if cls == selected_class %}
-                        selected
-                    {% endif %}>
+                <strong>Class:</strong>
 
-                    {{ cls }}
+                {{ class_name or '-' }}
 
-                </option>
+                &nbsp; | &nbsp;
 
-                {% endfor %}
+                <strong>Term:</strong>
 
-            </select>
+                {{ term or '-' }}
 
-        </div>
+                &nbsp; | &nbsp;
 
+                <strong>Year:</strong>
 
-        <!-- TERM -->
+                {{ year or '-' }}
 
-        <div class="col-md-3">
-
-            <label class="form-label">
-                Term
-            </label>
-
-            <select id="termInput"
-                    class="form-select">
-
-                <option value="Term 1"
-                    {% if request.args.get('term', 'Term 1') == 'Term 1' %}
-                        selected
-                    {% endif %}>
-                    Term 1
-                </option>
-
-                <option value="Term 2"
-                    {% if request.args.get('term', 'Term 1') == 'Term 2' %}
-                        selected
-                    {% endif %}>
-                    Term 2
-                </option>
-
-                <option value="Term 3"
-                    {% if request.args.get('term', 'Term 1') == 'Term 3' %}
-                        selected
-                    {% endif %}>
-                    Term 3
-                </option>
-
-            </select>
-
-        </div>
+            </p>
 
 
-        <!-- UPDATE -->
+            <p>
 
-        <div class="col-md-2 align-self-end">
+                <strong>Full Name:</strong>
 
-            <button onclick="updateTerm()"
-                    class="btn btn-primary">
+                {{ report.full_name or '-' }}
 
-                <i class="fas fa-sync-alt"></i>
-                Update
-
-            </button>
+            </p>
 
         </div>
 
     </div>
 
-    {% else %}
 
 
-    <!-- ==================== TERM SELECTOR ==================== -->
+    <!-- =====================================================
+         MARKS TABLE
+         ===================================================== -->
 
-    <div class="row mb-3 class-selector no-print">
+    <table class="marks-table">
 
-        <div class="col-md-3">
+        <thead>
 
-            <label class="form-label">
-                Term
-            </label>
+            <tr>
 
-            <select id="termInput"
-                    class="form-select">
+                <th>Subject</th>
 
-                <option value="Term 1"
-                    {% if request.args.get('term', 'Term 1') == 'Term 1' %}
-                        selected
-                    {% endif %}>
-                    Term 1
-                </option>
+                <th>AI1</th>
 
-                <option value="Term 2"
-                    {% if request.args.get('term', 'Term 1') == 'Term 2' %}
-                        selected
-                    {% endif %}>
-                    Term 2
-                </option>
+                <th>AI2</th>
 
-                <option value="Term 3"
-                    {% if request.args.get('term', 'Term 1') == 'Term 3' %}
-                        selected
-                    {% endif %}>
-                    Term 3
-                </option>
+                <th>AI3</th>
 
-            </select>
+                <th>Avg</th>
+
+                <th>AI(20%)</th>
+
+                <th>EOT(80%)</th>
+
+                <th>Total</th>
+
+                <th>Grade</th>
+
+                <th>Identifier</th>
+
+                <th>Descriptor</th>
+
+                <th>Teacher Initials</th>
+
+            </tr>
+
+        </thead>
+
+
+        <tbody>
+
+            {% for m in report.marks %}
+
+            <tr>
+
+                <td>
+
+                    <strong>
+
+                        {{ m.subject_name
+                        or m.subject
+                        or 'N/A' }}
+
+                    </strong>
+
+                </td>
+
+
+                <td>
+
+                    {{ m.ai1
+                    if m.ai1 is not none
+                    else '-' }}
+
+                </td>
+
+
+                <td>
+
+                    {{ m.ai2
+                    if m.ai2 is not none
+                    else '-' }}
+
+                </td>
+
+
+                <td>
+
+                    {{ m.ai3
+                    if m.ai3 is not none
+                    else '-' }}
+
+                </td>
+
+
+                <td>
+
+                    {{ m.ai_average|round(1)
+                    if m.ai_average is not none
+                    else '-' }}
+
+                </td>
+
+
+                <td>
+
+                    {{ m.ai_contribution|round(1)
+                    if m.ai_contribution is not none
+                    else '-' }}
+
+                </td>
+
+
+                <td>
+
+                    {{ m.eot_score|round(1)
+                    if m.eot_score is not none
+                    else '-' }}
+
+                </td>
+
+
+                <td>
+
+                    {{ m.total_score|round(1)
+                    if m.total_score is not none
+                    else '-' }}
+
+                </td>
+
+
+                <td class="grade-{{ m.grade }}">
+
+                    {{ m.grade or '-' }}
+
+                </td>
+
+
+                <td>
+
+                    {{ m.identifier or '-' }}
+
+                </td>
+
+
+                <td>
+
+                    {{ m.descriptor or '-' }}
+
+                </td>
+
+
+                <td>
+
+                    {{ m.teacher_initials or '-' }}
+
+                </td>
+
+            </tr>
+
+
+            {% else %}
+
+            <tr>
+
+                <td colspan="12">
+
+                    No marks recorded for
+                    {{ term or 'this term' }}.
+
+                </td>
+
+            </tr>
+
+            {% endfor %}
+
+        </tbody>
+
+    </table>
+
+
+
+    <!-- =====================================================
+         SUMMARY
+         ===================================================== -->
+
+    <table
+        style="
+            width:100%;
+            margin-top:20px;
+            border-collapse:collapse;
+        ">
+
+        <tr>
+
+            <td
+                style="
+                    width:25%;
+                    background:#e8eaf6;
+                    padding:10px;
+                    border:1px solid #ddd;
+                ">
+
+                <strong>
+                    📊 General Average:
+                </strong>
+
+                {{ report.general_average
+                if report.general_average is not none
+                else '-' }}
+
+            </td>
+
+
+            <td
+                style="
+                    width:25%;
+                    background:#e8eaf6;
+                    padding:10px;
+                    border:1px solid #ddd;
+                ">
+
+                <strong>
+                    🎓 General Grade:
+                </strong>
+
+                <span
+                    class="grade-{{ report.general_grade }}">
+
+                    {{ report.general_grade
+                    if report.general_grade
+                    else '-' }}
+
+                </span>
+
+            </td>
+
+
+            <td
+                style="
+                    width:25%;
+                    background:#e8eaf6;
+                    padding:10px;
+                    border:1px solid #ddd;
+                ">
+
+                <strong>
+                    📝 Descriptor:
+                </strong>
+
+                {{ report.general_descriptor
+                if report.general_descriptor
+                else '-' }}
+
+            </td>
+
+
+            <td
+                style="
+                    width:25%;
+                    background:#e8eaf6;
+                    padding:10px;
+                    border:1px solid #ddd;
+                ">
+
+                <strong>
+                    📌 Identifier:
+                </strong>
+
+                {{ report.general_identifier
+                if report.general_identifier is not none
+                else
+                report.avg_out_of_3
+                if report.avg_out_of_3 is not none
+                else '-' }}
+
+            </td>
+
+        </tr>
+
+    </table>
+
+
+
+    <!-- =====================================================
+         COMMENTS AND SIGNATURES
+         ===================================================== -->
+
+    <div class="row mt-4">
+
+
+        <!-- CLASS TEACHER -->
+
+        <div class="col-md-6">
+
+            <table style="width:100%;">
+
+                <tr>
+
+                    <td
+                        style="
+                            width:70%;
+                            vertical-align:top;
+                        ">
+
+                        <strong>
+                            👩‍🏫 Class Teacher's Comment:
+                        </strong>
+
+
+                        <div class="comment-box mt-2">
+
+                            {{ report.teacher_comment
+                            or 'No comment yet.' }}
+
+                        </div>
+
+                    </td>
+
+
+                    <td
+                        style="
+                            width:30%;
+                            text-align:center;
+                            vertical-align:bottom;
+                        ">
+
+                        <hr>
+
+                        <strong>
+                            Class Teacher's Signature
+                        </strong>
+
+                    </td>
+
+                </tr>
+
+            </table>
 
         </div>
 
 
-        <div class="col-md-2 align-self-end">
 
-            <button onclick="updateTerm()"
-                    class="btn btn-primary">
+        <!-- HEADTEACHER -->
 
-                <i class="fas fa-sync-alt"></i>
-                Update
+        <div class="col-md-6">
 
-            </button>
+            <table style="width:100%;">
+
+                <tr>
+
+                    <td
+                        style="
+                            width:70%;
+                            vertical-align:top;
+                        ">
+
+                        <strong>
+                            👨‍🎓 Headteacher's Comment:
+                        </strong>
+
+
+                        <div class="comment-box mt-2">
+
+                            {{ report.headteacher_comment
+                            or 'No comment yet.' }}
+
+                        </div>
+
+                    </td>
+
+
+                    <td
+                        style="
+                            width:30%;
+                            text-align:center;
+                            vertical-align:bottom;
+                        ">
+
+                        <hr>
+
+                        <strong>
+                            Headteacher's Signature
+                        </strong>
+
+                    </td>
+
+                </tr>
+
+            </table>
 
         </div>
+
+    </div>
+
+
+
+    <!-- =====================================================
+         TERM DATES
+         ===================================================== -->
+
+    <div class="row mt-4">
+
+        <div class="col-md-12 text-center">
+
+            <p>
+
+                <strong>
+                    Next Term Begins:
+                </strong>
+
+                {{ next_term_begins
+                or 'To be announced' }}
+
+                &nbsp; | &nbsp;
+
+                <strong>
+                    Next Term Ends:
+                </strong>
+
+                {{ next_term_ends
+                or 'To be announced' }}
+
+            </p>
+
+        </div>
+
+    </div>
+
+
+
+    <!-- =====================================================
+         HEADTEACHER STAMP
+         ===================================================== -->
+
+    {% if stamp_url %}
+
+    <div class="text-end">
+
+        <img
+            src="{{ stamp_url }}"
+            alt="Headteacher Stamp"
+            style="
+                max-width:100px;
+                margin-top:10px;
+            ">
 
     </div>
 
     {% endif %}
 
 
-
-    <!-- ==================== STUDENT TABLE ==================== -->
-
-    <div class="table-responsive">
-
-        <table class="table table-hover align-middle">
-
-            <thead class="table-light">
-
-                <tr>
-
-                    <th>
-                        Student ID
-                    </th>
-
-                    <th>
-                        Photo
-                    </th>
-
-                    <th>
-                        Full Name
-                    </th>
-
-                    <th>
-                        Parent Phone
-                    </th>
-
-                    <th class="action-column">
-                        Actions
-                    </th>
-
-                </tr>
-
-            </thead>
-
-
-            <tbody>
-
-                {% for s in students %}
-
-                <tr class="{% if loop.index is even %}table-secondary{% endif %}">
-
-                    <td>
-                        {{ s.student_id }}
-                    </td>
-
-
-                    <td class="text-center">
-
-                        <img src="{{ s.photo_url }}"
-                             class="student-photo"
-                             alt="Photo">
-
-                    </td>
-
-
-                    <td class="fw-semibold">
-                        {{ s.full_name }}
-                    </td>
-
-
-                    <td>
-                        {{ s.parent_phone or '-' }}
-                    </td>
-
-
-                    <td class="action-column">
-
-                        <!-- REPORT CARD -->
-
-                        <a href="{{ url_for(
-                            'teacher_report_card',
-                            student_id=s.student_id,
-                            term=request.args.get('term', 'Term 1'),
-                            year=request.args.get('year', datetime.now().year)
-                        ) }}"
-                           class="btn btn-sm btn-info no-print">
-
-                            <i class="fas fa-eye"></i>
-                            Report Card
-
-                        </a>
-
-
-                        <!-- EDIT STUDENT -->
-
-                        {% if is_classteacher %}
-
-                        <a href="{{ url_for(
-                            'teacher_edit_student',
-                            student_id=s.student_id
-                        ) }}"
-                           class="btn btn-sm btn-warning no-print">
-
-                            <i class="fas fa-edit"></i>
-                            Edit
-
-                        </a>
-
-
-                        <!-- REMOVE STUDENT -->
-
-                        <form method="POST"
-                              action="{{ url_for(
-                                  'teacher_remove_student',
-                                  student_id=s.student_id
-                              ) }}"
-                              style="display:inline;"
-                              onsubmit="return confirm(
-                                  'Remove {{ s.full_name }} permanently? This action cannot be undone.'
-                              )">
-
-                            <button type="submit"
-                                    class="btn btn-sm btn-danger no-print">
-
-                                <i class="fas fa-trash-alt"></i>
-                                Remove
-
-                            </button>
-
-                        </form>
-
-                        {% endif %}
-
-                    </td>
-
-                </tr>
-
-
-                {% else %}
-
-                <tr>
-
-                    <td colspan="5"
-                        class="text-center text-muted py-4">
-
-                        <i class="fas fa-folder-open fa-2x mb-2 d-block"></i>
-
-                        No students found.
-
-                    </td>
-
-                </tr>
-
-                {% endfor %}
-
-            </tbody>
-
-        </table>
-
-    </div>
-
 </div>
-```
+
+{% else %}
+
+
+<!-- =========================================================
+     NO REPORTS
+     ========================================================= -->
+
+<div class="alert alert-warning">
+
+    No report cards were found for
+
+    <strong>
+        {{ class_name or 'the selected class' }}
+    </strong>
+
+    for
+
+    <strong>
+        {{ term or 'Term 1' }}
+    </strong>
+
+    {{ year or '' }}.
 
 </div>
 
-<!-- ==================== JAVASCRIPT ==================== -->
+
+{% endfor %}
+
+
+
+<!-- =========================================================
+     AUTO PRINT OPTION
+     ========================================================= -->
 
 <script>
 
-function updateTerm() {
-
-    var term = document.getElementById('termInput').value;
-
-    var url = new URL(window.location.href);
-
     /*
-     * Preserve the currently selected class.
+     * The page does NOT automatically open the print dialog.
+     * The user can review the report cards first and then
+     * click "Print All Report Cards".
      */
-
-    var classSelect = document.getElementById('classSelect');
-
-    if (classSelect) {
-
-        url.searchParams.set(
-            'class_name',
-            classSelect.value
-        );
-
-    }
-
-    /*
-     * Set the selected term.
-     */
-
-    url.searchParams.set(
-        'term',
-        term
-    );
-
-    /*
-     * Preserve the year if it already exists.
-     * Otherwise use the current year.
-     */
-
-    if (!url.searchParams.get('year')) {
-
-        url.searchParams.set(
-            'year',
-            '{{ datetime.now().year }}'
-        );
-
-    }
-
-    window.location.href = url.toString();
-
-}
-
-
-
-function updateClass() {
-
-    var classSelect =
-        document.getElementById('classSelect');
-
-    var termInput =
-        document.getElementById('termInput');
-
-    var url =
-        new URL(window.location.href);
-
-
-    /*
-     * Change the class.
-     */
-
-    url.searchParams.set(
-        'class_name',
-        classSelect.value
-    );
-
-
-    /*
-     * Keep the currently selected term.
-     */
-
-    if (termInput) {
-
-        url.searchParams.set(
-            'term',
-            termInput.value
-        );
-
-    } else {
-
-        url.searchParams.set(
-            'term',
-            'Term 1'
-        );
-
-    }
-
-
-    /*
-     * Preserve year.
-     */
-
-    if (!url.searchParams.get('year')) {
-
-        url.searchParams.set(
-            'year',
-            '{{ datetime.now().year }}'
-        );
-
-    }
-
-
-    window.location.href =
-        url.toString();
-
-}
-
-
-
-// Confirm remove function
-
-function confirmRemove(
-    studentId,
-    studentName
-) {
-
-    if (
-        confirm(
-            `Remove ${studentName} permanently? This action cannot be undone.`
-        )
-    ) {
-
-        var form =
-            document.createElement('form');
-
-        form.method = 'POST';
-
-        form.action =
-            `/teacher/remove_student/${studentId}`;
-
-        document.body.appendChild(form);
-
-        form.submit();
-
-    }
-
-}
 
 </script>
 
