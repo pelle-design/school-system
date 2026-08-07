@@ -4839,34 +4839,142 @@ def to_number(value):
 
 @app.route("/save_manual_marks", methods=["POST"])
 def save_manual_marks():
-
     if not check_permission(
-        ['classteacher','subject_teacher','dos']
+        ['classteacher', 'subject_teacher', 'dos']
     ):
         abort(403)
+    
     db = get_db_dict()
     cursor = db.cursor()
+    
     subject = request.form.get('subject')
     term = request.form.get('term')
     year = request.form.get('year')
-    student_ids = request.form.getlist(
-        "student_id[]"
-    )
-    paper1 = to_number(request.form.getlist(
-        "paper1[]")
-    )
-    paper2 = to_number(request.form.getlist(
-        "paper2[]")
-    )
-    initials = request.form.getlist(
-        "teacher_initials[]"
-    )
-    for sid, p1, p2, init in zip(
-        student_ids,
-        paper1,
-        paper2,
-        initials
-    ):
+    
+    # =========================================================
+    # ALLOWED TERMS
+    # =========================================================
+    allowed_terms = ['Term 1', 'Term 2', 'Term 3']
+    
+    if term not in allowed_terms:
+        cursor.close()
+        db.close()
+    
+        flash(
+            'Invalid term. Please select Term 1, Term 2 or Term 3.',
+            'danger'
+        )
+    
+        return redirect(
+            url_for(
+                'teacher_upload_marks',
+                class_name=session.get('selected_class')
+            )
+        )
+    
+    # =========================================================
+    # GET FORM DATA
+    # =========================================================
+    student_ids = request.form.getlist("student_id[]")
+    paper1_values = request.form.getlist("paper1[]")
+    paper2_values = request.form.getlist("paper2[]")
+    initials = request.form.getlist("teacher_initials[]")
+    
+    # =========================================================
+    # CONVERT MARK TO NUMBER
+    # EMPTY FIELD = NONE
+    # =========================================================
+    def parse_mark(value):
+    
+        if value is None:
+            return None
+    
+        value = str(value).strip()
+    
+        if value == '':
+            return None
+    
+        try:
+            mark = float(value)
+    
+            # Do not allow negative marks
+            if mark < 0:
+                return None
+    
+            # Maximum mark for EACH PAPER is 100
+            return min(mark, 100)
+    
+        except (ValueError, TypeError):
+            return None
+    
+    # =========================================================
+    # PROCESS EACH STUDENT
+    # =========================================================
+    for i, sid in enumerate(student_ids):
+    
+        # -----------------------------------------------------
+        # PAPER 1
+        # -----------------------------------------------------
+        p1 = parse_mark(
+            paper1_values[i]
+            if i < len(paper1_values)
+            else None
+        )
+    
+        # -----------------------------------------------------
+        # PAPER 2
+        # -----------------------------------------------------
+        p2 = parse_mark(
+            paper2_values[i]
+            if i < len(paper2_values)
+            else None
+        )
+    
+        # -----------------------------------------------------
+        # TEACHER INITIALS
+        # -----------------------------------------------------
+        init = (
+            initials[i].strip()
+            if i < len(initials) and initials[i]
+            else ''
+        )
+    
+        # =====================================================
+        # IF NO PAPER WAS ENTERED, SKIP STUDENT
+        # =====================================================
+        if p1 is None and p2 is None:
+            continue
+    
+        # =====================================================
+        # CALCULATE FINAL MARK
+        #
+        # BOTH PAPERS:
+        #       Average of Paper 1 and Paper 2
+        #
+        # PAPER 1 ONLY:
+        #       Paper 1
+        #
+        # PAPER 2 ONLY:
+        #       Paper 2
+        # =====================================================
+        if p1 is not None and p2 is not None:
+    
+            final_mark = (p1 + p2) / 2
+    
+        elif p1 is not None:
+    
+            final_mark = p1
+    
+        else:
+    
+            final_mark = p2
+    
+        # Round final mark to 2 decimal places
+        final_mark = round(final_mark, 2)
+    
+        # =====================================================
+        # INSERT OR UPDATE MARK
+        # =====================================================
         cursor.execute(
             """
             INSERT INTO marks
@@ -4875,43 +4983,59 @@ def save_manual_marks():
                 subject,
                 paper1,
                 paper2,
+                final_mark,
                 teacher_initials,
                 term,
                 year
             )
             VALUES
-            (%s,%s,%s,%s,%s,%s,%s)
-            ON CONFLICT(student_id,subject,term,year)
+            (%s, %s, %s, %s, %s, %s, %s, %s)
+    
+            ON CONFLICT (student_id, subject, term, year)
             DO UPDATE SET
-            paper1=%s,
-            paper2=%s,
-            teacher_initials=%s
+                paper1 = EXCLUDED.paper1,
+                paper2 = EXCLUDED.paper2,
+                final_mark = EXCLUDED.final_mark,
+                teacher_initials = EXCLUDED.teacher_initials
             """,
             (
                 sid,
                 subject,
                 p1,
                 p2,
+                final_mark,
                 init,
                 term,
-                year,
-                p1,
-                p2,
-                init
+                year
             )
         )
+    
+    # =========================================================
+    # SAVE CHANGES
+    # =========================================================
     db.commit()
+    
     cursor.close()
+    db.close()
+    
+    # =========================================================
+    # SUCCESS MESSAGE
+    # =========================================================
     flash(
-        "Marks entered manually successfully.",
+        f"Marks for {term} entered successfully.",
         "success"
     )
+    
+    # =========================================================
+    # RETURN TO MARK ENTRY PAGE
+    # =========================================================
     return redirect(
-    url_for(
-        'teacher_upload_marks',
-        class_name=session.get('selected_class')
+        url_for(
+            'teacher_upload_marks',
+            class_name=session.get('selected_class'),
+            term=term
+        )
     )
-)
 
 @app.route('/teacher/upload_marks', methods=['GET', 'POST'])
 def teacher_upload_marks():
