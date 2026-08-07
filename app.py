@@ -6285,7 +6285,7 @@ def teacher_upload_students():
 
                         errors.append(
                             f"Row {row_idx}: Missing full name"
-                    
+                        )
             # ================= CSV =================
             elif file.filename.endswith('.csv'):
                 content = file.read().decode('utf-8')
