@@ -647,10 +647,11 @@ body {
 
 <div class="row mt-4">
 
+<!-- COMMENTS AND SIGNATURES SECTION -->
 
-    <!-- =================================================
-         CLASS TEACHER
-         ================================================= -->
+<div class="row mt-4">
+
+    <!-- CLASS TEACHER -->
 
     <div class="col-md-6">
 
@@ -658,88 +659,17 @@ body {
 
             <tr>
 
-                <td
-                    style="
-                        width:70%;
-                        vertical-align:top;
-                    "
-                >
+                <td style="width:70%;vertical-align:top;">
 
-                    <strong>
-                        👩‍🏫 Class Teacher's Comment:
-                    </strong>
-
-
-                    <!-- CURRENT COMMENT -->
+                    <strong>👩‍🏫 Class Teacher's Comment:</strong>
 
                     <div class="comment-box mt-2">
-
-                        {{ report.teacher_comment
-                        or 'No comment yet.' }}
-
-                    </div>
-
-
-                    <!-- EDIT COMMENT - SCREEN ONLY -->
-
-                    <div class="no-print comment-edit-area">
-
-                        <form
-                            method="POST"
-                            action="{{ url_for(
-                                'teacher_save_comment'
-                            ) }}"
-                        >
-
-                            <input
-                                type="hidden"
-                                name="student_id"
-                                value="{{ report.student_id }}"
-                            >
-
-                            <input
-                                type="hidden"
-                                name="term"
-                                value="{{ term }}"
-                            >
-
-                            <input
-                                type="hidden"
-                                name="year"
-                                value="{{ year }}"
-                            >
-
-                            <textarea
-                                name="comment"
-                                class="form-control"
-                                rows="3"
-                                placeholder="Enter class teacher's comment..."
-                            >{{ report.teacher_comment or '' }}</textarea>
-
-
-                            <button
-                                type="submit"
-                                class="btn btn-primary btn-sm mt-2"
-                            >
-
-                                💾 Save Comment
-
-                            </button>
-
-                        </form>
-
+                        {{ teacher_comment or 'No comment available.' }}
                     </div>
 
                 </td>
 
-
-                <td
-                    style="
-                        width:30%;
-                        text-align:center;
-                        vertical-align:bottom;
-                    "
-                >
+                <td style="width:30%;text-align:center;vertical-align:bottom;">
 
                     <hr>
 
@@ -756,9 +686,7 @@ body {
     </div>
 
 
-    <!-- =================================================
-         HEADTEACHER
-         ================================================= -->
+    <!-- HEADTEACHER -->
 
     <div class="col-md-6">
 
@@ -766,98 +694,22 @@ body {
 
             <tr>
 
-                <td
-                    style="
-                        width:70%;
-                        vertical-align:top;
-                    "
-                >
+                <td style="width:70%;vertical-align:top;">
 
-                    <strong>
-                        👨‍🎓 Headteacher's Comment:
-                    </strong>
-
+                    <strong>👨‍🎓 Headteacher's Comment:</strong>
 
                     <div class="comment-box mt-2">
-
-                        {{ report.headteacher_comment
-                        or 'No comment yet.' }}
-
+                        {{ headteacher_comment or 'No comment available.' }}
                     </div>
-
-
-                    <!-- =================================
-                         HEADTEACHER EDIT AREA
-                         SCREEN ONLY
-                         ================================= -->
-
-                    {% if session.get('role') == 'headteacher' %}
-
-                    <div class="no-print comment-edit-area">
-
-                        <form
-                            method="POST"
-                            action="{{ url_for(
-                                'headteacher_save_comment'
-                            ) }}"
-                        >
-
-                            <input
-                                type="hidden"
-                                name="student_id"
-                                value="{{ report.student_id }}"
-                            >
-
-                            <input
-                                type="hidden"
-                                name="term"
-                                value="{{ term }}"
-                            >
-
-                            <input
-                                type="hidden"
-                                name="year"
-                                value="{{ year }}"
-                            >
-
-                            <textarea
-                                name="comment"
-                                class="form-control"
-                                rows="3"
-                                placeholder="Enter headteacher's comment..."
-                            >{{ report.headteacher_comment or '' }}</textarea>
-
-
-                            <button
-                                type="submit"
-                                class="btn btn-success btn-sm mt-2"
-                            >
-
-                                💾 Save Headteacher Comment
-
-                            </button>
-
-                        </form>
-
-                    </div>
-
-                    {% endif %}
 
                 </td>
 
-
-                <td
-                    style="
-                        width:30%;
-                        text-align:center;
-                        vertical-align:bottom;
-                    "
-                >
+                <td style="width:30%;text-align:center;vertical-align:bottom;">
 
                     <hr>
 
                     <strong>
-                        Headteacher's Signature
+                        Headteacher's Signature & Stamp
                     </strong>
 
                 </td>
@@ -869,7 +721,6 @@ body {
     </div>
 
 </div>
-
 
 <!-- =====================================================
      TERM DATES
