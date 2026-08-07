@@ -5910,7 +5910,6 @@ def teacher_report_card(student_id):
             next_term_begins=next_term_begins,
             next_term_ends=next_term_ends,
             stamp_url=stamp_url,
-            can_view_only=can_view_only,
             school_name=school_name,
             school_address=school_address,
             school_phone=school_phone,
@@ -6789,9 +6788,9 @@ def teacher_print_all_report_cards():
     
                 'general_descriptor': general_descriptor,
     
-                'teacher_comment': teacher_comment,
+                'teacher_comment': alevel_teacher_comment,
     
-                'headteacher_comment': headteacher_comment
+                'headteacher_comment': alevel_headteacher_comment
             })
         # =====================================================
         # O-LEVEL
@@ -6971,8 +6970,8 @@ def teacher_print_all_report_cards():
                 'avg_out_of_3': general_identifier,
                 'general_grade': general_grade,
                 'general_descriptor': general_descriptor,
-                'teacher_comment': teacher_comment,
-                'headteacher_comment': headteacher_comment
+                'teacher_comment': olevel_teacher_comment,
+                'headteacher_comment': olevel_headteacher_comment
             })
     cur.close()
     template = (
