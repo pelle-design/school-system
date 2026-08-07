@@ -5859,38 +5859,44 @@ def teacher_report_card(student_id):
 def teacher_save_comment():
     if not check_permission(['classteacher']):
         abort(403)
-
+    
     student_id = request.form['student_id']
     term = request.form['term']
     year = request.form['year']
-
+    
     comment = request.form.get('comment', '').strip()
     custom_comment = request.form.get('custom_comment', '').strip()
-
+    
     final_comment = custom_comment if custom_comment else comment
-
-    cur = get_db().cursor()
-
+    
+    db = get_db()
+    cur = db.cursor()
+    
+    # =========================================================
+    # CHECK WHETHER CLASS TEACHER COMMENT IS ALREADY LOCKED
+    # =========================================================
     cur.execute(
         """
         SELECT class_teacher_comment_locked
         FROM teacher_comments
-        WHERE student_id=%s
-        AND term=%s
-        AND year=%s
+        WHERE student_id = %s
+        AND term = %s
+        AND year = %s
         """,
         (student_id, term, year)
     )
-
+    
     existing = cur.fetchone()
-    cur.close()
-
+    
     if existing and existing[0] == 1:
+        cur.close()
+        db.close()
+    
         flash(
             'Comment cannot be edited as it has been locked.',
             'danger'
         )
-
+    
         return redirect(
             url_for(
                 'teacher_report_card',
@@ -5899,8 +5905,14 @@ def teacher_save_comment():
                 year=year
             )
         )
-
-    execute_db(
+    
+    # =========================================================
+    # INSERT OR UPDATE CLASS TEACHER COMMENT
+    #
+    # IMPORTANT:
+    # headteacher_comment is NOT changed here.
+    # =========================================================
+    cur.execute(
         """
         INSERT INTO teacher_comments
         (
@@ -5910,25 +5922,134 @@ def teacher_save_comment():
             comment,
             class_teacher_comment_locked
         )
-        VALUES (%s,%s,%s,%s,1)
-
-        ON CONFLICT(student_id,term,year)
-
+        VALUES (%s, %s, %s, %s, 1)
+    
+        ON CONFLICT (student_id, term, year)
+    
         DO UPDATE SET
-        comment=%s,
-        class_teacher_comment_locked=1
+            comment = EXCLUDED.comment,
+            class_teacher_comment_locked = 1
         """,
         (
             student_id,
             term,
             year,
-            final_comment,
             final_comment
         )
     )
+    
+    db.commit()
+    
+    cur.close()
+    db.close()
+    
+    flash(
+        'Class teacher comment saved and locked.',
+        'success'
+    )
+    
+    return redirect(
+        url_for(
+            'teacher_report_card',
+            student_id=student_id,
+            term=term,
+            year=year
+        )
+    )
 
-    flash('Comment saved and locked.', 'success')
-
+@app.route('/headteacher/save_comment', methods=['POST'])
+def headteacher_save_comment():
+    if not check_permission(['headteacher']):
+        abort(403)
+    
+    student_id = request.form['student_id']
+    term = request.form['term']
+    year = request.form['year']
+    
+    comment = request.form.get('comment', '').strip()
+    custom_comment = request.form.get('custom_comment', '').strip()
+    
+    final_comment = custom_comment if custom_comment else comment
+    
+    db = get_db()
+    cur = db.cursor()
+    
+    # =========================================================
+    # CHECK WHETHER HEADTEACHER COMMENT IS ALREADY LOCKED
+    # =========================================================
+    cur.execute(
+        """
+        SELECT headteacher_comment_locked
+        FROM teacher_comments
+        WHERE student_id = %s
+        AND term = %s
+        AND year = %s
+        """,
+        (student_id, term, year)
+    )
+    
+    existing = cur.fetchone()
+    
+    if existing and existing[0] == 1:
+        cur.close()
+        db.close()
+    
+        flash(
+            'Headteacher comment cannot be edited as it has been locked.',
+            'danger'
+        )
+    
+        return redirect(
+            url_for(
+                'teacher_report_card',
+                student_id=student_id,
+                term=term,
+                year=year
+            )
+        )
+    
+    # =========================================================
+    # INSERT OR UPDATE HEADTEACHER COMMENT
+    #
+    # IMPORTANT:
+    # The class teacher comment is NOT changed.
+    # =========================================================
+    cur.execute(
+        """
+        INSERT INTO teacher_comments
+        (
+            student_id,
+            term,
+            year,
+            headteacher_comment,
+            headteacher_comment_locked
+        )
+        VALUES (%s, %s, %s, %s, 1)
+    
+        ON CONFLICT (student_id, term, year)
+    
+        DO UPDATE SET
+            headteacher_comment = EXCLUDED.headteacher_comment,
+            headteacher_comment_locked = 1
+        """,
+        (
+            student_id,
+            term,
+            year,
+            final_comment
+        )
+    )
+    
+    db.commit()
+    
+    cur.close()
+    db.close()
+    
+    flash(
+        'Headteacher comment saved and locked.',
+        'success'
+    )
+    
     return redirect(
         url_for(
             'teacher_report_card',
@@ -7070,6 +7191,8 @@ def teacher_print_all_report_cards():
             school_logo_url
 
     )
+
+
 # ==================== BURSAR MODULE ====================
 
 def generate_receipt_number():
