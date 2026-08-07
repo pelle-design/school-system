@@ -6221,35 +6221,22 @@ def teacher_upload_students():
                 success_count += 1
 
                 return True
-
-
-
-
             # ================= EXCEL =================
 
             if file.filename.endswith(('.xlsx','.xls')):
-
-
                 wb = load_workbook(
                     file,
                     data_only=True
                 )
 
                 sheet = wb.active
-
-
                 headers = [
                     str(cell.value).strip().lower()
                     if cell.value else ''
                     for cell in sheet[1]
                 ]
-
-
                 full_name_col = None
                 parent_phone_col = None
-
-
-
                 for idx, h in enumerate(headers):
 
                     if h in [
@@ -6266,18 +6253,10 @@ def teacher_upload_students():
                         'parent_contact'
                     ]:
                         parent_phone_col = idx
-
-
-
                 if full_name_col is None:
                     full_name_col = 0
-
-
                 if parent_phone_col is None:
                     parent_phone_col = 1
-
-
-
                 for row_idx in range(
                     2,
                     sheet.max_row + 1
@@ -6299,9 +6278,6 @@ def teacher_upload_students():
                             column=parent_phone_col + 1
                         ).value or ''
                     ).strip()
-
-
-
                     if not insert_student(
                         full_name,
                         parent_phone
@@ -6309,38 +6285,18 @@ def teacher_upload_students():
 
                         errors.append(
                             f"Row {row_idx}: Missing full name"
-                        )
-
-
-
+                    
             # ================= CSV =================
-
-
             elif file.filename.endswith('.csv'):
-
-
                 content = file.read().decode('utf-8')
-
-
                 csv_reader = csv.reader(
                     io.StringIO(content)
                 )
-
-
                 headers = next(csv_reader)
-
-
-
                 full_name_col = None
                 parent_phone_col = None
-
-
-
                 for idx, h in enumerate(headers):
-
                     h = h.strip().lower()
-
-
                     if h in [
                         'full_name',
                         'name',
@@ -6413,28 +6369,18 @@ def teacher_upload_students():
                     url_for('teacher_upload_students')
                 )
 
-
-
             db.commit()
 
             cur.close()
-
-
-
             add_notification(
                 'dos',
                 f'Class teacher uploaded {success_count} students to class {assigned_class}',
                 '/dos/class_lists'
             )
-
-
-
             flash(
                 f'Uploaded {success_count} students to class {assigned_class}. Errors: {error_count}',
                 'success' if success_count > 0 else 'danger'
             )
-
-
 
             for error in errors[:5]:
 
@@ -6451,13 +6397,9 @@ def teacher_upload_students():
                 f'Error: {str(e)}',
                 'danger'
             )
-
-
         return redirect(
             url_for('teacher_students')
         )
-
-
 
     return render_template(
         'teacher/upload_students.html'
@@ -6469,18 +6411,25 @@ def teacher_print_all_report_cards():
     if not check_permission(['classteacher']):
         abort(403)
 
+    # =========================================================
+    # GET SELECTED CLASS
+    # =========================================================
+    #
+    # First use the class coming from the URL.
+    # This is important when the teacher has more than one class.
+    #
+    selected_class = request.args.get('class_name')
 
-    selected_class = session.get('selected_class')
-
+    if not selected_class:
+        selected_class = session.get('selected_class')
 
     if not selected_class:
         selected_class = session.get('assigned_class')
 
-
     if not selected_class:
 
         flash(
-            'No class assigned to you.',
+            'No class selected or assigned to you.',
             'danger'
         )
 
@@ -6488,7 +6437,13 @@ def teacher_print_all_report_cards():
             url_for('teacher_students')
         )
 
+    # Keep the selected class in the session as well
+    session['selected_class'] = selected_class
 
+
+    # =========================================================
+    # GET TERM AND YEAR
+    # =========================================================
 
     term = request.args.get(
         'term',
@@ -6501,11 +6456,17 @@ def teacher_print_all_report_cards():
     )
 
 
+    # =========================================================
+    # DATABASE
+    # =========================================================
 
     db = get_db()
     cur = db.cursor()
 
 
+    # =========================================================
+    # GET STUDENTS IN SELECTED CLASS
+    # =========================================================
 
     cur.execute("""
         SELECT
@@ -6516,11 +6477,11 @@ def teacher_print_all_report_cards():
         WHERE class=%s
         ORDER BY full_name
     """,
-    (selected_class,))
-
+    (
+        selected_class,
+    ))
 
     students_data = cur.fetchall()
-
 
 
     if not students_data:
@@ -6533,10 +6494,18 @@ def teacher_print_all_report_cards():
         )
 
         return redirect(
-            url_for('teacher_students')
+            url_for(
+                'teacher_students',
+                class_name=selected_class,
+                term=term,
+                year=year
+            )
         )
 
 
+    # =========================================================
+    # SCHOOL SETTINGS
+    # =========================================================
 
     cur.execute("""
         SELECT
@@ -6552,9 +6521,7 @@ def teacher_print_all_report_cards():
         WHERE id=1
     """)
 
-
     school_data = cur.fetchone()
-
 
 
     school_name = (
@@ -6595,7 +6562,6 @@ def teacher_print_all_report_cards():
     )
 
 
-
     next_term_begins = (
         school_data['next_term_begins']
         if school_data
@@ -6610,20 +6576,26 @@ def teacher_print_all_report_cards():
     )
 
 
-    stamp_url = None
+    # =========================================================
+    # HEADTEACHER STAMP
+    # =========================================================
 
+    stamp_url = None
 
     if school_data and school_data['headteacher_stamp']:
 
         stamp_url = url_for(
             'static',
-            filename='uploads/' + school_data['headteacher_stamp']
+            filename='uploads/' +
+            school_data['headteacher_stamp']
         )
 
 
+    # =========================================================
+    # DETERMINE A-LEVEL / O-LEVEL
+    # =========================================================
 
     class_upper = selected_class.upper()
-
 
     is_alevel = (
         class_upper in [
@@ -6638,18 +6610,19 @@ def teacher_print_all_report_cards():
         (
             class_upper.startswith('S')
             and len(class_upper) >= 2
-            and class_upper[1] in ['5','6']
+            and class_upper[1] in ['5', '6']
         )
     )
 
 
+    # =========================================================
+    # BUILD ALL REPORTS
+    # =========================================================
 
     all_reports = []
 
 
-
     for student in students_data:
-
 
         student_id = student['student_id']
         full_name = student['full_name']
@@ -6659,6 +6632,9 @@ def teacher_print_all_report_cards():
         )
 
 
+        # =====================================================
+        # COMMENTS
+        # =====================================================
 
         cur.execute("""
             SELECT
@@ -6675,9 +6651,7 @@ def teacher_print_all_report_cards():
             year
         ))
 
-
         comments_row = cur.fetchone()
-
 
 
         teacher_comment = (
@@ -6694,9 +6668,11 @@ def teacher_print_all_report_cards():
         )
 
 
+        # =====================================================
+        # A-LEVEL
+        # =====================================================
 
         if is_alevel:
-
 
             cur.execute("""
                 SELECT
@@ -6719,17 +6695,14 @@ def teacher_print_all_report_cards():
                 year
             ))
 
-
             marks = cur.fetchall()
-
 
 
             total_points = sum(
                 m['points']
                 for m in marks
                 if m['points'] is not None
-            )
-
+            ) if marks else 0
 
 
             all_reports.append({
@@ -6745,9 +6718,11 @@ def teacher_print_all_report_cards():
             })
 
 
+        # =====================================================
+        # O-LEVEL
+        # =====================================================
 
         else:
-
 
             cur.execute("""
                 SELECT
@@ -6776,86 +6751,201 @@ def teacher_print_all_report_cards():
             ))
 
 
-
-            marks = cur.fetchall()
-
+            raw_marks = cur.fetchall()
 
 
-            total_final = sum(
-                m['total_score']
-                for m in marks
+            marks = []
+
+
+            for m in raw_marks:
+
+                ai_scores = []
+
+
+                if m['ai1'] not in [None, '']:
+                    ai_scores.append(
+                        float(m['ai1'])
+                    )
+
+
+                if m['ai2'] not in [None, '']:
+                    ai_scores.append(
+                        float(m['ai2'])
+                    )
+                if m['ai3'] not in [None, '']:
+                    ai_scores.append(
+                        float(m['ai3'])
+                    )
+
+
+                # =================================================
+                # AI AVERAGE
+                # =================================================
+
+                ai_average = (
+                    sum(ai_scores) / len(ai_scores)
+                    if ai_scores
+                    else 0
+                )
+
+                # =================================================
+                # AI CONTRIBUTION
+                # AI average is out of 3.
+                # Convert to contribution out of 20.
+                # =================================================
+                ai_contribution = (
+                    (ai_average / 3) * 20
+                    if ai_average > 0
+                    else 0
+                )
+                # =================================================
+                # EOT
+                #
+                # EOT is already marked out of 80.
+                # Do NOT convert it.
+                # Only constrain it to 0-80.
+                # ================================================
+                eot_score = m['eot_score']
+                eot_contribution = (
+                    max(
+                        0,
+                        min(
+                            float(eot_score),
+                            80
+                        )
+                    )
+                    if eot_score is not None
+                    else 0
+                )
+                total_score = (
+                    ai_contribution +
+                    eot_contribution
+                )
+                grade, descriptor = get_olevel_grade_details(
+                    total_score
+                )
+                identifier = round(
+                    (total_score / 100) * 3,
+                    2
+                )
+                marks.append({
+
+                    'subject': m['subject'],
+
+                    'ai1': m['ai1'],
+
+                    'ai2': m['ai2'],
+
+                    'ai3': m['ai3'],
+
+                    'ai_average': round(
+                        ai_average,
+                        2
+                    ),
+
+                    'ai_contribution': round(
+                        ai_contribution,
+                        2
+                    ),
+
+                    'eot_score': eot_score,
+
+                    'total_score': round(
+                        total_score,
+                        2
+                    ),
+
+                    'grade': grade,
+                    'identifier': identifier,
+                    'descriptor': descriptor,
+                    'teacher_initials':
+                        m['teacher_initials']
+
+                })
+
+
+            # =====================================================
+            # GENERAL AVERAGE
+            # =====================================================
+
+            valid_marks = [
+                m for m in marks
                 if m['total_score'] is not None
+                and float(m['total_score']) > 0
+            ]
+            total_final = sum(
+                float(m['total_score'])
+                for m in valid_marks
             )
-
-
-
-            count = len(marks)
-
-
-            avg_percent = (
+            count = len(valid_marks)
+            general_average = (
                 total_final / count
                 if count > 0
                 else 0
             )
-
-
-            avg_out_of_3 = round(
-                (avg_percent / 100) * 3,
+            general_identifier = round(
+                (general_average / 100) * 3,
                 2
             )
-
-
-            general_grade, general_descriptor = get_grade_and_descriptor(
-                avg_percent
+            general_grade, general_descriptor = (
+                get_olevel_grade_details(
+                    general_average
+                )
             )
-
-
-
             all_reports.append({
-
                 'student_id': student_id,
                 'full_name': full_name,
                 'photo_url': photo_url,
                 'marks': marks,
-                'avg_out_of_3': avg_out_of_3,
-                'general_grade': general_grade,
-                'general_descriptor': general_descriptor,
-                'teacher_comment': teacher_comment,
-                'headteacher_comment': headteacher_comment
+                'general_average':
+                    round(
+                        general_average,
+                        2
+                    ),
+                'general_identifier':
+                    general_identifier,
+                'avg_out_of_3':
+                    general_identifier,
+                'general_grade':
+                    general_grade,
+                'general_descriptor':
+                    general_descriptor,
+                'teacher_comment':
+                    teacher_comment,
+                'headteacher_comment':
+                    headteacher_comment
 
             })
-
-
-
     cur.close()
-
-
-
     template = (
         'teacher/print_all_report_cards_alevel.html'
         if is_alevel
         else
         'teacher/print_all_report_cards.html'
     )
-
-
-
     return render_template(
         template,
         reports=all_reports,
         class_name=selected_class,
         term=term,
         year=year,
-        next_term_begins=next_term_begins,
-        next_term_ends=next_term_ends,
+        next_term_begins=
+            next_term_begins,
+        next_term_ends=
+            next_term_ends,
         stamp_url=stamp_url,
-        school_name=school_name,
-        school_address=school_address,
-        school_phone=school_phone,
-        school_email=school_email,
-        school_logo_url=school_logo_url
-    )
+        school_name=
+            school_name,
+        school_address=
+            school_address,
+        school_phone=
+            school_phone,
+        school_email=
+            school_email,
+        school_logo_url=
+            school_logo_url
 
+    )
 # ==================== BURSAR MODULE ====================
 
 def generate_receipt_number():
