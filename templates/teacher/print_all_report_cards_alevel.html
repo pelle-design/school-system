@@ -473,27 +473,6 @@ Print All A-Level Report Cards
 
 </div>
 
-
-<!-- =====================================================
-     HEADTEACHER STAMP
-     ===================================================== -->
-
-{% if stamp_url %}
-
-<div class="text-end">
-
-    <img
-        src="{{ stamp_url }}"
-        alt="Headteacher Stamp"
-        style="
-            max-width:100px;
-            margin-top:10px;
-        "
-    >
-
-</div>
-
-{% endif %}
 </div>
 
 <!-- =====================================================
@@ -509,8 +488,6 @@ Print All A-Level Report Cards
 {% else %}
 
 <div class="text-center">
-
-```
 No report cards were found for
 
 <strong>
@@ -524,8 +501,6 @@ for
 </strong>
 
 {{ year or '' }}.
-```
-
 </div>
 
 {% endfor %}
