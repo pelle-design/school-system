@@ -7192,7 +7192,7 @@ def teacher_print_all_report_cards():
 
     )
 
-
+=
 # ==================== BURSAR MODULE ====================
 
 def generate_receipt_number():
