@@ -6515,7 +6515,6 @@ def teacher_print_all_report_cards():
 
     if not check_permission(['classteacher']):
         abort(403)
-
     # =========================================================
     # GET SELECTED CLASS
     # =========================================================
