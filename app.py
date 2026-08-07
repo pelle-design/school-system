@@ -1328,19 +1328,161 @@ def get_identifier(total_score):
 
     return None
 
-    
-def get_predefined_comments(comment_type):
-    db=get_db()
-    cur=db.cursor()
-    cur.execute("""
-        SELECT id,comment_text
-        FROM predefined_comments
-        WHERE comment_type=%s AND is_active=1
-        ORDER BY id
-    """,(comment_type,))
-    comments=cur.fetchall()
-    cur.close()
-    return comments
+# =========================================================
+# A-LEVEL CLASS TEACHER COMMENT
+# BASED ON TOTAL POINTS
+# =========================================================
+def get_alevel_class_teacher_comment(total_points):
+
+    if total_points >= 15:
+        return (
+            "Excellent performance. The student has demonstrated "
+            "outstanding commitment and achievement."
+        )
+
+    elif total_points >= 12:
+        return (
+            "Very good performance. The student has demonstrated "
+            "strong commitment and good academic achievement."
+        )
+
+    elif total_points >= 9:
+        return (
+            "Good performance. The student has made satisfactory "
+            "progress and should continue working hard."
+        )
+
+    elif total_points >= 6:
+        return (
+            "Fair performance. The student needs to put in more "
+            "effort and remain consistent in academic work."
+        )
+
+    else:
+        return (
+            "The student needs significant improvement and greater "
+            "commitment to academic work."
+        )
+
+
+# =========================================================
+# A-LEVEL HEADTEACHER COMMENT
+# BASED ON TOTAL POINTS
+# =========================================================
+def get_alevel_headteacher_comment(total_points):
+
+    if total_points >= 15:
+        return (
+            "Excellent academic performance. The student has "
+            "demonstrated outstanding achievement and commitment "
+            "to studies. Keep up the excellent work."
+        )
+
+    elif total_points >= 12:
+        return (
+            "Very good academic performance. The student has "
+            "demonstrated commendable achievement and commitment "
+            "to studies. Continue working hard."
+        )
+
+    elif total_points >= 9:
+        return (
+            "Good academic performance. The student has made "
+            "satisfactory progress and is encouraged to maintain "
+            "consistent effort."
+        )
+
+    elif total_points >= 6:
+        return (
+            "Fair academic performance. The student is encouraged "
+            "to increase effort and commitment in order to improve."
+        )
+
+    else:
+        return (
+            "The student needs considerable improvement and greater "
+            "commitment to academic work. Continued support and "
+            "consistent effort are encouraged."
+        )
+
+
+# =========================================================
+# O-LEVEL CLASS TEACHER COMMENT
+# BASED ON GENERAL IDENTIFIER
+# =========================================================
+def get_olevel_class_teacher_comment(general_identifier):
+
+    if general_identifier >= 2.50:
+        return (
+            "Excellent performance. The student has demonstrated "
+            "strong commitment and a very good understanding of "
+            "the work covered."
+        )
+
+    elif general_identifier >= 2.00:
+        return (
+            "Very good performance. The student has made good "
+            "progress and should continue working hard."
+        )
+
+    elif general_identifier >= 1.50:
+        return (
+            "Good performance. The student has made satisfactory "
+            "progress and should continue putting in consistent effort."
+        )
+
+    elif general_identifier >= 1.00:
+        return (
+            "Fair performance. The student needs to put in more "
+            "effort and remain consistent in order to improve."
+        )
+
+    else:
+        return (
+            "The student needs significant improvement and greater "
+            "commitment to academic work."
+        )
+
+
+# =========================================================
+# O-LEVEL HEADTEACHER COMMENT
+# BASED ON GENERAL IDENTIFIER
+# =========================================================
+def get_olevel_headteacher_comment(general_identifier):
+
+    if general_identifier >= 2.50:
+        return (
+            "Excellent academic performance. The student has "
+            "demonstrated strong achievement and commitment to "
+            "academic work. Keep up the excellent performance."
+        )
+
+    elif general_identifier >= 2.00:
+        return (
+            "Very good academic performance. The student has made "
+            "good progress and is encouraged to maintain consistent "
+            "effort."
+        )
+
+    elif general_identifier >= 1.50:
+        return (
+            "Good academic performance. The student has made "
+            "satisfactory progress and should continue working "
+            "hard to achieve even better results."
+        )
+
+    elif general_identifier >= 1.00:
+        return (
+            "Fair academic performance. The student is encouraged "
+            "to increase effort and commitment in order to improve."
+        )
+
+    else:
+        return (
+            "The student needs significant improvement and greater "
+            "commitment to academic work. Continued effort and "
+            "support are encouraged."
+        )
 
 # ==================== TEACHER ASSIGNMENT HELPERS ====================
 def get_user_assignments(user_id=None):
@@ -5514,7 +5656,6 @@ def teacher_report_card(student_id):
         if settings else None
     )
 
-
     stamp_url = (
         url_for(
             'static',
@@ -5525,81 +5666,7 @@ def teacher_report_card(student_id):
         if settings and settings['headteacher_stamp']
         else None
     )
-
-
-    cur.execute(
-        """
-        SELECT
-            comment,
-            headteacher_comment,
-            class_teacher_comment_locked,
-            headteacher_comment_locked
-        FROM teacher_comments
-        WHERE student_id=%s
-        AND term=%s
-        AND year=%s
-        """,
-        (
-            student_id,
-            term,
-            year
-        )
-    )
-
-    comments = cur.fetchone()
-
-
-    teacher_comment = (
-        comments['comment']
-        if comments else ''
-    )
-
-    headteacher_comment = (
-        comments['headteacher_comment']
-        if comments else ''
-    )
-
-
-    teacher_comment_locked = (
-        comments['class_teacher_comment_locked']
-        if comments else 0
-    )
-
-    headteacher_comment_locked = (
-        comments['headteacher_comment_locked']
-        if comments else 0
-    )
-
-
-    can_edit_class_comment = (
-        role == 'classteacher'
-        and not teacher_comment_locked
-    )
-
-    can_edit_head_comment = (
-        role == 'headteacher'
-        and not headteacher_comment_locked
-    )
-
-
-    can_view_only = role in [
-        'subject_teacher',
-        'parent',
-        'dos'
-    ]
-
-
-    predefined_class_comments = get_predefined_comments(
-        'class_teacher'
-    )
-
-    predefined_head_comments = get_predefined_comments(
-        'headteacher'
-    )
-
-
     class_upper = class_name.upper()
-
     is_alevel = (
         class_upper in [
             'S5',
@@ -5640,18 +5707,19 @@ def teacher_report_card(student_id):
                 year
             )
         )
-
         marks = cur.fetchall()
-
         total_points = sum(
             m['points']
             for m in marks
             if m['points'] is not None
         ) if marks else 0
-
-
+        alevel_teacher_comment = get_alevel_class_teacher_comment(
+        total_points
+        )
+        alevel_headteacher_comment = get_alevel_headteacher_comment(
+        total_points
+        )
         cur.close()
-
         return render_template(
             'teacher/report_card_alevel.html',
             student_id=student_id,
@@ -5662,23 +5730,20 @@ def teacher_report_card(student_id):
             year=year,
             marks=marks,
             total_points=total_points,
-            teacher_comment=teacher_comment,
-            headteacher_comment=headteacher_comment,
+            teacher_comment=alevel_teacher_comment,
+            headteacher_comment=alevel_headteacher_comment,
             teacher_comment_locked=teacher_comment_locked,
             headteacher_comment_locked=headteacher_comment_locked,
             next_term_begins=next_term_begins,
             next_term_ends=next_term_ends,
             stamp_url=stamp_url,
-            can_edit_class_comment=can_edit_class_comment,
-            can_edit_head_comment=can_edit_head_comment,
             can_view_only=can_view_only,
             school_name=school_name,
             school_address=school_address,
             school_phone=school_phone,
             school_email=school_email,
             school_logo_url=school_logo_url,
-            predefined_class_comments=predefined_class_comments,
-            predefined_head_comments=predefined_head_comments
+
         )
 
 
@@ -5817,7 +5882,13 @@ def teacher_report_card(student_id):
         )   
         general_grade, general_descriptor = get_olevel_grade_details(
             general_average
-            )
+        )
+        olevel_teacher_comment = get_olevel_class_teacher_comment(
+            general_identifier
+        )
+        olevel_headteacher_comment = get_olevel_headteacher_comment(
+            general_identifier
+        )
         cur.close()
         return render_template(
             'teacher/report_card.html',
@@ -5836,228 +5907,22 @@ def teacher_report_card(student_id):
             general_identifier=general_identifier,
             general_grade=general_grade,
             general_descriptor=general_descriptor,
-            teacher_comment=teacher_comment,
-            headteacher_comment=headteacher_comment,
+            teacher_comment=olevel_teacher_comment,
+            headteacher_comment=olevel_headteacher_comment,
             teacher_comment_locked=teacher_comment_locked,
             headteacher_comment_locked=headteacher_comment_locked,
             next_term_begins=next_term_begins,
             next_term_ends=next_term_ends,
             stamp_url=stamp_url,
-            can_edit_class_comment=can_edit_class_comment,
-            can_edit_head_comment=can_edit_head_comment,
             can_view_only=can_view_only,
             school_name=school_name,
             school_address=school_address,
             school_phone=school_phone,
             school_email=school_email,
             school_logo_url=school_logo_url,
-            predefined_class_comments=predefined_class_comments,
-            predefined_head_comments=predefined_head_comments
+    
         )
 
-@app.route('/teacher/save_comment', methods=['POST'])
-def teacher_save_comment():
-    if not check_permission(['classteacher']):
-        abort(403)
-    
-    student_id = request.form['student_id']
-    term = request.form['term']
-    year = request.form['year']
-    
-    comment = request.form.get('comment', '').strip()
-    custom_comment = request.form.get('custom_comment', '').strip()
-    
-    final_comment = custom_comment if custom_comment else comment
-    
-    db = get_db()
-    cur = db.cursor()
-    
-    # =========================================================
-    # CHECK WHETHER CLASS TEACHER COMMENT IS ALREADY LOCKED
-    # =========================================================
-    cur.execute(
-        """
-        SELECT class_teacher_comment_locked
-        FROM teacher_comments
-        WHERE student_id = %s
-        AND term = %s
-        AND year = %s
-        """,
-        (student_id, term, year)
-    )
-    
-    existing = cur.fetchone()
-    
-    if existing and existing[0] == 1:
-        cur.close()
-        db.close()
-    
-        flash(
-            'Comment cannot be edited as it has been locked.',
-            'danger'
-        )
-    
-        return redirect(
-            url_for(
-                'teacher_report_card',
-                student_id=student_id,
-                term=term,
-                year=year
-            )
-        )
-    
-    # =========================================================
-    # INSERT OR UPDATE CLASS TEACHER COMMENT
-    #
-    # IMPORTANT:
-    # headteacher_comment is NOT changed here.
-    # =========================================================
-    cur.execute(
-        """
-        INSERT INTO teacher_comments
-        (
-            student_id,
-            term,
-            year,
-            comment,
-            class_teacher_comment_locked
-        )
-        VALUES (%s, %s, %s, %s, 1)
-    
-        ON CONFLICT (student_id, term, year)
-    
-        DO UPDATE SET
-            comment = EXCLUDED.comment,
-            class_teacher_comment_locked = 1
-        """,
-        (
-            student_id,
-            term,
-            year,
-            final_comment
-        )
-    )
-    
-    db.commit()
-    
-    cur.close()
-    db.close()
-    
-    flash(
-        'Class teacher comment saved and locked.',
-        'success'
-    )
-    
-    return redirect(
-        url_for(
-            'teacher_report_card',
-            student_id=student_id,
-            term=term,
-            year=year
-        )
-    )
-
-@app.route('/headteacher/save_comment', methods=['POST'])
-def headteacher_save_comment():
-    if not check_permission(['headteacher']):
-        abort(403)
-    
-    student_id = request.form['student_id']
-    term = request.form['term']
-    year = request.form['year']
-    
-    comment = request.form.get('comment', '').strip()
-    custom_comment = request.form.get('custom_comment', '').strip()
-    
-    final_comment = custom_comment if custom_comment else comment
-    
-    db = get_db()
-    cur = db.cursor()
-    
-    # =========================================================
-    # CHECK WHETHER HEADTEACHER COMMENT IS ALREADY LOCKED
-    # =========================================================
-    cur.execute(
-        """
-        SELECT headteacher_comment_locked
-        FROM teacher_comments
-        WHERE student_id = %s
-        AND term = %s
-        AND year = %s
-        """,
-        (student_id, term, year)
-    )
-    
-    existing = cur.fetchone()
-    
-    if existing and existing[0] == 1:
-        cur.close()
-        db.close()
-    
-        flash(
-            'Headteacher comment cannot be edited as it has been locked.',
-            'danger'
-        )
-    
-        return redirect(
-            url_for(
-                'teacher_report_card',
-                student_id=student_id,
-                term=term,
-                year=year
-            )
-        )
-    
-    # =========================================================
-    # INSERT OR UPDATE HEADTEACHER COMMENT
-    #
-    # IMPORTANT:
-    # The class teacher comment is NOT changed.
-    # =========================================================
-    cur.execute(
-        """
-        INSERT INTO teacher_comments
-        (
-            student_id,
-            term,
-            year,
-            headteacher_comment,
-            headteacher_comment_locked
-        )
-        VALUES (%s, %s, %s, %s, 1)
-    
-        ON CONFLICT (student_id, term, year)
-    
-        DO UPDATE SET
-            headteacher_comment = EXCLUDED.headteacher_comment,
-            headteacher_comment_locked = 1
-        """,
-        (
-            student_id,
-            term,
-            year,
-            final_comment
-        )
-    )
-    
-    db.commit()
-    
-    cur.close()
-    db.close()
-    
-    flash(
-        'Headteacher comment saved and locked.',
-        'success'
-    )
-    
-    return redirect(
-        url_for(
-            'teacher_report_card',
-            student_id=student_id,
-            term=term,
-            year=year
-        )
-    )
 
 @app.route('/teacher/edit_student/<student_id>', methods=['GET', 'POST'])
 def teacher_edit_student(student_id):
@@ -6875,48 +6740,6 @@ def teacher_print_all_report_cards():
         photo_url = get_photo_url(
             student['photo_path']
         )
-
-
-        # =====================================================
-        # COMMENTS
-        # =====================================================
-
-        cur.execute("""
-            SELECT
-                comment,
-                headteacher_comment
-            FROM teacher_comments
-            WHERE student_id=%s
-            AND term=%s
-            AND year=%s
-        """,
-        (
-            student_id,
-            term,
-            year
-        ))
-
-        comments_row = cur.fetchone()
-
-
-        teacher_comment = (
-            comments_row['comment']
-            if comments_row
-            else ''
-        )
-
-
-        headteacher_comment = (
-            comments_row['headteacher_comment']
-            if comments_row
-            else ''
-        )
-
-
-        # =====================================================
-        # A-LEVEL
-        # =====================================================
-
         if is_alevel:
 
             cur.execute("""
@@ -6941,25 +6764,30 @@ def teacher_print_all_report_cards():
             ))
 
             marks = cur.fetchall()
-
-
             total_points = sum(
                 m['points']
                 for m in marks
                 if m['points'] is not None
             ) if marks else 0
-
-
-            all_reports.append({
-
+            alevel_teacher_comment = get_alevel_class_teacher_comment(
+                total_points
+            )
+            alevel_headteacher_comment = get_alevel_headteacher_comment(
+                total_points
+            )
+           all_reports.append({
                 'student_id': student_id,
                 'full_name': full_name,
                 'photo_url': photo_url,
                 'marks': marks,
                 'total_points': total_points,
-                'teacher_comment': teacher_comment,
-                'headteacher_comment': headteacher_comment
-
+            
+                # AUTOMATIC CLASS TEACHER COMMENT
+                'teacher_comment': alevel_teacher_comment,
+            
+                # AUTOMATIC HEADTEACHER COMMENT
+                'headteacher_comment': alevel_headteacher_comment
+            
             })
 
 
@@ -6994,25 +6822,14 @@ def teacher_print_all_report_cards():
                 term,
                 year
             ))
-
-
             raw_marks = cur.fetchall()
-
-
             marks = []
-
-
             for m in raw_marks:
-
                 ai_scores = []
-
-
                 if m['ai1'] not in [None, '']:
                     ai_scores.append(
                         float(m['ai1'])
                     )
-
-
                 if m['ai2'] not in [None, '']:
                     ai_scores.append(
                         float(m['ai2'])
@@ -7021,7 +6838,6 @@ def teacher_print_all_report_cards():
                     ai_scores.append(
                         float(m['ai3'])
                     )
-
 
                 # =================================================
                 # AI AVERAGE
@@ -7137,16 +6953,21 @@ def teacher_print_all_report_cards():
                     general_average
                 )
             )
-            all_reports.append({
+            olevel_teacher_comment = get_olevel_class_teacher_comment(
+                general_identifier
+            )
+            olevel_headteacher_comment = get_olevel_headteacher_comment(
+                general_identifier
+            )
+            
+           all_reports.append({
+            
                 'student_id': student_id,
                 'full_name': full_name,
                 'photo_url': photo_url,
                 'marks': marks,
                 'general_average':
-                    round(
-                        general_average,
-                        2
-                    ),
+                    round(general_average, 2),
                 'general_identifier':
                     general_identifier,
                 'avg_out_of_3':
@@ -7156,10 +6977,10 @@ def teacher_print_all_report_cards():
                 'general_descriptor':
                     general_descriptor,
                 'teacher_comment':
-                    teacher_comment,
+                    olevel_teacher_comment,
                 'headteacher_comment':
-                    headteacher_comment
-
+                    olevel_headteacher_comment
+            
             })
     cur.close()
     template = (
