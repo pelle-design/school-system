@@ -6965,28 +6965,18 @@ def teacher_print_all_report_cards():
             olevel_headteacher_comment = get_olevel_headteacher_comment(
                 general_identifier
             )
-            
-           all_reports.append({
-            
+            all_reports.append({
                 'student_id': student_id,
                 'full_name': full_name,
                 'photo_url': photo_url,
                 'marks': marks,
-                'general_average':
-                    round(general_average, 2),
-                'general_identifier':
-                    general_identifier,
-                'avg_out_of_3':
-                    general_identifier,
-                'general_grade':
-                    general_grade,
-                'general_descriptor':
-                    general_descriptor,
-                'teacher_comment':
-                    olevel_teacher_comment,
-                'headteacher_comment':
-                    olevel_headteacher_comment
-            
+                'general_average': round(general_average, 2),
+                'general_identifier': general_identifier,
+                'avg_out_of_3': general_identifier,
+                'general_grade': general_grade,
+                'general_descriptor': general_descriptor,
+                'teacher_comment': teacher_comment,
+                'headteacher_comment': headteacher_comment
             })
     cur.close()
     template = (
