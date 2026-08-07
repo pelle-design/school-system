@@ -1,1288 +1,607 @@
+{% extends "base.html" %}
+{% block title %}My Students{% endblock %}
+
+{% block content %}
+
 <style>
-.report-card-container{
-border:2px solid #1a237e;
-border-radius:12px;
-padding:20px;
-background:white;
-max-width:1200px;
-margin:0 auto 30px auto;
-page-break-after:always;
-}
+    @media print {
+        .no-print {
+            display: none !important;
+        }
 
-.report-card-container:last-child{
-page-break-after:avoid;
-}
+        .sidebar {
+            display: none !important;
+        }
 
-.school-header{
-margin-bottom:20px;
-padding-bottom:10px;
-border-bottom:2px solid #1a237e;
-}
+        .content-area {
+            margin-left: 0 !important;
+            padding: 0 !important;
+            width: 100% !important;
+        }
 
-.school-logo{
-max-width:80px;
-height:auto;
-}
+        .card {
+            box-shadow: none;
+            border: 1px solid #ddd;
+        }
 
-.student-photo{
-width:80px;
-height:80px;
-object-fit:cover;
-border-radius:50%;
-border:2px solid #1a237e;
-}
+        .card-header {
+            background: white !important;
+            color: black !important;
+        }
 
-.school-name{
-font-size:22px;
-font-weight:bold;
-color:#1a237e;
-margin-bottom:5px;
-}
+        .table th,
+        .table td {
+            padding: 6px !important;
+            font-size: 12px;
+        }
 
-.school-motto{
-font-size:12px;
-color:#666;
-}
+        .student-photo {
+            width: 30px !important;
+            height: 30px !important;
+        }
 
-.school-info{
-font-size:11px;
-color:#666;
-}
+        .print-title {
+            display: block !important;
+        }
 
-.marks-table{
-width:100%;
-border-collapse:collapse;
-margin-bottom:20px;
-}
+        .action-column {
+            display: none !important;
+        }
 
-.marks-table th{
-background:#1a237e;
-color:white;
-padding:8px;
-text-align:center;
-font-size:12px;
-border:1px solid #2c3e50;
-}
+        .class-selector {
+            display: none !important;
+        }
 
-.marks-table td{
-padding:6px;
-text-align:center;
-font-size:11px;
-border:1px solid #ddd;
-}
+        .btn {
+            display: none;
+        }
+    }
 
-.marks-table tr:nth-child(even){
-background:#f9f9f9;
-}
+    .print-title {
+        display: none;
+        margin-bottom: 20px;
+        text-align: center;
+    }
 
-.grade-A{color:#2e7d32;font-weight:bold}
-.grade-B{color:#1565c0;font-weight:bold}
-.grade-C{color:#f57c00;font-weight:bold}
-.grade-D{color:#e65100;font-weight:bold}
-.grade-E{color:#9c27b0;font-weight:bold}
-.grade-F{color:#c62828;font-weight:bold}
+    .print-title h3 {
+        margin: 0;
+    }
 
-.summary-table{
-width:100%;
-border-collapse:collapse;
-margin:15px 0;
-}
+    .print-title p {
+        margin: 5px 0;
+        color: #666;
+    }
 
-.summary-table td{
-background:#e8eaf6;
-padding:10px;
-text-align:center;
-}
-
-.comment-box{
-border:1px solid #ddd;
-padding:10px;
-border-radius:8px;
-background:#fafafa;
-}
-
-
-@media print{
-
-.no-print{
-display:none!important;
-}
-
-.sidebar{
-display:none!important;
-}
-
-.content-area{
-margin-left:0!important;
-padding:0!important;
-width:100%!important;
-}
-
-
-.report-card-container{
-border:2px solid black!important;
-padding:15px!important;
-box-shadow:none!important;
-}
-
-
-.marks-table th,
-.marks-table td{
-border:1px solid black!important;
-font-size:9px!important;
-padding:3px!important;
-}
-
-
-.student-photo{
-width:60px!important;
-height:60px!important;
-}
-
-
-.school-logo{
-max-width:50px!important;
-}
-
-.school-name{
-font-size:16px!important;
-}
-
-.school-header h3{
-font-size:14px!important;
-}
-
-.school-info{
-font-size:10px!important;
-}
-
-}
-
+    .student-photo {
+        width: 40px;
+        height: 40px;
+        object-fit: cover;
+        border-radius: 50%;
+    }
 </style>
 
+<div class="card shadow">
 
-<!-- PRINT BUTTON AT TOP -->
+```
+<!-- ==================== HEADER ==================== -->
 
-<div class="print-btn-container no-print text-center"
-style="position:sticky;top:10px;z-index:1000;background:white;padding:10px;margin-bottom:20px;">
+<div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
 
+    <span>
+        <i class="fas fa-users"></i>
+        My Students - Class {{ selected_class }}
+    </span>
 
-<button onclick="window.print()" class="btn btn-primary btn-lg">
+    <div class="no-print">
 
-🖨️ Print All Report Cards
+        <button onclick="window.print()" class="btn btn-light btn-sm">
+            <i class="fas fa-print"></i>
+            Print List
+        </button>
 
-</button>
+        <a href="{{ url_for('teacher_print_all_report_cards',
+                            term=request.args.get('term', 'Term 1'),
+                            year=request.args.get('year', datetime.now().year)) }}"
+           class="btn btn-light btn-sm">
 
+            <i class="fas fa-print"></i>
+            Print All Report Cards
 
-<a href="{{ url_for('teacher_students') }}"
-class="btn btn-secondary btn-lg">
+        </a>
 
-⬅ Back to Students
-
-</a>
-
-
-</div>
-
-
-
-<!-- REPORT CARDS -->
-
-{% for report in reports %}
-
-<div class="report-card-container">
-
-
-<!-- SCHOOL HEADER -->
-
-<div class="school-header">
-
-
-<div class="row align-items-center">
-
-
-<!-- SCHOOL LOGO LEFT -->
-
-<div class="col-2 text-start">
-
-
-{% if school_logo_url %}
-
-<img src="{{ school_logo_url }}"
-class="school-logo"
-alt="School Logo">
-
-{% else %}
-
-<img src="{{ url_for('static', filename='images/logo.png') }}"
-class="school-logo"
-alt="School Logo">
-
-{% endif %}
-
+    </div>
 
 </div>
 
 
-
-<!-- SCHOOL DETAILS CENTER -->
-
-<div class="col-8 text-center">
+<div class="card-body">
 
 
-<div class="school-name">
+    <!-- ==================== PRINT TITLE ==================== -->
 
-{{ school_name or 'YOUR SCHOOL NAME' }}
+    <div class="print-title">
+
+        <h3>Student Class List</h3>
+
+        <p>
+
+            <strong>Class:</strong>
+            {{ selected_class }}
+
+            &nbsp;|&nbsp;
+
+            <strong>Term:</strong>
+            {{ request.args.get('term', 'Term 1') }}
+
+            &nbsp;|&nbsp;
+
+            <strong>Year:</strong>
+            {{ request.args.get('year', datetime.now().year) }}
+
+            &nbsp;|&nbsp;
+
+            <strong>Date:</strong>
+            {{ datetime.now().strftime('%d/%m/%Y') }}
+
+        </p>
+
+        <hr>
+
+    </div>
+
+
+    <!-- ==================== CLASS AND TERM SELECTOR ==================== -->
+
+    {% if available_classes|length > 1 %}
+
+    <div class="row mb-3 class-selector no-print">
+
+        <!-- CLASS -->
+
+        <div class="col-md-3">
+
+            <label class="form-label">
+                Select Class
+            </label>
+
+            <select id="classSelect"
+                    class="form-select"
+                    onchange="updateClass()">
+
+                {% for cls in available_classes %}
+
+                <option value="{{ cls }}"
+                    {% if cls == selected_class %}
+                        selected
+                    {% endif %}>
+
+                    {{ cls }}
+
+                </option>
+
+                {% endfor %}
+
+            </select>
+
+        </div>
+
+
+        <!-- TERM -->
+
+        <div class="col-md-3">
+
+            <label class="form-label">
+                Term
+            </label>
+
+            <select id="termInput"
+                    class="form-select">
+
+                <option value="Term 1"
+                    {% if request.args.get('term', 'Term 1') == 'Term 1' %}
+                        selected
+                    {% endif %}>
+                    Term 1
+                </option>
+
+                <option value="Term 2"
+                    {% if request.args.get('term', 'Term 1') == 'Term 2' %}
+                        selected
+                    {% endif %}>
+                    Term 2
+                </option>
+
+                <option value="Term 3"
+                    {% if request.args.get('term', 'Term 1') == 'Term 3' %}
+                        selected
+                    {% endif %}>
+                    Term 3
+                </option>
+
+            </select>
+
+        </div>
+
+
+        <!-- UPDATE -->
+
+        <div class="col-md-2 align-self-end">
+
+            <button onclick="updateTerm()"
+                    class="btn btn-primary">
+
+                <i class="fas fa-sync-alt"></i>
+                Update
+
+            </button>
+
+        </div>
+
+    </div>
+
+    {% else %}
+
+
+    <!-- ==================== TERM SELECTOR ==================== -->
+
+    <div class="row mb-3 class-selector no-print">
+
+        <div class="col-md-3">
+
+            <label class="form-label">
+                Term
+            </label>
+
+            <select id="termInput"
+                    class="form-select">
+
+                <option value="Term 1"
+                    {% if request.args.get('term', 'Term 1') == 'Term 1' %}
+                        selected
+                    {% endif %}>
+                    Term 1
+                </option>
+
+                <option value="Term 2"
+                    {% if request.args.get('term', 'Term 1') == 'Term 2' %}
+                        selected
+                    {% endif %}>
+                    Term 2
+                </option>
+
+                <option value="Term 3"
+                    {% if request.args.get('term', 'Term 1') == 'Term 3' %}
+                        selected
+                    {% endif %}>
+                    Term 3
+                </option>
+
+            </select>
+
+        </div>
+
+
+        <div class="col-md-2 align-self-end">
+
+            <button onclick="updateTerm()"
+                    class="btn btn-primary">
+
+                <i class="fas fa-sync-alt"></i>
+                Update
+
+            </button>
+
+        </div>
+
+    </div>
+
+    {% endif %}
+
+
+
+    <!-- ==================== STUDENT TABLE ==================== -->
+
+    <div class="table-responsive">
+
+        <table class="table table-hover align-middle">
+
+            <thead class="table-light">
+
+                <tr>
+
+                    <th>
+                        Student ID
+                    </th>
+
+                    <th>
+                        Photo
+                    </th>
+
+                    <th>
+                        Full Name
+                    </th>
+
+                    <th>
+                        Parent Phone
+                    </th>
+
+                    <th class="action-column">
+                        Actions
+                    </th>
+
+                </tr>
+
+            </thead>
+
+
+            <tbody>
+
+                {% for s in students %}
+
+                <tr class="{% if loop.index is even %}table-secondary{% endif %}">
+
+                    <td>
+                        {{ s.student_id }}
+                    </td>
+
+
+                    <td class="text-center">
+
+                        <img src="{{ s.photo_url }}"
+                             class="student-photo"
+                             alt="Photo">
+
+                    </td>
+
+
+                    <td class="fw-semibold">
+                        {{ s.full_name }}
+                    </td>
+
+
+                    <td>
+                        {{ s.parent_phone or '-' }}
+                    </td>
+
+
+                    <td class="action-column">
+
+                        <!-- REPORT CARD -->
+
+                        <a href="{{ url_for(
+                            'teacher_report_card',
+                            student_id=s.student_id,
+                            term=request.args.get('term', 'Term 1'),
+                            year=request.args.get('year', datetime.now().year)
+                        ) }}"
+                           class="btn btn-sm btn-info no-print">
+
+                            <i class="fas fa-eye"></i>
+                            Report Card
+
+                        </a>
+
+
+                        <!-- EDIT STUDENT -->
+
+                        {% if is_classteacher %}
+
+                        <a href="{{ url_for(
+                            'teacher_edit_student',
+                            student_id=s.student_id
+                        ) }}"
+                           class="btn btn-sm btn-warning no-print">
+
+                            <i class="fas fa-edit"></i>
+                            Edit
+
+                        </a>
+
+
+                        <!-- REMOVE STUDENT -->
+
+                        <form method="POST"
+                              action="{{ url_for(
+                                  'teacher_remove_student',
+                                  student_id=s.student_id
+                              ) }}"
+                              style="display:inline;"
+                              onsubmit="return confirm(
+                                  'Remove {{ s.full_name }} permanently? This action cannot be undone.'
+                              )">
+
+                            <button type="submit"
+                                    class="btn btn-sm btn-danger no-print">
+
+                                <i class="fas fa-trash-alt"></i>
+                                Remove
+
+                            </button>
+
+                        </form>
+
+                        {% endif %}
+
+                    </td>
+
+                </tr>
+
+
+                {% else %}
+
+                <tr>
+
+                    <td colspan="5"
+                        class="text-center text-muted py-4">
+
+                        <i class="fas fa-folder-open fa-2x mb-2 d-block"></i>
+
+                        No students found.
+
+                    </td>
+
+                </tr>
+
+                {% endfor %}
+
+            </tbody>
+
+        </table>
+
+    </div>
+
+</div>
+```
 
 </div>
 
-
-<div class="school-motto">
-
-{{ school_motto|default('Excellence in Education') }}
-
-</div>
-
-
-<div class="school-info">
-
-{{ school_address|default('P.O. Box 123, Kampala, Uganda') }}
-
-<br>
-
-Tel:
-{{ school_phone|default('+256 712 345678') }}
-
-|
-
-Email:
-{{ school_email|default('info@school.com') }}
-
-</div>
-
-
-<h3 style="font-size:18px;margin-top:10px;">
-
-END OF TERM REPORT CARD
-
-</h3>
-
-
-</div>
-
-
-
-<!-- STUDENT PHOTO RIGHT -->
-
-<div class="col-2 text-end">
-
-
-<img src="{{ report.photo_url or url_for('static', filename='images/default_avatar.png') }}"
-class="student-photo"
-alt="Student Photo">
-
-
-</div>
-
-
-</div>
-
-
-</div>
-<!-- STUDENT INFORMATION -->
-
-<div class="student-info"
-style="background:#f5f5f5;padding:12px;border-radius:8px;margin-bottom:20px;">
-
-
-<table style="width:100%;">
-
-<tr>
-
-<td>
-<strong>Student ID:</strong>
-{{ report.student_id }}
-</td>
-
-
-<td>
-<strong>Class:</strong>
-{{ class_name }}
-</td>
-
-
-<td>
-<strong>Term:</strong>
-{{ term }}
-</td>
-
-
-</tr>
-<tr>
-
-<td>
-<strong>Full Name:</strong>
-{{ report.full_name }}
-</td>
-<td>
-<strong>Year:</strong>
-{{ year }}
-</td>
-<td>
-<strong>LIN:</strong>
-{{ report.lin or '-' }}
-</td>
-</tr>
-</table>
-</div>
-<!-- ========== MARKS TABLE ========== -->
-
-<div class="table-responsive">
-
-<table class="marks-table">
-
-<thead>
-
-<tr>
-
-<th>Subject</th>
-<th>AI1</th>
-<th>AI2</th>
-<th>AI3</th>
-<th>Avg</th>
-<th>AI(20%)</th>
-<th>EOT(80%)</th>
-<th>Total</th>
-<th>Grade</th>
-<th>Identifier</th>
-<th>Descriptor</th>
-<th>Teacher's Initials</th>
-
-</tr>
-
-</thead>
-
-
-<tbody>
-
-
-{% for m in report.marks %}
-<tr>
-<td style="font-weight:bold;">
-{{ m.subject_name or m.subject or m.get('subject','N/A') }}
-</td>
-<td>
-{{ m.ai1 if m.ai1 else '-' }}
-</td>
-
-
-<td>
-{{ m.ai2 if m.ai2 else '-' }}
-</td>
-<td>
-{{ m.ai3 if m.ai3 else '-' }}
-</td>
-<td>
-{{ m.ai_average|round(1) if m.ai_average else '-' }}
-</td>
-<td>
-{{ m.ai_contribution|round(1) if m.ai_contribution else '-' }}
-</td>
-<td>
-{{ m.eot_score|round(1) if m.eot_score else '-' }}
-</td>
-<td>
-{{ m.total_score|round(1) if m.total_score else '-' }}
-</td>
-<td class="grade-{{ m.grade }}">
-{{ m.grade or '-' }}
-</td>
-<td>
-{{ m.identifier|round(2) if m.identifier else '-' }}
-</td>
-<td>
-{{ m.descriptor or '-' }}
-</td>
-<td>
-{{ m.teacher_initials or '-' }}
-</td>
-</tr>
-{% else %}
-<tr>
-<td colspan="12">
-No marks recorded.
-</td>
-
-</tr>
-{% endfor %}
-</tbody>
-</table>
-</div>
-
-<!-- SUMMARY SECTION -->
-<table class="summary-table" style="width:100%;margin-top:20px;">
-<tr>
-<td style="width:25%;background:#e8eaf6;padding:10px;">
-<strong>📊 General Average:</strong>
-{{ general_average if general_average is not none else '-' }}
-</td>
-<td style="width:25%;background:#e8eaf6;padding:10px;">
-<strong>🎓 General Grade:</strong>
-<span class="grade-{{ general_grade }}">
-{{ general_grade if general_grade else '-' }}
-</span>
-</td>
-<td style="width:25%;background:#e8eaf6;padding:10px;">
-<strong>📝 Descriptor:</strong>
-{{ general_descriptor if general_descriptor else '-' }}
-</td>
-<td style="width:25%;background:#e8eaf6;padding:10px;">
-<strong>📌 Identifier:</strong>
-{{ general_identifier if general_identifier is not none else '-' }}
-</td>
-</tr>
-</table>
-<!-- ========== COMMENTS AND SIGNATURES SECTION ========== -->
-
-
-<div class="row mt-4">
-
-
-<!-- CLASS TEACHER -->
-
-
-<div class="col-md-6">
-
-
-<table style="width:100%;">
-
-
-<tr>
-
-
-<td style="width:70%;vertical-align:top;">
-
-
-<strong>
-👩‍🏫 Class Teacher's Comment:
-</strong>
-
-
-
-<div class="comment-edit-form">
-
-
-{% if can_edit_class_comment %}
-
-
-
-<p class="mt-2">
-
-{{ report.teacher_comment or 'Not yet added' }}
-
-</p>
-
-
-
-<form method="POST"
-action="{{ url_for('teacher_save_comment') }}"
-class="mt-2 no-print">
-
-
-
-<input type="hidden"
-name="student_id"
-value="{{ report.student_id }}">
-
-
-
-<input type="hidden"
-name="term"
-value="{{ term }}">
-
-
-
-<input type="hidden"
-name="year"
-value="{{ year }}">
-
-
-
-<select name="comment"
-class="form-select mb-2"
-id="classCommentSelect"
-onchange="toggleClassCustom()">
-
-
-
-<option value="">
--- Select Comment --
-</option>
-
-
-
-{% for c in predefined_class_comments %}
-
-<option value="{{ c.comment_text }}">
-
-{{ c.comment_text }}
-
-</option>
-
-{% endfor %}
-
-
-
-<option value="custom">
--- Custom Comment --
-</option>
-
-
-</select>
-
-
-
-
-<div id="classCustomDiv"
-style="display:none;">
-
-
-<textarea name="custom_comment"
-class="form-control"
-rows="3"
-placeholder="Enter custom comment..."></textarea>
-
-
-</div>
-
-
-
-
-<button type="submit"
-class="btn btn-sm btn-primary mt-2">
-
-Save Comment
-
-</button>
-
-
-</form>
-
-
-
-{% else %}
-
-
-
-<p class="mt-2">
-
-{{ report.teacher_comment or 'Not yet added' }}
-
-</p>
-
-
-
-{% endif %}
-
-
-
-</div>
-
-
-
-</td>
-
-
-
-<td style="width:30%;text-align:center;vertical-align:bottom;">
-
-
-<hr>
-
-
-<strong>
-
-Class Teacher's Signature
-
-</strong>
-
-
-</td>
-
-
-
-</tr>
-
-
-</table>
-
-
-</div>
-
-
-
-
-
-<!-- HEADTEACHER -->
-
-
-<div class="col-md-6">
-
-
-<table style="width:100%;">
-
-
-<tr>
-
-
-<td style="width:70%;vertical-align:top;">
-
-
-<strong>
-
-👨‍🎓 Headteacher's Comment:
-
-</strong>
-
-
-
-
-<div class="comment-edit-form">
-
-
-{% if can_edit_head_comment %}
-
-
-
-<p class="mt-2">
-
-{{ report.headteacher_comment or 'Not yet added' }}
-
-</p>
-
-
-
-<form method="POST"
-action="{{ url_for('headteacher_update_comment') }}"
-class="mt-2 no-print">
-
-
-
-<input type="hidden"
-name="student_id"
-value="{{ report.student_id }}">
-
-
-
-<input type="hidden"
-name="term"
-value="{{ term }}">
-
-
-
-<input type="hidden"
-name="year"
-value="{{ year }}">
-
-
-
-<select name="comment"
-class="form-select mb-2"
-id="headCommentSelect"
-onchange="toggleHeadCustom()">
-
-
-
-<option value="">
--- Select Comment --
-</option>
-
-
-
-{% for c in predefined_head_comments %}
-
-
-<option value="{{ c.comment_text }}">
-
-{{ c.comment_text }}
-
-</option>
-
-
-{% endfor %}
-
-
-
-<option value="custom">
-
--- Custom Comment --
-
-</option>
-
-
-
-</select>
-
-
-
-
-<div id="headCustomDiv"
-style="display:none;">
-
-
-<textarea name="custom_comment"
-class="form-control"
-rows="3"
-placeholder="Enter custom comment..."></textarea>
-
-
-</div>
-
-
-
-
-<button type="submit"
-class="btn btn-sm btn-success mt-2">
-
-Save Comment
-
-</button>
-
-
-
-</form>
-
-
-
-{% else %}
-
-
-
-<p class="mt-2">
-
-{{ report.headteacher_comment or 'Not yet added' }}
-
-</p>
-
-
-
-{% endif %}
-
-
-
-</div>
-
-
-
-</td>
-
-
-
-
-
-<td style="width:30%;text-align:center;vertical-align:bottom;">
-
-
-<hr>
-
-
-<strong>
-
-Headteacher's Signature & Stamp
-
-</strong>
-
-
-
-{% if stamp_url %}
-
-
-<div class="mt-2">
-
-
-<img src="{{ stamp_url }}"
-class="stamp"
-style="max-width:80px;"
-alt="Headteacher Stamp">
-
-
-</div>
-
-
-{% endif %}
-
-
-</td>
-
-
-</tr>
-
-
-</table>
-
-
-</div>
-
-
-</div>
-<!-- ========== COMMENTS AND SIGNATURES SECTION ========== -->
-
-<div class="row mt-4">
-
-<!-- CLASS TEACHER COMMENT + SIGNATURE -->
-<div class="col-md-6">
-
-<table style="width:100%;">
-
-<tr>
-
-<td style="width:70%;vertical-align:top;">
-
-<strong>
-👩‍🏫 Class Teacher's Comment:
-</strong>
-
-
-<div class="comment-edit-form">
-
-{% if can_edit_class_comment %}
-
-{% if report.teacher_comment %}
-
-<p class="mt-2">
-{{ report.teacher_comment }}
-</p>
-
-{% else %}
-
-<p class="mt-2">
-Not yet added
-</p>
-
-{% endif %}
-
-
-<form method="POST"
-action="{{ url_for('teacher_save_comment') }}"
-class="mt-2 no-print">
-
-
-<input type="hidden"
-name="student_id"
-value="{{ report.student_id }}">
-
-
-<input type="hidden"
-name="term"
-value="{{ term }}">
-
-
-<input type="hidden"
-name="year"
-value="{{ year }}">
-
-
-<select name="comment"
-class="form-select mb-2"
-id="classCommentSelect"
-onchange="toggleClassCustom()">
-
-
-<option value="">
--- Select Comment --
-</option>
-
-
-{% for c in predefined_class_comments %}
-
-<option value="{{ c.comment_text }}">
-{{ c.comment_text }}
-</option>
-
-{% endfor %}
-
-
-<option value="custom">
--- Custom Comment --
-</option>
-
-
-</select>
-
-
-<div id="classCustomDiv"
-style="display:none;">
-
-
-<textarea name="custom_comment"
-class="form-control"
-rows="3"
-placeholder="Enter custom comment..."></textarea>
-
-
-</div>
-
-
-<button type="submit"
-class="btn btn-sm btn-primary mt-2">
-
-Save Comment
-
-</button>
-
-
-</form>
-
-
-{% else %}
-
-
-<p class="mt-2">
-{{ report.teacher_comment or 'Not yet added' }}
-</p>
-
-
-{% endif %}
-
-
-</div>
-
-
-</td>
-
-
-<td style="width:30%;text-align:center;vertical-align:bottom;">
-
-<hr>
-
-<strong>
-Class Teacher's Signature
-</strong>
-
-</td>
-
-
-</tr>
-
-
-</table>
-
-
-</div>
-
-
-
-<!-- HEADTEACHER COMMENT + SIGNATURE -->
-
-<div class="col-md-6">
-
-
-<table style="width:100%;">
-
-<tr>
-
-
-<td style="width:70%;vertical-align:top;">
-
-
-<strong>
-👨‍🎓 Headteacher's Comment:
-</strong>
-
-
-<div class="comment-edit-form">
-
-
-{% if can_edit_head_comment %}
-
-
-<p class="mt-2">
-{{ report.headteacher_comment or 'Not yet added' }}
-</p>
-
-
-<form method="POST"
-action="{{ url_for('headteacher_update_comment') }}"
-class="mt-2 no-print">
-
-
-<input type="hidden"
-name="student_id"
-value="{{ report.student_id }}">
-
-
-<input type="hidden"
-name="term"
-value="{{ term }}">
-
-
-<input type="hidden"
-name="year"
-value="{{ year }}">
-
-
-<select name="comment"
-class="form-select mb-2"
-id="headCommentSelect"
-onchange="toggleHeadCustom()">
-
-
-
-<option value="">
--- Select Comment --
-</option>
-
-
-{% for c in predefined_head_comments %}
-
-<option value="{{ c.comment_text }}">
-{{ c.comment_text }}
-</option>
-
-{% endfor %}
-
-
-<option value="custom">
--- Custom Comment --
-</option>
-
-
-</select>
-
-
-
-<div id="headCustomDiv"
-style="display:none;">
-
-
-<textarea name="custom_comment"
-class="form-control"
-rows="3"
-placeholder="Enter custom comment..."></textarea>
-
-
-</div>
-
-
-
-<button type="submit"
-class="btn btn-sm btn-success mt-2">
-
-Save Comment
-
-</button>
-
-
-</form>
-
-
-{% else %}
-
-
-<p class="mt-2">
-{{ report.headteacher_comment or 'Not yet added' }}
-</p>
-
-
-{% endif %}
-
-
-</div>
-
-
-</td>
-
-
-<td style="width:30%;text-align:center;vertical-align:bottom;">
-
-
-<hr>
-
-
-<strong>
-Headteacher's Signature & Stamp
-</strong>
-
-
-{% if stamp_url %}
-
-<div class="mt-2">
-
-<img src="{{ stamp_url }}"
-class="stamp"
-style="max-width:80px;"
-alt="Headteacher Stamp">
-
-</div>
-
-{% endif %}
-
-
-</td>
-
-
-</tr>
-
-
-</table>
-
-
-</div>
-
-
-</div>
-
-
-<!-- ========== ADDITIONAL SIGNATURES ========== -->
-
-<div class="row mt-4">
-
-
-<div class="col-md-4 text-center">
-
-<p>________________________</p>
-
-<strong>
-Class Teacher's Signature
-</strong>
-
-</div>
-
-
-<div class="col-md-4 text-center">
-
-<p>________________________</p>
-
-<strong>
-Headteacher's Signature & Stamp
-</strong>
-
-</div>
-
-
-<div class="col-md-4 text-center">
-
-<p>________________________</p>
-
-<strong>
-Parent's Signature
-</strong>
-
-</div>
-
-
-</div>
-<!-- ========== TERM DATES ========== -->
-
-<div class="row mt-4">
-
-<div class="col-md-12 text-center">
-
-<p style="font-size:10px;color:#666;">
-
-<strong>
-Next Term Begins:
-</strong>
-
-{{ next_term_begins or 'To be announced' }}
-
-&nbsp; | &nbsp;
-
-<strong>
-Next Term Ends:
-</strong>
-
-{{ next_term_ends or 'To be announced' }}
-
-</p>
-
-</div>
-
-</div>
-
-
-
-<!-- ========== FOOTER ========== -->
-
-<div class="text-center mt-2"
-style="font-size:9px;color:#666;">
-
-Generated on:
-{{ generated_date or '-' }}
-
-</div>
-
-
-</div>
-</div>
-</div>
-
-
-{% endfor %}
-
-
-
-<!-- ========== IF NO REPORTS ========== -->
-
-{% if not reports %}
-
-<div class="alert alert-warning text-center">
-
-<i class="fas fa-exclamation-triangle"></i>
-
-No students found in this class.
-
-</div>
-
-{% endif %}
-
-
+<!-- ==================== JAVASCRIPT ==================== -->
 
 <script>
 
-function toggleClassCustom(){
+function updateTerm() {
 
-var select=document.getElementById('classCommentSelect');
+    var term = document.getElementById('termInput').value;
 
-var customDiv=document.getElementById('classCustomDiv');
+    var url = new URL(window.location.href);
 
+    /*
+     * Preserve the currently selected class.
+     */
 
-if(customDiv){
+    var classSelect = document.getElementById('classSelect');
 
-customDiv.style.display =
-(select.value == 'custom')
-?
-'block'
-:
-'none';
+    if (classSelect) {
+
+        url.searchParams.set(
+            'class_name',
+            classSelect.value
+        );
+
+    }
+
+    /*
+     * Set the selected term.
+     */
+
+    url.searchParams.set(
+        'term',
+        term
+    );
+
+    /*
+     * Preserve the year if it already exists.
+     * Otherwise use the current year.
+     */
+
+    if (!url.searchParams.get('year')) {
+
+        url.searchParams.set(
+            'year',
+            '{{ datetime.now().year }}'
+        );
+
+    }
+
+    window.location.href = url.toString();
 
 }
 
+
+
+function updateClass() {
+
+    var classSelect =
+        document.getElementById('classSelect');
+
+    var termInput =
+        document.getElementById('termInput');
+
+    var url =
+        new URL(window.location.href);
+
+
+    /*
+     * Change the class.
+     */
+
+    url.searchParams.set(
+        'class_name',
+        classSelect.value
+    );
+
+
+    /*
+     * Keep the currently selected term.
+     */
+
+    if (termInput) {
+
+        url.searchParams.set(
+            'term',
+            termInput.value
+        );
+
+    } else {
+
+        url.searchParams.set(
+            'term',
+            'Term 1'
+        );
+
+    }
+
+
+    /*
+     * Preserve year.
+     */
+
+    if (!url.searchParams.get('year')) {
+
+        url.searchParams.set(
+            'year',
+            '{{ datetime.now().year }}'
+        );
+
+    }
+
+
+    window.location.href =
+        url.toString();
+
 }
 
 
 
-function toggleHeadCustom(){
+// Confirm remove function
 
-var select=document.getElementById('headCommentSelect');
+function confirmRemove(
+    studentId,
+    studentName
+) {
 
-var customDiv=document.getElementById('headCustomDiv');
+    if (
+        confirm(
+            `Remove ${studentName} permanently? This action cannot be undone.`
+        )
+    ) {
 
+        var form =
+            document.createElement('form');
 
-if(customDiv){
+        form.method = 'POST';
 
-customDiv.style.display =
-(select.value == 'custom')
-?
-'block'
-:
-'none';
+        form.action =
+            `/teacher/remove_student/${studentId}`;
 
-}
+        document.body.appendChild(form);
+
+        form.submit();
+
+    }
 
 }
 
 </script>
-
 
 {% endblock %}
