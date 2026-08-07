@@ -1,1038 +1,713 @@
 {% extends "base.html" %}
-{% block title %}All A-Level Report Cards - Class {{ class_name }}{% endblock %}
+
+{% block title %}
+Print All A-Level Report Cards
+{% endblock %}
 
 {% block content %}
 
 <style>
 
-.school-header{
-text-align:center;
-margin-bottom:20px;
-}
-
-.school-logo{
-max-width:100px;
-height:auto;
-display:block;
-margin:0 auto 10px;
-}
-
-.student-photo{
-width:100px;
-height:100px;
-object-fit:cover;
-border-radius:10px;
-}
-
-.stamp{
-max-width:100px;
-margin-top:10px;
-}
-
-.comment-box{
-border:1px solid #ddd;
-padding:10px;
-border-radius:5px;
-background:#f9f9f9;
-}
-
-
-.marks-table{
-width:100%;
-border-collapse:collapse;
-margin-bottom:20px;
-}
-
-
-.marks-table th,
-.marks-table td{
-
-text-align:center;
-vertical-align:middle;
-font-size:11px;
-padding:8px 5px;
-border:1px solid #ddd;
-
-}
-
-
-.marks-table th{
-
-background:linear-gradient(135deg,#1a237e 0%,#283593 100%);
-color:white;
-font-weight:bold;
-text-transform:uppercase;
-
-}
-
-
-.marks-table tr:nth-child(even){
-
-background:#f9f9f9;
-
-}
-
-
-
-.grade-A{color:#2e7d32;font-weight:bold}
-.grade-B{color:#1565c0;font-weight:bold}
-.grade-C{color:#f57c00;font-weight:bold}
-.grade-D{color:#e65100;font-weight:bold}
-.grade-E{color:#9c27b0;font-weight:bold}
-.grade-O{color:#757575;font-weight:bold}
-
-
-
-.report-card-container{
-
-border:2px solid #1a237e;
-border-radius:15px;
-padding:25px;
-background:white;
-margin-bottom:30px;
-page-break-after:always;
-
-}
-
-
-.report-card-container:last-child{
-
-page-break-after:avoid;
-
-}
-
-
-
-.print-btn-container{
-
-position:sticky;
-top:10px;
-z-index:1000;
-background:white;
-padding:10px;
-border-radius:8px;
-margin-bottom:20px;
-
-}
-
-
-
-@media print{
-
-
-.no-print,
-.btn,
-.print-btn-container{
-
-display:none!important;
-
-}
-
-
-.sidebar,
-.content-area .sidebar{
-
-display:none!important;
-
-}
-
-
-.report-card-container{
-
-border:2px solid black!important;
-border-radius:8px!important;
-padding:15px!important;
-box-shadow:none!important;
-
-}
-
-
-.marks-table th,
-.marks-table td{
-
-border:1px solid black!important;
-font-size:9px!important;
-
-}
-
-
-.student-photo{
-
-width:80px!important;
-height:80px!important;
-
-}
-
-
-.school-logo{
-
-max-width:60px!important;
-
-}
-
-
-.school-header h2{
-
-font-size:16px!important;
-
-}
-
-
-.school-header h3{
-
-font-size:14px!important;
-
-}
-
-
-.school-header p{
-
-font-size:10px!important;
-
-}
-
-
-}
-
+    body {
+        background: #f5f5f5;
+    }
+
+    .print-controls {
+        margin-bottom: 20px;
+    }
+
+    .report-card-container {
+        border: 2px solid #1a237e;
+        border-radius: 15px;
+        padding: 25px;
+        background: white;
+        margin-bottom: 30px;
+        page-break-after: always;
+    }
+
+    .report-card-container:last-child {
+        page-break-after: auto;
+    }
+
+    .school-header {
+        text-align: center;
+        margin-bottom: 20px;
+    }
+
+    .school-logo {
+        max-width: 100px;
+        height: auto;
+        display: block;
+        margin: 0 auto 10px;
+    }
+
+    .student-photo {
+        width: 100px;
+        height: 100px;
+        object-fit: cover;
+        border-radius: 10px;
+    }
+
+    .marks-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-bottom: 20px;
+    }
+
+    .marks-table th,
+    .marks-table td {
+        text-align: center;
+        vertical-align: middle;
+        font-size: 11px;
+        padding: 8px 5px;
+        border: 1px solid #ddd;
+    }
+
+    .marks-table th {
+        background: linear-gradient(
+            135deg,
+            #1a237e 0%,
+            #283593 100%
+        );
+        color: white;
+        font-weight: bold;
+        text-transform: uppercase;
+    }
+
+    .marks-table tr:nth-child(even) {
+        background: #f9f9f9;
+    }
+
+    .grade-A {
+        color: #2e7d32;
+        font-weight: bold;
+    }
+
+    .grade-B {
+        color: #1565c0;
+        font-weight: bold;
+    }
+
+    .grade-C {
+        color: #f57c00;
+        font-weight: bold;
+    }
+
+    .grade-D {
+        color: #e65100;
+        font-weight: bold;
+    }
+
+    .grade-E {
+        color: #9c27b0;
+        font-weight: bold;
+    }
+
+    .grade-F {
+        color: #c62828;
+        font-weight: bold;
+    }
+
+    .comment-box {
+        border: 1px solid #ddd;
+        padding: 10px;
+        border-radius: 5px;
+        background: #f9f9f9;
+        min-height: 60px;
+    }
+
+    @media print {
+
+        body {
+            background: white !important;
+        }
+
+        .no-print {
+            display: none !important;
+        }
+
+        .sidebar {
+            display: none !important;
+        }
+
+        .content-area {
+            margin-left: 0 !important;
+            padding: 0 !important;
+            width: 100% !important;
+        }
+
+        .report-card-container {
+            border: 2px solid black !important;
+            box-shadow: none !important;
+            margin: 0 !important;
+            padding: 15px !important;
+            page-break-after: always;
+        }
+
+        .report-card-container:last-child {
+            page-break-after: auto;
+        }
+
+        .marks-table th,
+        .marks-table td {
+            border: 1px solid black !important;
+            font-size: 9px !important;
+            padding: 5px 3px !important;
+        }
+
+        .marks-table th {
+            background: #ddd !important;
+            color: black !important;
+        }
+
+        @page {
+            size: A4;
+            margin: 10mm;
+        }
+    }
 
 </style>
 
 
+<!-- =========================================================
+     PRINT CONTROLS
+     ========================================================= -->
 
-<!-- PRINT BUTTON AT TOP -->
+<div class="text-end no-print print-controls">
 
-<div class="print-btn-container no-print text-center">
+    <button
+        onclick="window.print()"
+        class="btn btn-primary">
 
+        🖨️ Print All Report Cards
 
-<button onclick="window.print()" class="btn btn-primary btn-lg">
+    </button>
 
-🖨️ Print All A-Level Report Cards
+    <a
+        href="{{ url_for('teacher_students') }}"
+        class="btn btn-outline-secondary">
 
-</button>
+        Back
 
-
-<a href="{{ url_for('teacher_students') }}"
-class="btn btn-secondary btn-lg">
-
-⬅️ Back to Students
-
-</a>
-
+    </a>
 
 </div>
 
 
-
-
+<!-- =========================================================
+     ALL REPORT CARDS
+     ========================================================= -->
 
 {% for report in reports %}
-
 
 <div class="report-card-container">
 
 
+    <!-- =====================================================
+         SCHOOL HEADER
+         ===================================================== -->
 
-<!-- SCHOOL HEADER -->
+    <div class="school-header">
 
-
-<div class="school-header">
-
-
-<div class="row align-items-center">
-
+        <div class="row align-items-center">
 
 
-<!-- SCHOOL LOGO LEFT -->
+            <!-- SCHOOL LOGO -->
+
+            <div class="col-2 text-start">
+
+                {% if school_logo_url %}
+
+                <img
+                    src="{{ school_logo_url }}"
+                    class="school-logo"
+                    alt="School Logo">
+
+                {% else %}
+
+                <img
+                    src="{{ url_for(
+                        'static',
+                        filename='images/logo.png'
+                    ) }}"
+                    class="school-logo"
+                    alt="School Logo">
+
+                {% endif %}
+
+            </div>
 
 
-<div class="col-2 text-start">
+            <!-- SCHOOL DETAILS -->
+
+            <div class="col-8 text-center">
+
+                <h2 style="font-size:24px;margin-bottom:5px;">
+
+                    {{ school_name or 'YOUR SCHOOL NAME' }}
+
+                </h2>
+
+                <p style="font-size:12px;margin-bottom:5px;">
+
+                    {{ school_address or
+                    'P.O. Box 123, Kampala, Uganda' }}
+
+                    |
+
+                    {{ school_phone or
+                    'Tel: +256 712 345678' }}
+
+                    |
+
+                    {{ school_email or
+                    'Email: info@school.com' }}
+
+                </p>
+
+            </div>
 
 
-{% if school_logo_url %}
+            <!-- STUDENT PHOTO -->
+
+            <div class="col-2 text-end">
+
+                <img
+                    src="{{ report.photo_url or
+                    url_for(
+                        'static',
+                        filename='images/default_student.png'
+                    ) }}"
+                    class="student-photo"
+                    alt="Student Photo">
+
+            </div>
+
+        </div>
 
 
-<img src="{{ school_logo_url }}"
-class="school-logo"
-alt="School Logo">
+        <hr>
 
+
+        <h3 style="font-size:18px;margin-top:10px;">
+
+            END OF TERM REPORT CARD
+
+        </h3>
+
+    </div>
+
+
+    <!-- =====================================================
+         STUDENT DETAILS
+         ===================================================== -->
+
+    <div class="row mb-4">
+
+        <div class="col-md-12">
+
+            <p>
+
+                <strong>Student Number:</strong>
+
+                {{ report.student_id or '-' }}
+
+                &nbsp; | &nbsp;
+
+                <strong>Class:</strong>
+
+                {{ class_name or '-' }}
+
+                &nbsp; | &nbsp;
+
+                <strong>Term:</strong>
+
+                {{ term or '-' }}
+
+                &nbsp; | &nbsp;
+
+                <strong>Year:</strong>
+
+                {{ year or '-' }}
+
+            </p>
+
+
+            <p>
+
+                <strong>Full Name:</strong>
+
+                {{ report.full_name or '-' }}
+
+            </p>
+
+        </div>
+
+    </div>
+
+
+    <!-- =====================================================
+         A-LEVEL MARKS
+         ===================================================== -->
+
+    <table class="marks-table">
+
+        <thead>
+
+            <tr>
+
+                <th>Subject</th>
+
+                <th>Paper 1</th>
+
+                <th>Paper 2</th>
+
+                <th>Total</th>
+
+                <th>Grade</th>
+
+                <th>Points</th>
+
+                <th>Teacher Initials</th>
+
+            </tr>
+
+        </thead>
+
+
+        <tbody>
+
+            {% for m in report.marks %}
+
+            <tr>
+
+                <td>
+
+                    <strong>
+
+                        {{ m.subject or 'N/A' }}
+
+                    </strong>
+
+                </td>
+
+
+                <td>
+
+                    {{ m.paper1
+                    if m.paper1 is not none
+                    else '-' }}
+
+                </td>
+
+
+                <td>
+
+                    {{ m.paper2
+                    if m.paper2 is not none
+                    else '-' }}
+
+                </td>
+
+
+                <td>
+
+                    {{ m.total_score
+                    if m.total_score is not none
+                    else '-' }}
+
+                </td>
+
+
+                <td class="grade-{{ m.grade }}">
+
+                    {{ m.grade or '-' }}
+
+                </td>
+
+
+                <td>
+
+                    {{ m.points
+                    if m.points is not none
+                    else '-' }}
+
+                </td>
+
+
+                <td>
+
+                    {{ m.teacher_initials or '-' }}
+
+                </td>
+
+            </tr>
+
+
+            {% else %}
+
+            <tr>
+
+                <td colspan="7">
+
+                    No marks recorded for
+                    {{ term or 'this term' }}.
+
+                </td>
+
+            </tr>
+
+            {% endfor %}
+
+        </tbody>
+
+    </table>
+
+
+    <!-- =====================================================
+         TOTAL POINTS
+         ===================================================== -->
+
+    <table
+        style="
+            width:100%;
+            margin-top:20px;
+            border-collapse:collapse;
+        ">
+
+        <tr>
+
+            <td
+                style="
+                    width:50%;
+                    background:#e8eaf6;
+                    padding:10px;
+                    border:1px solid #ddd;
+                ">
+
+                <strong>
+                    🎓 Total Points:
+                </strong>
+
+                {{ report.total_points or 0 }}
+
+            </td>
+
+
+            <td
+                style="
+                    width:50%;
+                    background:#e8eaf6;
+                    padding:10px;
+                    border:1px solid #ddd;
+                ">
+
+                <strong>
+                    📚 Number of Subjects:
+                </strong>
+
+                {{ report.marks|length }}
+
+            </td>
+
+        </tr>
+
+    </table>
+
+
+    <!-- =====================================================
+         COMMENTS AND SIGNATURES
+         ===================================================== -->
+
+    <div class="row mt-4">
+
+
+        <!-- CLASS TEACHER -->
+
+        <div class="col-md-6">
+
+            <table style="width:100%;">
+
+                <tr>
+
+                    <td
+                        style="
+                            width:70%;
+                            vertical-align:top;
+                        ">
+
+                        <strong>
+                            👩‍🏫 Class Teacher's Comment:
+                        </strong>
+
+
+                        <div class="comment-box mt-2">
+
+                            {{ report.teacher_comment
+                            or 'No comment yet.' }}
+
+                        </div>
+
+                    </td>
+
+
+                    <td
+                        style="
+                            width:30%;
+                            text-align:center;
+                            vertical-align:bottom;
+                        ">
+
+                        <hr>
+
+                        <strong>
+                            Class Teacher's Signature
+                        </strong>
+
+                    </td>
+
+                </tr>
+
+            </table>
+
+        </div>
+
+
+        <!-- HEADTEACHER -->
+
+        <div class="col-md-6">
+
+            <table style="width:100%;">
+
+                <tr>
+
+                    <td
+                        style="
+                            width:70%;
+                            vertical-align:top;
+                        ">
+
+                        <strong>
+                            👨‍🎓 Headteacher's Comment:
+                        </strong>
+
+
+                        <div class="comment-box mt-2">
+
+                            {{ report.headteacher_comment
+                            or 'No comment yet.' }}
+
+                        </div>
+
+                    </td>
+
+
+                    <td
+                        style="
+                            width:30%;
+                            text-align:center;
+                            vertical-align:bottom;
+                        ">
+
+                        <hr>
+
+                        <strong>
+                            Headteacher's Signature
+                        </strong>
+
+                    </td>
+
+                </tr>
+
+            </table>
+
+        </div>
+
+    </div>
+
+
+    <!-- =====================================================
+         TERM DATES
+         ===================================================== -->
+
+    <div class="row mt-4">
+
+        <div class="col-md-12 text-center">
+
+            <p>
+
+                <strong>
+                    Next Term Begins:
+                </strong>
+
+                {{ next_term_begins
+                or 'To be announced' }}
+
+                &nbsp; | &nbsp;
+
+                <strong>
+                    Next Term Ends:
+                </strong>
+
+                {{ next_term_ends
+                or 'To be announced' }}
+
+            </p>
+
+        </div>
+
+    </div>
+
+
+    <!-- =====================================================
+         HEADTEACHER STAMP
+         ===================================================== -->
+
+    {% if stamp_url %}
+
+    <div class="text-end">
+
+        <img
+            src="{{ stamp_url }}"
+            alt="Headteacher Stamp"
+            style="
+                max-width:100px;
+                margin-top:10px;
+            ">
+
+    </div>
+
+    {% endif %}
+
+
+</div>
 
 {% else %}
 
 
-<img src="{{ url_for('static', filename='images/logo.png') }}"
-class="school-logo"
-alt="School Logo">
+<!-- =========================================================
+     NO REPORTS
+     ========================================================= -->
 
+<div class="alert alert-warning">
 
-{% endif %}
+    No report cards were found for
 
+    <strong>
+        {{ class_name or 'the selected class' }}
+    </strong>
 
-</div>
+    for
 
+    <strong>
+        {{ term or 'Term 1' }}
+    </strong>
 
-
-
-
-<!-- SCHOOL DETAILS CENTER -->
-
-
-<div class="col-8 text-center">
-
-
-<h2 style="font-size:24px;margin-bottom:5px;">
-
-{{ school_name or 'YOUR SCHOOL NAME' }}
-
-</h2>
-
-
-
-<p style="font-size:12px;margin-bottom:5px;">
-
-
-{{ school_address or 'P.O. Box 123, Kampala, Uganda' }}
-
-|
-
-{{ school_phone or 'Tel: +256 712 345678' }}
-
-|
-
-{{ school_email or 'Email: info@school.com' }}
-
-
-</p>
-
+    {{ year or '' }}.
 
 </div>
-
-
-
-
-
-<!-- STUDENT PHOTO RIGHT -->
-
-
-<div class="col-2 text-end">
-
-
-<img src="{{ report.photo_url or url_for('static', filename='images/default_avatar.png') }}"
-class="student-photo"
-alt="Student Photo">
-
-
-</div>
-
-
-
-</div>
-
-
-<hr>
-
-
-
-<h3 style="font-size:18px;margin-top:10px;">
-
-END OF TERM REPORT CARD (A-LEVEL)
-
-</h3>
-
-
-
-</div>
-
-
-
-
-
-<!-- STUDENT INFORMATION -->
-
-
-<div class="row mb-4">
-
-
-<div class="col-md-12">
-
-
-
-<p>
-
-
-<strong>Student Number:</strong>
-
-{{ report.student_id }}
-
-
-&nbsp; | &nbsp;
-
-
-<strong>Class:</strong>
-
-{{ class_name }}
-
-
-&nbsp; | &nbsp;
-<strong>Term:</strong>
-{{ term }}
-</p>
-<p>
-<strong>Full Name:</strong>
-{{ report.full_name }}
-&nbsp; | &nbsp;
-<strong>Year:</strong>
-{{ year }}
-&nbsp; | &nbsp;
-<strong>LIN:</strong>
-{{ report.lin or '-' }}
-</p>
-
-</div>
-</div>
-<!-- MARKS TABLE STARTS BELOW -->
-<!-- MARKS TABLE -->
-
-<div class="table-responsive">
-
-<table class="marks-table">
-
-<thead>
-
-<tr>
-
-<th>Subject</th>
-<th>Paper 1</th>
-<th>Paper 2</th>
-<th>Final Score</th>
-<th>Grade</th>
-<th>Teacher's Initials</th>
-
-</tr>
-
-</thead>
-
-
-<tbody>
-
-
-{% for m in report.marks %}
-
-
-<tr>
-
-
-<td>
-{{ m.subject }}
-</td>
-
-
-<td>
-{{ m.paper1 if m.paper1 else '-' }}
-</td>
-
-
-<td>
-{{ m.paper2 if m.paper2 else '-' }}
-</td>
-
-
-<td>
-{{ m.total_score|round(1) if m.total_score else '-' }}
-</td>
-
-
-<td class="grade-{{ m.grade }}">
-
-{{ m.grade or '-' }}
-
-</td>
-
-
-<td>
-
-{{ m.teacher_initials or '-' }}
-
-</td>
-</tr>
-{% else %}
-<tr>
-
-<td colspan="6" style="text-align:center;">
-No marks recorded.
-</td>
-</tr>
-{% endfor %}
-</tbody>
-</table>
-</div>
-<!-- SUMMARY SECTION -->
-<table class="summary-table"
-style="width:100%;margin-top:20px;">
-<tr>
-<td style="width:50%;background:#e8eaf6;padding:10px;">
-<strong>📊 Total Points Obtained:</strong>
-
-{{ report.total_points or 0 }}
-</td>
-<td style="width:50%;background:#e8eaf6;padding:10px;">
-<strong>🎓 Division:</strong>
-{{ report.division or '-' }}
-</td>
-</tr>
-</table>
-    
-<!-- COMMENTS AND SIGNATURES SECTION -->
-
-<div class="row mt-4">
-
-
-<!-- CLASS TEACHER -->
-
-<div class="col-md-6">
-
-<table style="width:100%;">
-
-<tr>
-
-
-<td style="width:70%;vertical-align:top;">
-
-
-<strong>
-👩‍🏫 Class Teacher's Comment:
-</strong>
-
-
-
-<div class="comment-edit-form">
-
-
-{% if can_edit_class_comment %}
-
-
-
-{% if report.teacher_comment %}
-
-
-<p class="mt-2">
-{{ report.teacher_comment }}
-</p>
-
-
-<form method="POST"
-action="{{ url_for('teacher_save_comment') }}"
-class="mt-2 no-print">
-
-
-<input type="hidden"
-name="student_id"
-value="{{ report.student_id }}">
-
-
-<input type="hidden"
-name="term"
-value="{{ term }}">
-
-
-<input type="hidden"
-name="year"
-value="{{ year }}">
-
-
-
-<select name="comment"
-class="form-select mb-2"
-id="classCommentSelect"
-onchange="toggleClassCustom()">
-
-
-
-<option value="">
--- Edit Comment --
-</option>
-
-
-{% for c in predefined_class_comments %}
-
-<option value="{{ c.comment_text }}">
-{{ c.comment_text }}
-</option>
-
-{% endfor %}
-
-
-<option value="custom">
--- Custom Comment --
-</option>
-
-
-</select>
-
-
-
-<div id="classCustomDiv"
-style="display:none;">
-
-
-<textarea name="custom_comment"
-class="form-control"
-rows="3"
-placeholder="Enter custom comment..."></textarea>
-
-
-</div>
-
-
-
-<button type="submit"
-class="btn btn-sm btn-primary mt-2">
-
-Update Comment
-
-</button>
-
-
-</form>
-
-
-
-{% else %}
-
-
-
-<form method="POST"
-action="{{ url_for('teacher_save_comment') }}"
-class="mt-2 no-print">
-
-
-<input type="hidden"
-name="student_id"
-value="{{ report.student_id }}">
-
-
-<input type="hidden"
-name="term"
-value="{{ term }}">
-
-
-<input type="hidden"
-name="year"
-value="{{ year }}">
-
-
-
-<select name="comment"
-class="form-select mb-2"
-id="classCommentSelect"
-onchange="toggleClassCustom()">
-
-
-
-<option value="">
--- Select Predefined Comment --
-</option>
-
-
-{% for c in predefined_class_comments %}
-
-<option value="{{ c.comment_text }}">
-{{ c.comment_text }}
-</option>
-
-{% endfor %}
-
-
-<option value="custom">
--- Custom Comment --
-</option>
-
-
-</select>
-
-
-
-<div id="classCustomDiv"
-style="display:none;">
-
-
-<textarea name="custom_comment"
-class="form-control"
-rows="3"
-placeholder="Enter custom comment..."></textarea>
-
-
-</div>
-
-
-
-<button type="submit"
-class="btn btn-sm btn-primary mt-2">
-
-Save Comment
-
-</button>
-
-
-</form>
-
-
-{% endif %}
-
-
-
-{% else %}
-
-
-
-<p class="mt-2">
-
-{{ report.teacher_comment or 'Not yet added' }}
-
-</p>
-
-
-{% endif %}
-
-
-</div>
-
-
-</td>
-
-
-
-<td style="width:30%;text-align:center;vertical-align:bottom;">
-
-
-<hr>
-
-
-<strong>
-Class Teacher's Signature
-</strong>
-
-
-</td>
-
-
-</tr>
-
-
-</table>
-
-
-</div>
-
-
-
-
-
-<!-- HEADTEACHER -->
-
-<div class="col-md-6">
-
-
-<table style="width:100%;">
-
-
-<tr>
-
-
-<td style="width:70%;vertical-align:top;">
-
-
-<strong>
-👨‍🎓 Headteacher's Comment:
-</strong>
-
-
-
-<div class="comment-edit-form">
-
-
-{% if can_edit_head_comment %}
-
-
-
-<p class="mt-2">
-
-{{ report.headteacher_comment or 'Not yet added' }}
-
-</p>
-
-
-
-<form method="POST"
-action="{{ url_for('headteacher_update_comment') }}"
-class="mt-2 no-print">
-
-
-<input type="hidden"
-name="student_id"
-value="{{ report.student_id }}">
-
-
-<input type="hidden"
-name="term"
-value="{{ term }}">
-
-
-<input type="hidden"
-name="year"
-value="{{ year }}">
-
-
-
-<select name="comment"
-class="form-select mb-2"
-id="headCommentSelect"
-onchange="toggleHeadCustom()">
-
-
-
-<option value="">
--- Select Predefined Comment --
-</option>
-
-
-{% for c in predefined_head_comments %}
-
-<option value="{{ c.comment_text }}">
-{{ c.comment_text }}
-</option>
 
 {% endfor %}
 
 
-
-<option value="custom">
--- Custom Comment --
-</option>
-
-
-</select>
-
-
-
-<div id="headCustomDiv"
-style="display:none;">
-
-
-<textarea name="custom_comment"
-class="form-control"
-rows="3"
-placeholder="Enter custom comment..."></textarea>
-
-
-</div>
-
-
-
-<button type="submit"
-class="btn btn-sm btn-success mt-2">
-
-Save Comment
-
-</button>
-
-
-</form>
-
-
-
-{% else %}
-
-
-
-<p class="mt-2">
-
-{{ report.headteacher_comment or 'Not yet added' }}
-
-</p>
-
-
-{% endif %}
-
-
-
-</div>
-
-
-</td>
-
-
-
-
-<td style="width:30%;text-align:center;vertical-align:bottom;">
-
-
-<hr>
-
-
-<strong>
-Headteacher's Signature & Stamp
-</strong>
-
-
-
-{% if stamp_url %}
-
-
-<div class="mt-2">
-
-
-<img src="{{ stamp_url }}"
-class="stamp"
-style="max-width:80px;"
-alt="Headteacher Stamp">
-
-
-</div>
-
-
-{% endif %}
-
-
-</td>
-
-
-</tr>
-
-
-</table>
-
-
-</div>
-
-
-</div>
-
-
-
-
-
-<!-- SIGNATURES -->
-
-<div class="row mt-4">
-
-
-<div class="col-md-4 text-center">
-
-<p>________________________</p>
-
-<strong>
-Class Teacher's Signature
-</strong>
-
-</div>
-
-
-
-<div class="col-md-4 text-center">
-
-<p>________________________</p>
-
-<strong>
-Headteacher's Signature & Stamp
-</strong>
-
-</div>
-
-
-
-<div class="col-md-4 text-center">
-
-<p>________________________</p>
-
-<strong>
-Parent's Signature
-</strong>
-
-</div>
-
-
-</div>
-
-
-
-
-
-<!-- TERM DATES -->
-
-
-<div class="row mt-4">
-
-
-<div class="col-md-12 text-center">
-
-
-<p>
-
-
-<strong>
-Next Term Begins:
-</strong>
-
-
-{{ next_term_begins or 'To be announced' }}
-
-
-&nbsp; | &nbsp;
-
-
-<strong>
-Next Term Ends:
-</strong>
-
-
-{{ next_term_ends or 'To be announced' }}
-
-
-
-</p>
-
-
-</div>
-
-
-</div>
-<script>
-
-function toggleClassCustom(){
-
-var select=document.getElementById('classCommentSelect');
-
-var customDiv=document.getElementById('classCustomDiv');
-
-if(customDiv){
-
-customDiv.style.display =
-(select.value=='custom')
-?'block'
-:'none';
-
-}
-
-}
-
-
-
-function toggleHeadCustom(){
-
-var select=document.getElementById('headCommentSelect');
-
-var customDiv=document.getElementById('headCustomDiv');
-
-if(customDiv){
-
-customDiv.style.display =
-(select.value=='custom')
-?'block'
-:'none';
-
-}
-
-}
-
-</script>
 {% endblock %}
