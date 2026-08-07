@@ -4,9 +4,6 @@
 {% block content %}
 
 <style>
-.comment-edit-form{display:block}
-.comment-view-only{display:none}
-
 .school-header{
 text-align:center;
 margin-bottom:20px;
@@ -387,175 +384,75 @@ style="width:100%;margin-top:20px;">
 
 <div class="row mt-4">
 
+    <!-- CLASS TEACHER -->
 
-<!-- CLASS TEACHER -->
-<div class="col-md-6">
-<table style="width:100%;">
+    <div class="col-md-6">
 
-<tr>
-<td style="width:70%;vertical-align:top;">
+        <table style="width:100%;">
 
-<strong>👩‍🏫 Class Teacher's Comment:</strong>
-<div class="comment-edit-form">
-{% if can_edit_class_comment %}
+            <tr>
 
-{% if teacher_comment %}
+                <td style="width:70%;vertical-align:top;">
 
-<p class="mt-2">
-{{ teacher_comment }}
-</p>
+                    <strong>👩‍🏫 Class Teacher's Comment:</strong>
 
+                    <div class="comment-box mt-2">
+                        {{ teacher_comment or 'No comment available.' }}
+                    </div>
 
-<form method="POST"
-action="{{ url_for('teacher_save_comment') }}"
-class="mt-2 no-print">
+                </td>
 
+                <td style="width:30%;text-align:center;vertical-align:bottom;">
 
-<input type="hidden" name="student_id" value="{{ student_id }}">
+                    <hr>
 
-<input type="hidden" name="term" value="{{ term }}">
+                    <strong>
+                        Class Teacher's Signature
+                    </strong>
 
-<input type="hidden" name="year" value="{{ year }}">
+                </td>
 
+            </tr>
 
-<select name="comment"
-class="form-select mb-2"
-id="classCommentSelect"
-onchange="toggleClassCustom()">
+        </table>
+
+    </div>
 
 
-<option value="">
--- Edit Comment --
-</option>
+    <!-- HEADTEACHER -->
 
+    <div class="col-md-6">
 
-{% for c in predefined_class_comments %}
+        <table style="width:100%;">
 
-<option value="{{ c.comment_text }}">
-{{ c.comment_text }}
-</option>
+            <tr>
 
-{% endfor %}
+                <td style="width:70%;vertical-align:top;">
 
+                    <strong>👨‍🎓 Headteacher's Comment:</strong>
 
-<option value="custom">
--- Custom Comment --
-</option>
+                    <div class="comment-box mt-2">
+                        {{ headteacher_comment or 'No comment available.' }}
+                    </div>
 
+                </td>
 
-</select>
+                <td style="width:30%;text-align:center;vertical-align:bottom;">
 
+                    <hr>
 
-<div id="classCustomDiv"
-style="display:none;">
+                    <strong>
+                        Headteacher's Signature & Stamp
+                    </strong>
 
-<textarea name="custom_comment"
-class="form-control"
-rows="3"
-placeholder="Enter custom comment..."></textarea>
-</div>
-<button type="submit"
-class="btn btn-sm btn-primary mt-2">
-Update Comment
-</button>
-</form>
-{% else %}
-<p class="mt-2">
-Not yet added
-</p>
-{% endif %}
-{% else %}
-<p class="mt-2">
-{{ teacher_comment or 'Not yet added' }}
-</p>
-{% endif %}
-</div>
-</td>
-<td style="width:30%;text-align:center;vertical-align:bottom;">
-<hr>
-<strong>
-Class Teacher's Signature
-</strong>
-</td>
-</tr>
-</table>
-</div>
+                </td>
 
-<!-- HEADTEACHER -->
-<div class="col-md-6">
-<table style="width:100%;">
-<tr>
-<td style="width:70%;vertical-align:top;">
-<strong>
-👨‍🎓 Headteacher's Comment:
-</strong>
-<div class="comment-edit-form">
-{% if can_edit_head_comment %}
-<p class="mt-2">
-{{ headteacher_comment or 'Not yet added' }}
-</p>
-<form method="POST"
-action="{{ url_for('headteacher_update_comment') }}"
-class="mt-2 no-print">
-<input type="hidden"
-name="student_id"
-value="{{ student_id }}">
-<input type="hidden"
-name="term"
-value="{{ term }}">
-<input type="hidden"
-name="year"
-value="{{ year }}">
-<select name="comment"
-class="form-select mb-2"
-id="headCommentSelect"
-onchange="toggleHeadCustom()">
-<option value="">
--- Select Comment --
-</option>
-{% for c in predefined_head_comments %}
-<option value="{{ c.comment_text }}">
-{{ c.comment_text }}
-</option>
+            </tr>
 
+        </table>
 
-{% endfor %}
-<option value="custom">
--- Custom Comment --
-</option>
-</select>
-<div id="headCustomDiv"
-style="display:none;">
+    </div>
 
-
-<textarea name="custom_comment"
-class="form-control"
-rows="3"
-placeholder="Enter custom comment..."></textarea>
-</div>
-<button type="submit"
-class="btn btn-sm btn-success mt-2">
-
-Save Comment
-
-</button>
-</form>
-{% else %}
-<p class="mt-2">
-{{ headteacher_comment or 'Not yet added' }}
-</p>
-{% endif %}
-</div>
-</td>
-<td style="width:30%;text-align:center;vertical-align:bottom;">
-<hr>
-<strong>
-Headteacher's Signature & Stamp
-</strong>
-</td>
-</tr>
-</table>
-</div>
 </div>
 <!-- TERM DATES -->
 <div class="row mt-4">
