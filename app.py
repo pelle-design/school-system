@@ -7191,8 +7191,6 @@ def teacher_print_all_report_cards():
             school_logo_url
 
     )
-
-=
 # ==================== BURSAR MODULE ====================
 
 def generate_receipt_number():
