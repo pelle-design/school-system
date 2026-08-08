@@ -1690,6 +1690,19 @@ def generate_voucher_no():
     next_num = last_num + 1
 
     return f"{prefix}-{next_num:04d}"
+
+def get_student_level(class_name):
+    if not class_name:
+        return None
+
+    class_name = class_name.strip().upper()
+
+    match = re.match(r'^(S\.[1-6])', class_name)
+
+    if match:
+        return match.group(1)
+
+    return None
 # ==================== CONTEXT PROCESSORS ====================
 @app.context_processor
 def inject_now():
