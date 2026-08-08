@@ -31,6 +31,85 @@
                             <label>Class</label>
                             <input type="text" name="class" class="form-control" value="{{ student.class }}" required>
                         </div>
+                        <!-- Programme -->
+                        <div class="col-md-6 mb-3">
+                            <label for="programme" class="form-label">
+                                Programme
+                            </label>
+                        
+                            <select
+                                name="programme"
+                                id="programme"
+                                class="form-select"
+                                required
+                            >
+                                <option value="">-- Select Programme --</option>
+                        
+                                <option
+                                    value="USE"
+                                    {% if student.programme == 'USE' %}selected{% endif %}
+                                >
+                                    USE
+                                </option>
+                        
+                                <option
+                                    value="Non-USE"
+                                    {% if student.programme == 'Non-USE' %}selected{% endif %}
+                                >
+                                    Non-USE
+                                </option>
+                        
+                                <option
+                                    value="UPOLET"
+                                    {% if student.programme == 'UPOLET' %}selected{% endif %}
+                                >
+                                    UPOLET
+                                </option>
+                        
+                                <option
+                                    value="Non-UPOLET"
+                                    {% if student.programme == 'Non-UPOLET' %}selected{% endif %}
+                                >
+                                    Non-UPOLET
+                                </option>
+                            </select>
+                        
+                            <small class="text-muted">
+                                S.1-S.4: USE or Non-USE.
+                                S.5-S.6: UPOLET or Non-UPOLET.
+                            </small>
+                        </div>
+                        
+                        
+                        <!-- Residence -->
+                        <div class="col-md-6 mb-3">
+                            <label for="residence" class="form-label">
+                                Residence
+                            </label>
+                        
+                            <select
+                                name="residence"
+                                id="residence"
+                                class="form-select"
+                                required
+                            >
+                                <option value="">-- Select Residence --</option>
+                        
+                                <option
+                                    value="Day"
+                                    {% if student.residence == 'Day' %}selected{% endif %}
+                                >
+                                    Day
+                                </option>
+                        
+                                <option
+                                    value="Boarding"
+                                    {% if student.residence == 'Boarding' %}selected{% endif %}
+                                >
+                                    Boarding
+                                </option>
+                            </select>
+                        </div>
                         <div class="col-md-6 mb-3">
                             <label>Parent Phone *</label>
                             <input type="text" name="parent_phone" class="form-control" value="{{ student.parent_phone or '' }}">
