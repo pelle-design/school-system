@@ -1,0 +1,351 @@
+{% extends "base.html" %}
+
+{% block title %}
+Payment PRN
+{% endblock %}
+
+{% block content %}
+
+<style>
+
+@media print {
+
+    body * {
+        visibility: hidden;
+    }
+
+    #prn-slip,
+    #prn-slip * {
+        visibility: visible;
+    }
+
+    #prn-slip {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+    }
+
+    .no-print {
+        display: none !important;
+    }
+
+}
+
+.prn-slip {
+    max-width: 700px;
+    margin: 30px auto;
+    border: 2px solid #000;
+    padding: 30px;
+    background: #fff;
+}
+
+.prn-number {
+    font-size: 34px;
+    font-weight: bold;
+    letter-spacing: 5px;
+    text-align: center;
+    border: 2px dashed #000;
+    padding: 15px;
+    margin: 20px 0;
+}
+
+.school-header {
+    text-align: center;
+}
+
+.school-logo {
+    max-width: 100px;
+    max-height: 100px;
+    margin-bottom: 10px;
+}
+
+.payment-title {
+    text-align: center;
+    margin-top: 15px;
+    font-weight: bold;
+}
+
+.info-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 20px;
+}
+
+.info-table td {
+    border: 1px solid #ddd;
+    padding: 10px;
+}
+
+.info-label {
+    font-weight: bold;
+    width: 40%;
+}
+
+.amount {
+    font-size: 24px;
+    font-weight: bold;
+}
+
+.instructions {
+    margin-top: 25px;
+    padding: 15px;
+    border: 1px solid #ddd;
+}
+
+</style>
+
+
+<div class="no-print mb-3">
+
+    <button
+        onclick="window.print()"
+        class="btn btn-primary"
+    >
+
+        <i class="fas fa-print"></i>
+        Print PRN
+
+    </button>
+
+    <a
+        href="{{ url_for(
+            'bursar_student_detail',
+            student_id=payment_request.student_id
+        ) }}"
+        class="btn btn-secondary"
+    >
+
+        <i class="fas fa-arrow-left"></i>
+        Back
+
+    </a>
+
+</div>
+
+
+<div id="prn-slip" class="prn-slip">
+
+    <!-- SCHOOL HEADER -->
+
+    <div class="school-header">
+
+        {% if school and school.logo_url %}
+
+            <img
+                src="{{ school.logo_url }}"
+                class="school-logo"
+                alt="School Logo"
+            >
+
+        {% endif %}
+
+        <h2>
+            {{ school.school_name
+                if school
+                else 'SCHOOL NAME'
+            }}
+        </h2>
+
+        {% if school and school.school_address %}
+
+            <div>
+                {{ school.school_address }}
+            </div>
+
+        {% endif %}
+
+        {% if school and school.school_phone %}
+
+            <div>
+                Tel: {{ school.school_phone }}
+            </div>
+
+        {% endif %}
+
+        {% if school and school.school_email %}
+
+            <div>
+                {{ school.school_email }}
+            </div>
+
+        {% endif %}
+
+    </div>
+
+
+    <hr>
+
+
+    <h4 class="payment-title">
+
+        SCHOOL FEES PAYMENT REFERENCE
+
+    </h4>
+
+
+    <!-- PRN -->
+
+    <div class="prn-number">
+
+        {{ payment_request.prn }}
+
+    </div>
+
+
+    <div class="text-center">
+
+        <strong>
+            PAYMENT REFERENCE NUMBER (PRN)
+        </strong>
+
+    </div>
+
+
+    <!-- STUDENT INFORMATION -->
+
+    <table class="info-table">
+
+        <tr>
+
+            <td class="info-label">
+                Student ID
+            </td>
+
+            <td>
+                {{ payment_request.student_id }}
+            </td>
+
+        </tr>
+
+        <tr>
+
+            <td class="info-label">
+                Student Name
+            </td>
+
+            <td>
+                {{ payment_request.full_name }}
+            </td>
+
+        </tr>
+
+        <tr>
+
+            <td class="info-label">
+                Class
+            </td>
+
+            <td>
+                {{ payment_request.class or '-' }}
+            </td>
+
+        </tr>
+
+        <tr>
+
+            <td class="info-label">
+                Term
+            </td>
+
+            <td>
+                {{ payment_request.term }}
+            </td>
+
+        </tr>
+
+        <tr>
+
+            <td class="info-label">
+                Academic Year
+            </td>
+
+            <td>
+                {{ payment_request.year }}
+            </td>
+
+        </tr>
+
+        <tr>
+
+            <td class="info-label">
+                Amount
+            </td>
+
+            <td class="amount">
+
+                UGX
+                {{ "{:,.2f}".format(
+                    payment_request.amount or 0
+                ) }}
+
+            </td>
+
+        </tr>
+
+        <tr>
+
+            <td class="info-label">
+                Status
+            </td>
+
+            <td>
+                {{ payment_request.payment_status|upper }}
+            </td>
+
+        </tr>
+
+        <tr>
+
+            <td class="info-label">
+                Date Generated
+            </td>
+
+            <td>
+                {{ payment_request.created_at }}
+            </td>
+
+        </tr>
+
+    </table>
+
+
+    <!-- PAYMENT INSTRUCTIONS -->
+
+    <div class="instructions">
+
+        <strong>
+            Payment Instructions
+        </strong>
+
+        <p class="mb-1 mt-2">
+            Use the PRN shown above when making
+            your school fees payment.
+        </p>
+
+        <p class="mb-1">
+            Keep this reference until your payment
+            has been confirmed.
+        </p>
+
+        <p class="mb-0">
+            Your payment will be automatically
+            reflected in the school fee account
+            once confirmed by the payment provider.
+        </p>
+
+    </div>
+
+
+    <div class="text-center mt-4">
+
+        <small>
+            This document is a school-generated
+            payment reference.
+        </small>
+
+    </div>
+
+</div>
+
+{% endblock %}
