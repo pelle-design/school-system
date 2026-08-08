@@ -6,14 +6,7 @@ Fee Details - {{ student.full_name }}
 
 {% block content %}
 
-<div class="container-fluid">
-
-```
-<!-- =====================================================
-     PAGE HEADER
-     ===================================================== -->
-
-<div class="d-flex justify-content-between align-items-center mb-4">
+<div class="d-flex justify-content-between align-items-center mb-3">
 
     <div>
         <h3 class="mb-1">
@@ -38,9 +31,9 @@ Fee Details - {{ student.full_name }}
 </div>
 
 
-<!-- =====================================================
-     STUDENT INFORMATION
-     ===================================================== -->
+<!-- ===================================================== -->
+<!-- STUDENT INFORMATION -->
+<!-- ===================================================== -->
 
 <div class="card shadow mb-4">
 
@@ -53,39 +46,103 @@ Fee Details - {{ student.full_name }}
 
         <div class="row">
 
-            <div class="col-md-3 mb-2">
+            <div class="col-md-2 mb-3">
                 <strong>Student ID</strong>
                 <div>
                     {{ student.student_id }}
                 </div>
             </div>
 
-            <div class="col-md-3 mb-2">
+            <div class="col-md-3 mb-3">
                 <strong>Full Name</strong>
                 <div>
                     {{ student.full_name }}
                 </div>
             </div>
 
-            <div class="col-md-2 mb-2">
+            <div class="col-md-2 mb-3">
                 <strong>Class</strong>
                 <div>
                     {{ student.class or '-' }}
                 </div>
             </div>
 
-            <div class="col-md-2 mb-2">
+            <div class="col-md-2 mb-3">
                 <strong>Level</strong>
                 <div>
                     {{ level or '-' }}
                 </div>
             </div>
 
-            <div class="col-md-2 mb-2">
+            <div class="col-md-3 mb-3">
                 <strong>Parent Phone</strong>
                 <div>
                     {{ student.parent_phone or 'Not registered' }}
                 </div>
+            </div>
+
+        </div>
+
+
+        <!-- SAVED FEE CLASSIFICATION -->
+
+        <hr>
+
+        <div class="row">
+
+            <div class="col-md-3 mb-2">
+
+                <strong>
+                    <i class="fas fa-graduation-cap"></i>
+                    Programme
+                </strong>
+
+                <div class="mt-1">
+
+                    {% if student.programme %}
+
+                        <span class="badge bg-success">
+                            {{ student.programme }}
+                        </span>
+
+                    {% else %}
+
+                        <span class="badge bg-warning text-dark">
+                            Not Classified
+                        </span>
+
+                    {% endif %}
+
+                </div>
+
+            </div>
+
+
+            <div class="col-md-3 mb-2">
+
+                <strong>
+                    <i class="fas fa-home"></i>
+                    Residence
+                </strong>
+
+                <div class="mt-1">
+
+                    {% if student.residence %}
+
+                        <span class="badge bg-info text-dark">
+                            {{ student.residence }}
+                        </span>
+
+                    {% else %}
+
+                        <span class="badge bg-warning text-dark">
+                            Not Classified
+                        </span>
+
+                    {% endif %}
+
+                </div>
+
             </div>
 
         </div>
@@ -95,9 +152,10 @@ Fee Details - {{ student.full_name }}
 </div>
 
 
-<!-- =====================================================
-     FEE CONFIGURATION
-     ===================================================== -->
+
+<!-- ===================================================== -->
+<!-- FEE CONFIGURATION -->
+<!-- ===================================================== -->
 
 <div class="card shadow mb-4">
 
@@ -108,15 +166,70 @@ Fee Details - {{ student.full_name }}
 
     </div>
 
+
     <div class="card-body">
 
+        {% if not student.programme or not student.residence %}
+
+            <div class="alert alert-warning">
+
+                <i class="fas fa-exclamation-triangle"></i>
+
+                <strong>
+                    Student fee classification is incomplete.
+                </strong>
+
+                <br>
+
+                Please assign the student's
+                <strong>Programme</strong>
+                and
+                <strong>Residence</strong>
+                before loading the applicable fee structure.
+
+            </div>
+
+        {% else %}
+
+            <div class="alert alert-light border">
+
+                <strong>Current Classification:</strong>
+
+                {{ level }}
+                |
+                {{ student.programme }}
+                |
+                {{ student.residence }}
+
+            </div>
+
+        {% endif %}
+
+
+        <!-- ================================================= -->
+        <!-- LOAD FEE STRUCTURE -->
+        <!-- ================================================= -->
+
         <form
-            method="POST"
+            method="GET"
             action="{{ url_for(
-                'bursar_student_fee_details',
+                'bursar_student_detail',
                 student_id=student.student_id
             ) }}"
         >
+
+            <input
+                type="hidden"
+                name="programme"
+                value="{{ student.programme or '' }}"
+            >
+
+            <input
+                type="hidden"
+                name="residence"
+                value="{{ student.residence or '' }}"
+            >
+
 
             <div class="row">
 
@@ -125,33 +238,15 @@ Fee Details - {{ student.full_name }}
                 <div class="col-md-3 mb-3">
 
                     <label class="form-label">
-                        <strong>{{ programme_label }}</strong>
+                        <strong>Programme</strong>
                     </label>
 
-                    <select
-                        name="programme"
-                        class="form-select"
-                        required
+                    <input
+                        type="text"
+                        class="form-control"
+                        value="{{ student.programme or 'Not Classified' }}"
+                        readonly
                     >
-
-                        <option value="">
-                            -- Select Programme --
-                        </option>
-
-                        {% for option in programme_options %}
-
-                        <option
-                            value="{{ option }}"
-                            {% if selected_programme == option %}
-                            selected
-                            {% endif %}
-                        >
-                            {{ option }}
-                        </option>
-
-                        {% endfor %}
-
-                    </select>
 
                 </div>
 
@@ -164,42 +259,19 @@ Fee Details - {{ student.full_name }}
                         <strong>Residence</strong>
                     </label>
 
-                    <select
-                        name="residence"
-                        class="form-select"
-                        required
+                    <input
+                        type="text"
+                        class="form-control"
+                        value="{{ student.residence or 'Not Classified' }}"
+                        readonly
                     >
-
-                        <option value="">
-                            -- Select Residence --
-                        </option>
-
-                        <option
-                            value="Day"
-                            {% if selected_residence == 'Day' %}
-                            selected
-                            {% endif %}
-                        >
-                            Day
-                        </option>
-
-                        <option
-                            value="Boarding"
-                            {% if selected_residence == 'Boarding' %}
-                            selected
-                            {% endif %}
-                        >
-                            Boarding
-                        </option>
-
-                    </select>
 
                 </div>
 
 
                 <!-- TERM -->
 
-                <div class="col-md-3 mb-3">
+                <div class="col-md-2 mb-3">
 
                     <label class="form-label">
                         <strong>Term</strong>
@@ -266,14 +338,19 @@ Fee Details - {{ student.full_name }}
 
                 <!-- BUTTON -->
 
-                <div class="col-md-1 mb-3 d-flex align-items-end">
+                <div class="col-md-2 mb-3 d-flex align-items-end">
 
                     <button
                         type="submit"
                         class="btn btn-success w-100"
-                        title="Load Fee"
+                        {% if not student.programme or not student.residence %}
+                        disabled
+                        {% endif %}
                     >
+
                         <i class="fas fa-search"></i>
+                        Load Fee
+
                     </button>
 
                 </div>
@@ -287,11 +364,13 @@ Fee Details - {{ student.full_name }}
 </div>
 
 
-<!-- =====================================================
-     FEE SUMMARY
-     ===================================================== -->
+
+<!-- ===================================================== -->
+<!-- FEE SUMMARY -->
+<!-- ===================================================== -->
 
 <div class="row mb-4">
+
 
     <!-- APPLICABLE FEE -->
 
@@ -316,15 +395,16 @@ Fee Details - {{ student.full_name }}
 
                 </h4>
 
+
                 {% if applicable_fee is not none %}
 
                     <small class="text-success">
 
                         {{ level }}
                         |
-                        {{ selected_programme }}
+                        {{ student.programme }}
                         |
-                        {{ selected_residence }}
+                        {{ student.residence }}
                         |
                         {{ selected_term }}
                         |
@@ -335,7 +415,11 @@ Fee Details - {{ student.full_name }}
                 {% else %}
 
                     <small class="text-warning">
-                        Select the fee configuration above.
+
+                        <i class="fas fa-info-circle"></i>
+
+                        No fee structure loaded.
+
                     </small>
 
                 {% endif %}
@@ -345,6 +429,7 @@ Fee Details - {{ student.full_name }}
         </div>
 
     </div>
+
 
 
     <!-- PAID -->
@@ -375,6 +460,7 @@ Fee Details - {{ student.full_name }}
         </div>
 
     </div>
+
 
 
     <!-- BALANCE -->
@@ -417,9 +503,14 @@ Fee Details - {{ student.full_name }}
 </div>
 
 
+
+<!-- ===================================================== -->
+<!-- FEE DESCRIPTION -->
+<!-- ===================================================== -->
+
 {% if fee_description %}
 
-<div class="alert alert-info">
+<div class="alert alert-info mb-4">
 
     <i class="fas fa-info-circle"></i>
 
@@ -432,9 +523,10 @@ Fee Details - {{ student.full_name }}
 {% endif %}
 
 
-<!-- =====================================================
-     RECORD PAYMENT
-     ===================================================== -->
+
+<!-- ===================================================== -->
+<!-- RECORD PAYMENT -->
+<!-- ===================================================== -->
 
 <div class="card shadow mb-4">
 
@@ -444,6 +536,7 @@ Fee Details - {{ student.full_name }}
         Record Payment
 
     </div>
+
 
     <div class="card-body">
 
@@ -457,6 +550,7 @@ Fee Details - {{ student.full_name }}
                 name="student_id"
                 value="{{ student.student_id }}"
             >
+
 
             <div class="row">
 
@@ -472,7 +566,9 @@ Fee Details - {{ student.full_name }}
                         class="form-control"
                         step="0.01"
                         min="1"
-                        max="{{ fees_balance if fees_balance > 0 else '' }}"
+                        {% if fees_balance > 0 %}
+                        max="{{ fees_balance }}"
+                        {% endif %}
                         required
                     >
 
@@ -543,11 +639,15 @@ Fee Details - {{ student.full_name }}
 
             </button>
 
+
             {% if fees_balance <= 0 %}
 
                 <span class="text-success ms-2">
+
                     <i class="fas fa-check-circle"></i>
+
                     Fees fully paid.
+
                 </span>
 
             {% endif %}
@@ -559,9 +659,10 @@ Fee Details - {{ student.full_name }}
 </div>
 
 
-<!-- =====================================================
-     PAYMENT HISTORY
-     ===================================================== -->
+
+<!-- ===================================================== -->
+<!-- PAYMENT HISTORY -->
+<!-- ===================================================== -->
 
 <div class="card shadow mb-4">
 
@@ -577,17 +678,23 @@ Fee Details - {{ student.full_name }}
     >
 
         <span>
+
             <i class="fas fa-history"></i>
             Payment History
+
         </span>
+
 
         <button
             type="button"
             onclick="printSelectedReceipts()"
             class="btn btn-light btn-sm"
         >
+
             <i class="fas fa-print"></i>
+
             Print Selected Receipts
+
         </button>
 
     </div>
@@ -639,9 +746,11 @@ Fee Details - {{ student.full_name }}
 
                         </td>
 
+
                         <td>
                             {{ p.receipt_no or '-' }}
                         </td>
+
 
                         <td>
 
@@ -654,23 +763,28 @@ Fee Details - {{ student.full_name }}
 
                         </td>
 
+
                         <td>
                             {{ p.payment_date or '-' }}
                         </td>
+
 
                         <td>
                             {{ p.payment_method or '-' }}
                         </td>
 
+
                         <td>
                             {{ p.recorded_by or '-' }}
                         </td>
+
 
                         <td>
                             {{ p.notes or '-' }}
                         </td>
 
                     </tr>
+
 
                     {% else %}
 
@@ -710,11 +824,12 @@ Fee Details - {{ student.full_name }}
 </div>
 
 
-<!-- =====================================================
-     ACTIONS
-     ===================================================== -->
 
-<div class="mb-4">
+<!-- ===================================================== -->
+<!-- ACTIONS -->
+<!-- ===================================================== -->
+
+<div class="d-flex gap-2 flex-wrap mb-4">
 
     <a
         href="{{ url_for(
@@ -723,9 +838,12 @@ Fee Details - {{ student.full_name }}
         ) }}"
         class="btn btn-info"
     >
+
         <i class="fas fa-print"></i>
         Clearance Card
+
     </a>
+
 
     <a
         href="{{ url_for(
@@ -734,22 +852,30 @@ Fee Details - {{ student.full_name }}
         ) }}"
         class="btn btn-warning"
     >
+
         <i class="fas fa-bell"></i>
         Send Reminder
+
     </a>
+
 
     <a
         href="{{ url_for('bursar_students') }}"
         class="btn btn-outline-primary"
     >
+
         <i class="fas fa-arrow-left"></i>
         Back to Students
+
     </a>
 
 </div>
-```
 
-</div>
+
+
+<!-- ===================================================== -->
+<!-- JAVASCRIPT -->
+<!-- ===================================================== -->
 
 <script>
 
@@ -760,32 +886,26 @@ function toggleAll(source) {
             '.receipt-checkbox'
         );
 
-    checkboxes.forEach(function(checkbox) {
-
-        checkbox.checked =
-            source.checked;
-
-    });
+    checkboxes.forEach(
+        checkbox => {
+            checkbox.checked =
+                source.checked;
+        }
+    );
 
 }
 
 
 function printSelectedReceipts() {
 
-    const selected = [];
-
-    const checkboxes =
-        document.querySelectorAll(
-            '.receipt-checkbox:checked'
+    const selected =
+        Array.from(
+            document.querySelectorAll(
+                '.receipt-checkbox:checked'
+            )
+        ).map(
+            checkbox => checkbox.value
         );
-
-    checkboxes.forEach(function(checkbox) {
-
-        selected.push(
-            checkbox.value
-        );
-
-    });
 
     if (selected.length === 0) {
 
@@ -794,12 +914,16 @@ function printSelectedReceipts() {
         );
 
         return;
-
     }
 
+
+    const url =
+        "{{ url_for('bursar_print_receipts') }}"
+        + "?ids="
+        + selected.join(',');
+
     window.open(
-        '/bursar/print_receipts?ids='
-        + selected.join(','),
+        url,
         '_blank'
     );
 
