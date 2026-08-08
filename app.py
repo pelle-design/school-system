@@ -151,7 +151,15 @@ def init_db():
             payment_date TIMESTAMP
         )
     """)
-
+    cursor.execute("""
+        ALTER TABLE students
+        ADD COLUMN IF NOT EXISTS programme TEXT
+    """)
+    
+    cursor.execute("""
+        ALTER TABLE students
+        ADD COLUMN IF NOT EXISTS residence TEXT
+    """)
     # STAFF
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS staff (
@@ -3119,8 +3127,6 @@ def reject_admission(student_id):
         f"Admission application for {student['full_name']} rejected.",
         "warning"
     )
-
-
     return redirect(url_for('dos_pending_admissions'))
 # ==================== ADMISSION LETTER ====================
 
@@ -5977,7 +5983,6 @@ def teacher_report_card(student_id):
     
         )
 
-
 @app.route('/teacher/edit_student/<student_id>', methods=['GET', 'POST'])
 def teacher_edit_student(student_id):
 
@@ -5987,16 +5992,17 @@ def teacher_edit_student(student_id):
     db = get_db()
     cur = db.cursor()
 
+    # =====================================================
+    # GET STUDENT
+    # =====================================================
 
     cur.execute("""
         SELECT *
         FROM students
         WHERE student_id=%s
-    """,
-    (student_id,))
+    """, (student_id,))
 
     student = cur.fetchone()
-
 
     if not student:
 
@@ -6011,19 +6017,18 @@ def teacher_edit_student(student_id):
             url_for('teacher_students')
         )
 
-
+    # =====================================================
+    # GET CLASS TEACHER'S ASSIGNED CLASS
+    # =====================================================
 
     cur.execute("""
         SELECT class_name
         FROM teacher_class_assignments
         WHERE user_id=%s
         AND assignment_type='classteacher'
-    """,
-    (session.get('user_id'),))
-
+    """, (session.get('user_id'),))
 
     result = cur.fetchone()
-
 
     assigned_class = (
         result['class_name']
@@ -6031,7 +6036,9 @@ def teacher_edit_student(student_id):
         else None
     )
 
-
+    # =====================================================
+    # UPDATE STUDENT
+    # =====================================================
 
     if request.method == 'POST':
 
@@ -6045,10 +6052,21 @@ def teacher_edit_student(student_id):
             ''
         ).strip()
 
+        # -------------------------------------------------
+        # KEEP EXISTING STREAM SYSTEM
+        #
+        # Examples:
+        # S.1
+        # S.1A
+        # S.1B
+        # S.5
+        # S.6
+        # -------------------------------------------------
+
         class_name = request.form.get(
             'class',
             ''
-        ).strip()
+        ).strip().upper()
 
         admission_date = request.form.get(
             'admission_date',
@@ -6084,6 +6102,95 @@ def teacher_edit_student(student_id):
             'address',
             ''
         )
+
+        # =================================================
+        # NEW: PROGRAMME
+        # =================================================
+
+        programme = request.form.get(
+            'programme',
+            ''
+        ).strip()
+
+        # =================================================
+        # NEW: RESIDENCE
+        # =================================================
+
+        residence = request.form.get(
+            'residence',
+            ''
+        ).strip()
+
+        # =================================================
+        # VALIDATE PROGRAMME
+        # =================================================
+
+        class_upper = class_name.upper()
+
+        # S.1-S.4 = USE / Non-USE
+        # S.5-S.6 = UPOLET / Non-UPOLET
+
+        if class_upper.startswith(('S.1', 'S.2', 'S.3', 'S.4')):
+
+            valid_programmes = [
+                'USE',
+                'Non-USE'
+            ]
+
+        elif class_upper.startswith(('S.5', 'S.6')):
+
+            valid_programmes = [
+                'UPOLET',
+                'Non-UPOLET'
+            ]
+
+        else:
+
+            valid_programmes = []
+
+        if programme not in valid_programmes:
+
+            cur.close()
+
+            flash(
+                f'Invalid programme selected for {class_name}.',
+                'danger'
+            )
+
+            return redirect(
+                url_for(
+                    'teacher_edit_student',
+                    student_id=student_id
+                )
+            )
+
+        # =================================================
+        # VALIDATE RESIDENCE
+        # =================================================
+
+        if residence not in [
+            'Day',
+            'Boarding'
+        ]:
+
+            cur.close()
+
+            flash(
+                'Please select Day or Boarding.',
+                'danger'
+            )
+
+            return redirect(
+                url_for(
+                    'teacher_edit_student',
+                    student_id=student_id
+                )
+            )
+
+        # =================================================
+        # CALCULATE AGE
+        # =================================================
+
         age = None
 
         if date_of_birth:
@@ -6095,9 +6202,7 @@ def teacher_edit_student(student_id):
                     '%Y-%m-%d'
                 ).date()
 
-
                 today = datetime.now().date()
-
 
                 age = (
                     today.year
@@ -6109,14 +6214,21 @@ def teacher_edit_student(student_id):
                     )
                 )
 
-            except:
+            except Exception:
 
                 age = None
+
+        # =================================================
+        # HANDLE PHOTO
+        # =================================================
+
         photo_path = student.get(
             'photo_path',
             'default_avatar.png'
         )
+
         photo = request.files.get('photo')
+
         if (
             photo
             and photo.filename
@@ -6130,14 +6242,22 @@ def teacher_edit_student(student_id):
                 '.',
                 1
             )[1].lower()
+
             photo_filename = f"{student_id}.{ext}"
+
             photo.save(
                 os.path.join(
                     app.config['UPLOAD_FOLDER'],
                     photo_filename
                 )
             )
+
             photo_path = photo_filename
+
+        # =================================================
+        # UPDATE STUDENT
+        # =================================================
+
         cur.execute("""
             UPDATE students
             SET
@@ -6152,11 +6272,12 @@ def teacher_edit_student(student_id):
                 disability=%s,
                 parent_email=%s,
                 address=%s,
-                photo_path=%s
+                photo_path=%s,
+                programme=%s,
+                residence=%s
 
             WHERE student_id=%s
-        """,
-        (
+        """, (
             full_name,
             parent_phone,
             class_name,
@@ -6169,30 +6290,36 @@ def teacher_edit_student(student_id):
             parent_email,
             address,
             photo_path,
+            programme,
+            residence,
             student_id
         ))
-
 
         db.commit()
 
         cur.close()
-
 
         flash(
             f'Student {full_name} updated successfully!',
             'success'
         )
 
-
         return redirect(
             url_for('teacher_students')
         )
+
+    # =====================================================
+    # DISPLAY EDIT FORM
+    # =====================================================
+
     cur.close()
+
     return render_template(
         'teacher/edit_student.html',
         student=student,
         assigned_class=assigned_class
     )
+
 
 @app.route('/teacher/remove_student/<student_id>', methods=['POST'])
 def teacher_remove_student(student_id):
@@ -6285,10 +6412,10 @@ def teacher_upload_students():
     if not check_permission(['classteacher']):
         abort(403)
 
-
     if request.method == 'POST':
 
         file = request.files.get('excel_file')
+
         if not file or not file.filename:
 
             flash(
@@ -6299,28 +6426,28 @@ def teacher_upload_students():
             return redirect(
                 url_for('teacher_upload_students')
             )
+
         try:
 
             from openpyxl import load_workbook
             import csv
             import io
 
-
             db = get_db()
             cur = db.cursor()
 
+            # =================================================
+            # GET CLASS TEACHER'S ASSIGNED CLASS
+            # =================================================
 
             cur.execute("""
                 SELECT class_name
                 FROM teacher_class_assignments
                 WHERE user_id=%s
                 AND assignment_type='classteacher'
-            """,
-            (session.get('user_id'),))
-
+            """, (session.get('user_id'),))
 
             result = cur.fetchone()
-
 
             if not result:
 
@@ -6335,29 +6462,133 @@ def teacher_upload_students():
                     url_for('teacher_upload_students')
                 )
 
-
-            assigned_class = result['class_name']
-
+            assigned_class = (
+                result['class_name']
+                .strip()
+                .upper()
+            )
 
             success_count = 0
             error_count = 0
             errors = []
 
+            # =================================================
+            # DETERMINE ALLOWED PROGRAMMES
+            # =================================================
 
+            class_upper = assigned_class
 
-            def insert_student(full_name, parent_phone):
+            if class_upper.startswith(
+                ('S.1', 'S.2', 'S.3', 'S.4')
+            ):
+
+                valid_programmes = [
+                    'USE',
+                    'Non-USE'
+                ]
+
+            elif class_upper.startswith(
+                ('S.5', 'S.6')
+            ):
+
+                valid_programmes = [
+                    'UPOLET',
+                    'Non-UPOLET'
+                ]
+
+            else:
+
+                valid_programmes = []
+
+            # =================================================
+            # INSERT STUDENT
+            # =================================================
+
+            def insert_student(
+                full_name,
+                parent_phone,
+                programme='',
+                residence=''
+            ):
 
                 nonlocal success_count, error_count
 
+                full_name = (
+                    str(full_name or '')
+                    .strip()
+                )
+
+                parent_phone = (
+                    str(parent_phone or '')
+                    .strip()
+                )
+
+                programme = (
+                    str(programme or '')
+                    .strip()
+                )
+
+                residence = (
+                    str(residence or '')
+                    .strip()
+                )
+
+                # ---------------------------------------------
+                # REQUIRED NAME
+                # ---------------------------------------------
 
                 if not full_name:
 
                     error_count += 1
+
                     return False
 
+                # ---------------------------------------------
+                # VALIDATE PROGRAMME IF PROVIDED
+                # ---------------------------------------------
+
+                if programme:
+
+                    if programme not in valid_programmes:
+
+                        error_count += 1
+
+                        errors.append(
+                            f"{full_name}: Invalid programme "
+                            f"'{programme}' for {assigned_class}"
+                        )
+
+                        return False
+
+                # ---------------------------------------------
+                # VALIDATE RESIDENCE IF PROVIDED
+                # ---------------------------------------------
+
+                if residence:
+
+                    if residence not in [
+                        'Day',
+                        'Boarding'
+                    ]:
+
+                        error_count += 1
+
+                        errors.append(
+                            f"{full_name}: Invalid residence "
+                            f"'{residence}'"
+                        )
+
+                        return False
+
+                # ---------------------------------------------
+                # GENERATE STUDENT ID
+                # ---------------------------------------------
 
                 student_id = generate_student_id()
 
+                # ---------------------------------------------
+                # INSERT
+                # ---------------------------------------------
 
                 cur.execute("""
                     INSERT INTO students
@@ -6366,41 +6597,66 @@ def teacher_upload_students():
                         full_name,
                         class,
                         parent_phone,
+                        programme,
+                        residence,
                         admission_status,
                         fees_total,
                         fees_paid,
                         fees_balance
                     )
                     VALUES
-                    (%s,%s,%s,%s,'approved',0,0,0)
-                """,
-                (
+                    (
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        'approved',
+                        0,
+                        0,
+                        0
+                    )
+                """, (
                     student_id,
                     full_name,
                     assigned_class,
-                    parent_phone
+                    parent_phone,
+                    programme or None,
+                    residence or None
                 ))
-
 
                 success_count += 1
 
                 return True
-            # ================= EXCEL =================
 
-            if file.filename.endswith(('.xlsx','.xls')):
+            # =================================================
+            # EXCEL UPLOAD
+            # =================================================
+
+            if file.filename.lower().endswith(
+                ('.xlsx', '.xls')
+            ):
+
                 wb = load_workbook(
                     file,
                     data_only=True
                 )
 
                 sheet = wb.active
+
                 headers = [
                     str(cell.value).strip().lower()
-                    if cell.value else ''
+                    if cell.value
+                    else ''
                     for cell in sheet[1]
                 ]
+
                 full_name_col = None
                 parent_phone_col = None
+                programme_col = None
+                residence_col = None
+
                 for idx, h in enumerate(headers):
 
                     if h in [
@@ -6408,24 +6664,50 @@ def teacher_upload_students():
                         'name',
                         'student_name'
                     ]:
-                        full_name_col = idx
 
+                        full_name_col = idx
 
                     elif h in [
                         'parent_phone',
                         'phone',
                         'parent_contact'
                     ]:
+
                         parent_phone_col = idx
+
+                    elif h in [
+                        'programme',
+                        'program'
+                    ]:
+
+                        programme_col = idx
+
+                    elif h in [
+                        'residence',
+                        'boarding_status',
+                        'student_residence'
+                    ]:
+
+                        residence_col = idx
+
+                # ---------------------------------------------
+                # DEFAULT EXISTING COLUMNS
+                # ---------------------------------------------
+
                 if full_name_col is None:
                     full_name_col = 0
+
                 if parent_phone_col is None:
                     parent_phone_col = 1
+
+                # ---------------------------------------------
+                # PROCESS ROWS
+                # ---------------------------------------------
+
                 for row_idx in range(
                     2,
                     sheet.max_row + 1
                 ):
-
 
                     full_name = str(
                         sheet.cell(
@@ -6434,33 +6716,80 @@ def teacher_upload_students():
                         ).value or ''
                     ).strip()
 
-
-
                     parent_phone = str(
                         sheet.cell(
                             row=row_idx,
                             column=parent_phone_col + 1
                         ).value or ''
                     ).strip()
+
+                    programme = ''
+
+                    if programme_col is not None:
+
+                        programme = str(
+                            sheet.cell(
+                                row=row_idx,
+                                column=programme_col + 1
+                            ).value or ''
+                        ).strip()
+
+                    residence = ''
+
+                    if residence_col is not None:
+
+                        residence = str(
+                            sheet.cell(
+                                row=row_idx,
+                                column=residence_col + 1
+                            ).value or ''
+                        ).strip()
+
                     if not insert_student(
                         full_name,
-                        parent_phone
+                        parent_phone,
+                        programme,
+                        residence
                     ):
 
-                        errors.append(
-                            f"Row {row_idx}: Missing full name"
-                        )
-            # ================= CSV =================
-            elif file.filename.endswith('.csv'):
-                content = file.read().decode('utf-8')
+                        if full_name and not errors:
+
+                            errors.append(
+                                f"Row {row_idx}: "
+                                f"Student could not be uploaded."
+                            )
+
+            # =================================================
+            # CSV UPLOAD
+            # =================================================
+
+            elif file.filename.lower().endswith('.csv'):
+
+                content = file.read().decode(
+                    'utf-8-sig'
+                )
+
                 csv_reader = csv.reader(
                     io.StringIO(content)
                 )
-                headers = next(csv_reader)
+
+                headers = next(
+                    csv_reader,
+                    []
+                )
+
+                headers = [
+                    str(h).strip().lower()
+                    for h in headers
+                ]
+
                 full_name_col = None
                 parent_phone_col = None
+                programme_col = None
+                residence_col = None
+
                 for idx, h in enumerate(headers):
-                    h = h.strip().lower()
+
                     if h in [
                         'full_name',
                         'name',
@@ -6468,7 +6797,6 @@ def teacher_upload_students():
                     ]:
 
                         full_name_col = idx
-
 
                     elif h in [
                         'parent_phone',
@@ -6478,22 +6806,35 @@ def teacher_upload_students():
 
                         parent_phone_col = idx
 
+                    elif h in [
+                        'programme',
+                        'program'
+                    ]:
 
+                        programme_col = idx
+
+                    elif h in [
+                        'residence',
+                        'boarding_status',
+                        'student_residence'
+                    ]:
+
+                        residence_col = idx
 
                 if full_name_col is None:
                     full_name_col = 0
 
-
                 if parent_phone_col is None:
                     parent_phone_col = 1
 
-
+                # ---------------------------------------------
+                # PROCESS CSV ROWS
+                # ---------------------------------------------
 
                 for row_idx, row in enumerate(
                     csv_reader,
                     start=2
                 ):
-
 
                     full_name = (
                         row[full_name_col].strip()
@@ -6501,31 +6842,61 @@ def teacher_upload_students():
                         else ''
                     )
 
-
                     parent_phone = (
                         row[parent_phone_col].strip()
                         if parent_phone_col < len(row)
                         else ''
                     )
 
+                    programme = ''
+
+                    if (
+                        programme_col is not None
+                        and programme_col < len(row)
+                    ):
+
+                        programme = (
+                            row[programme_col]
+                            .strip()
+                        )
+
+                    residence = ''
+
+                    if (
+                        residence_col is not None
+                        and residence_col < len(row)
+                    ):
+
+                        residence = (
+                            row[residence_col]
+                            .strip()
+                        )
 
                     if not insert_student(
                         full_name,
-                        parent_phone
+                        parent_phone,
+                        programme,
+                        residence
                     ):
 
-                        errors.append(
-                            f"Row {row_idx}: Missing full name"
-                        )
+                        if not full_name:
 
+                            errors.append(
+                                f"Row {row_idx}: "
+                                f"Missing full name"
+                            )
 
+            # =================================================
+            # UNSUPPORTED FILE
+            # =================================================
 
             else:
 
                 cur.close()
 
                 flash(
-                    'Unsupported file format. Upload .xlsx, .xls, or .csv',
+                    'Unsupported file format. '
+                    'Upload .xlsx, .xls, or .csv',
                     'danger'
                 )
 
@@ -6533,17 +6904,37 @@ def teacher_upload_students():
                     url_for('teacher_upload_students')
                 )
 
+            # =================================================
+            # SAVE
+            # =================================================
+
             db.commit()
 
             cur.close()
+
+            # =================================================
+            # NOTIFY DOS
+            # =================================================
+
             add_notification(
                 'dos',
-                f'Class teacher uploaded {success_count} students to class {assigned_class}',
+                f'Class teacher uploaded '
+                f'{success_count} students to '
+                f'class {assigned_class}',
                 '/dos/class_lists'
             )
+
+            # =================================================
+            # RESULT
+            # =================================================
+
             flash(
-                f'Uploaded {success_count} students to class {assigned_class}. Errors: {error_count}',
-                'success' if success_count > 0 else 'danger'
+                f'Uploaded {success_count} students '
+                f'to class {assigned_class}. '
+                f'Errors: {error_count}',
+                'success'
+                if success_count > 0
+                else 'danger'
             )
 
             for error in errors[:5]:
@@ -6553,14 +6944,13 @@ def teacher_upload_students():
                     'warning'
                 )
 
-
-
         except Exception as e:
 
             flash(
                 f'Error: {str(e)}',
                 'danger'
             )
+
         return redirect(
             url_for('teacher_students')
         )
@@ -6568,7 +6958,6 @@ def teacher_upload_students():
     return render_template(
         'teacher/upload_students.html'
     )
-
 @app.route('/teacher/print_all_report_cards')
 def teacher_print_all_report_cards():
 
