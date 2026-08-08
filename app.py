@@ -492,8 +492,36 @@ def init_db():
             year INTEGER
         )
     """)
-
-
+    # STUDENT FEE STRUCTURE
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS student_fee_structure (
+            id SERIAL PRIMARY KEY,
+    
+            level TEXT NOT NULL,
+    
+            programme TEXT NOT NULL,
+    
+            residence TEXT NOT NULL,
+    
+            term TEXT NOT NULL,
+    
+            year INTEGER NOT NULL,
+    
+            amount NUMERIC(12,2) NOT NULL DEFAULT 0,
+    
+            description TEXT,
+    
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+            UNIQUE (
+                level,
+                programme,
+                residence,
+                term,
+                year
+            )
+        )
+    """)
     # EXPENDITURES
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS expenditures (
@@ -7283,6 +7311,313 @@ def bursar_student_detail(student_id):
     payments = cur.fetchall()
     cur.close()
     return render_template('bursar/student_detail.html', student=student, payments=payments)
+
+@app.route('/bursar/fees')
+def bursar_fees():
+
+    if not check_permission(['bursar']):
+        abort(403)
+
+    year = request.args.get(
+        'year',
+        datetime.now().year,
+        type=int
+    )
+
+    term = request.args.get(
+        'term',
+        'Term 1'
+    ).strip()
+
+    db = get_db()
+    cur = db.cursor()
+
+    cur.execute("""
+        SELECT
+            id,
+            level,
+            programme,
+            residence,
+            term,
+            year,
+            amount,
+            description,
+            created_at
+        FROM student_fee_structure
+        WHERE year = %s
+        AND term = %s
+        ORDER BY
+            CASE level
+                WHEN 'S.1' THEN 1
+                WHEN 'S.2' THEN 2
+                WHEN 'S.3' THEN 3
+                WHEN 'S.4' THEN 4
+                WHEN 'S.5' THEN 5
+                WHEN 'S.6' THEN 6
+                ELSE 7
+            END,
+            programme,
+            residence
+    """, (
+        year,
+        term
+    ))
+
+    fee_structures = cur.fetchall()
+
+    cur.close()
+
+    return render_template(
+        'bursar/fees.html',
+        fee_structures=fee_structures,
+        year=year,
+        term=term
+    )
+
+# ADD STUDENT FEE STRUCTURE
+@app.route('/bursar/fees/add', methods=['POST'])
+def bursar_fees_add():
+
+    if not check_permission(['bursar']):
+        abort(403)
+
+    level = request.form.get(
+        'level',
+        ''
+    ).strip().upper()
+
+    programme = request.form.get(
+        'programme',
+        ''
+    ).strip()
+
+    residence = request.form.get(
+        'residence',
+        ''
+    ).strip()
+
+    term = request.form.get(
+        'term',
+        'Term 1'
+    ).strip()
+
+    year = request.form.get(
+        'year',
+        datetime.now().year,
+        type=int
+    )
+
+    description = request.form.get(
+        'description',
+        ''
+    ).strip()
+
+    amount = request.form.get(
+        'amount',
+        ''
+    ).strip()
+
+    valid_levels = [
+        'S.1',
+        'S.2',
+        'S.3',
+        'S.4',
+        'S.5',
+        'S.6'
+    ]
+
+    if level not in valid_levels:
+
+        flash(
+            'Invalid class level selected.',
+            'danger'
+        )
+
+        return redirect(
+            url_for(
+                'bursar_fees',
+                year=year,
+                term=term
+            )
+        )
+    if level in [
+        'S.1',
+        'S.2',
+        'S.3',
+        'S.4'
+    ]:
+
+        valid_programmes = [
+            'USE',
+            'Non-USE'
+        ]
+
+    else:
+
+        valid_programmes = [
+            'UPOLET',
+            'Non-UPOLET'
+        ]
+
+
+    if programme not in valid_programmes:
+
+        flash(
+            f'Invalid programme for {level}.',
+            'danger'
+        )
+
+        return redirect(
+            url_for(
+                'bursar_fees',
+                year=year,
+                term=term
+            )
+        )
+    if residence not in [
+        'Day',
+        'Boarding'
+    ]:
+
+        flash(
+            'Please select Day or Boarding.',
+            'danger'
+        )
+
+        return redirect(
+            url_for(
+                'bursar_fees',
+                year=year,
+                term=term
+            )
+        )
+    try:
+
+        amount = float(amount)
+
+        if amount < 0:
+            raise ValueError
+
+    except (ValueError, TypeError):
+
+        flash(
+            'Enter a valid fee amount.',
+            'danger'
+        )
+
+        return redirect(
+            url_for(
+                'bursar_fees',
+                year=year,
+                term=term
+            )
+        )
+    db = get_db()
+    cur = db.cursor()
+
+    try:
+
+        cur.execute("""
+            INSERT INTO student_fee_structure (
+                level,
+                programme,
+                residence,
+                term,
+                year,
+                amount,
+                description
+            )
+            VALUES (
+                %s, %s, %s, %s,
+                %s, %s, %s
+            )
+        """, (
+            level,
+            programme,
+            residence,
+            term,
+            year,
+            amount,
+            description
+        ))
+
+        db.commit()
+
+        flash(
+            'Fee structure added successfully.',
+            'success'
+        )
+
+    except Exception as e:
+
+        db.rollback()
+
+        if 'student_fee_structure' in str(e) and (
+            'unique' in str(e).lower()
+            or 'duplicate' in str(e).lower()
+        ):
+            flash(
+                'A fee structure already exists for this '
+                'level, programme, residence, term and year.',
+                'danger'
+            )
+
+        else:
+            flash(
+                f'Could not save fee structure: {e}',
+                'danger'
+            )
+    finally:
+        cur.close()
+    return redirect(
+        url_for(
+            'bursar_fees',
+            year=year,
+            term=term
+        )
+    )
+
+@app.route('/bursar/fees/delete/<int:fee_id>', methods=['POST'])
+def bursar_fees_delete(fee_id):
+
+    if not check_permission(['bursar']):
+        abort(403)
+
+    db = get_db()
+    cur = db.cursor()
+
+    try:
+
+        cur.execute("""
+            DELETE FROM student_fee_structure
+            WHERE id = %s
+        """, (
+            fee_id,
+        ))
+
+        db.commit()
+
+        flash(
+            'Fee structure deleted successfully.',
+            'success'
+        )
+
+    except Exception as e:
+
+        db.rollback()
+
+        flash(
+            f'Could not delete fee structure: {e}',
+            'danger'
+        )
+
+    finally:
+
+        cur.close()
+
+    return redirect(
+        url_for('bursar_fees')
+    )
 
 @app.route('/bursar/record_payment', methods=['POST'])
 def bursar_record_payment():
