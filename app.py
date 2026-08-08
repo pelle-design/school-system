@@ -8520,6 +8520,10 @@ def bursar_expenditure_report():
     if not check_permission(['bursar']):
         abort(403)
 
+    # =====================================================
+    # GET FILTERS
+    # =====================================================
+
     year = request.args.get(
         'year',
         datetime.now().year,
@@ -8536,13 +8540,69 @@ def bursar_expenditure_report():
         ''
     ).strip()
 
+
+    # =====================================================
+    # DATABASE
+    # =====================================================
+
     db = get_db()
     cur = db.cursor()
+    cur.execute("""
+        SELECT
+            school_name,
+            school_address,
+            school_phone,
+            school_email,
+            logo_url
+        FROM school_settings
+        WHERE id = 1
+    """)
 
-    # =====================================================
-    # GET CATEGORIES
-    # =====================================================
+    school_data = cur.fetchone()
 
+
+    if school_data:
+
+        school_name = (
+            school_data['school_name']
+            or 'YOUR SCHOOL NAME'
+        )
+
+        school_address = (
+            school_data['school_address']
+            or ''
+        )
+
+        school_phone = (
+            school_data['school_phone']
+            or ''
+        )
+
+        school_email = (
+            school_data['school_email']
+            or ''
+        )
+
+        school_logo_url = (
+            school_data['logo_url']
+            or url_for(
+                'static',
+                filename='images/logo.png'
+            )
+        )
+
+    else:
+
+        school_name = 'YOUR SCHOOL NAME'
+        school_address = ''
+        school_phone = ''
+        school_email = ''
+
+        school_logo_url = url_for(
+            'static',
+            filename='images/logo.png'
+        )
+        
     cur.execute("""
         SELECT
             id,
@@ -8553,11 +8613,7 @@ def bursar_expenditure_report():
     """)
 
     categories = cur.fetchall()
-
-    # =====================================================
-    # GET EXPENDITURES
-    # =====================================================
-
+    
     query = """
         SELECT
             e.id,
@@ -8589,10 +8645,6 @@ def bursar_expenditure_report():
 
     params = [year]
 
-    # =====================================================
-    # CATEGORY FILTER
-    # =====================================================
-
     if category_id:
 
         query += """
@@ -8600,29 +8652,20 @@ def bursar_expenditure_report():
         """
 
         params.append(category_id)
-
-    # =====================================================
-    # STATUS FILTER
-    # =====================================================
-
     if status:
 
         query += """
-            AND e.status = %s
+            AND LOWER(TRIM(COALESCE(e.status, '')))
+                = LOWER(TRIM(%s))
         """
 
         params.append(status)
-
-    # =====================================================
-    # ORDER
-    # =====================================================
 
     query += """
         ORDER BY
             e.expenditure_date DESC,
             e.id DESC
     """
-
     cur.execute(
         query,
         tuple(params)
@@ -8630,53 +8673,60 @@ def bursar_expenditure_report():
 
     expenditures = cur.fetchall()
 
-    # =====================================================
-    # SUMMARY
-    # =====================================================
-
-    total_expenditure = sum(
-        float(e['amount'] or 0)
-        for e in expenditures
-    )
-
-    approved_total = sum(
-        float(e['amount'] or 0)
-        for e in expenditures
-        if e['status'] == 'Approved'
-    )
-
-    paid_total = sum(
-        float(e['amount'] or 0)
-        for e in expenditures
-        if e['status'] == 'Paid'
-    )
-
-    pending_total = sum(
-        float(e['amount'] or 0)
-        for e in expenditures
-        if e['status'] == 'Pending'
-    )
-
-    rejected_total = sum(
-        float(e['amount'] or 0)
-        for e in expenditures
-        if e['status'] == 'Rejected'
-    )
-
+    total_expenditure = 0
+    approved_total = 0
+    paid_total = 0
+    pending_total = 0
+    rejected_total = 0
+    for expenditure in expenditures:
+        amount = float(
+            expenditure['amount'] or 0
+        )
+        total_expenditure += amount
+        current_status = str(
+            expenditure['status'] or ''
+        ).strip().lower()
+        if current_status == 'approved':
+            approved_total += amount
+        elif current_status == 'paid':
+            paid_total += amount
+        elif current_status == 'pending':
+            pending_total += amount
+        elif current_status == 'rejected':
+            rejected_total += amount
     cur.close()
-
     return render_template(
         'bursar/expenditure_report.html',
+
         expenditures=expenditures,
+
         categories=categories,
+
         year=year,
+
         category_id=category_id,
+
         status=status,
+
         total_expenditure=total_expenditure,
+
         approved_total=approved_total,
+
         paid_total=paid_total,
+
         pending_total=pending_total,
-        rejected_total=rejected_total
+
+        rejected_total=rejected_total,
+
+        school_name=school_name,
+
+        school_address=school_address,
+
+        school_phone=school_phone,
+
+        school_email=school_email,
+
+        school_logo_url=school_logo_url
     )
 
 
