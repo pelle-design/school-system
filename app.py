@@ -7285,32 +7285,91 @@ def bursar_students():
         search=search,
         class_filter=class_filter
     )
-
 @app.route('/bursar/student/<student_id>')
 def bursar_student_detail(student_id):
+
     if not check_permission(['bursar']):
         abort(403)
+
     db = get_db_dict()
     cur = db.cursor()
+
+    # =====================================================
+    # GET STUDENT
+    # =====================================================
+
     cur.execute("""
-        SELECT student_id, full_name, class, parent_phone,
-               fees_total, fees_paid, fees_balance
+        SELECT
+            student_id,
+            full_name,
+            class,
+            parent_phone,
+            fees_total,
+            fees_paid,
+            fees_balance
         FROM students
         WHERE student_id=%s
     """, (student_id,))
+
     student = cur.fetchone()
+
     if not student:
-        flash('Student not found.', 'danger')
-        return redirect(url_for('bursar_students'))
+        cur.close()
+
+        flash(
+            'Student not found.',
+            'danger'
+        )
+
+        return redirect(
+            url_for('bursar_students')
+        )
+
+    # =====================================================
+    # GET PAYMENT HISTORY
+    # =====================================================
+
     cur.execute("""
         SELECT *
         FROM payments
         WHERE student_id=%s
-        ORDER BY payment_date DESC
+        ORDER BY payment_date DESC, id DESC
     """, (student_id,))
+
     payments = cur.fetchall()
+
+    # =====================================================
+    # CALCULATE TOTAL PAID FROM PAYMENT RECORDS
+    # =====================================================
+
+    total_paid = sum(
+        float(p['amount'] or 0)
+        for p in payments
+    )
+
+    # =====================================================
+    # USE STUDENT STORED FEE TOTAL
+    # =====================================================
+
+    fees_total = float(
+        student['fees_total'] or 0
+    )
+
+    fees_balance = max(
+        fees_total - total_paid,
+        0
+    )
+
     cur.close()
-    return render_template('bursar/student_detail.html', student=student, payments=payments)
+
+    return render_template(
+        'bursar/student_detail.html',
+        student=student,
+        payments=payments,
+        fees_total=fees_total,
+        total_paid=total_paid,
+        fees_balance=fees_balance
+    )
 
 @app.route('/bursar/fees')
 def bursar_fees():
