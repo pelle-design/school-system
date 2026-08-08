@@ -1,49 +1,652 @@
 {% extends "base.html" %}
+
 {% block title %}Expenditure Report{% endblock %}
+
 {% block content %}
-<div class="card shadow">
-    <div class="card-header bg-primary text-white">Expenditure Report</div>
-    <div class="card-body">
-        <form method="GET" class="row g-2 mb-4">
-            <div class="col-md-4">
-                <label>Start Date</label>
-                <input type="date" name="start_date" class="form-control" value="{{ start_date }}">
-            </div>
-            <div class="col-md-4">
-                <label>End Date</label>
-                <input type="date" name="end_date" class="form-control" value="{{ end_date }}">
-            </div>
-            <div class="col-md-4 align-self-end">
-                <button type="submit" class="btn btn-primary">Generate Report</button>
-                <button onclick="window.print()" class="btn btn-secondary">Print</button>
-            </div>
-        </form>
-        
-        <h4>Total Expenditure: UGX 
-            {% if total and total.total_expenditure %}
-                {{ "{:,.2f}".format(total.total_expenditure) }}
-            {% else %}
-                0.00
-            {% endif %}
-        </h4>
-        <hr>
-        
-        <h5>By Budget Category</h5>
-        <table class="table table-sm">
-            <thead>
-                <tr><th>Code</th><th>Category</th><th>Amount Spent (UGX)</th></tr>
-            </thead>
-            <tbody>
-                {% for c in by_category %}
-                <tr>
-                    <td>{{ c.code }}</td>
-                    <td>{{ c.name }}</td>
-                    <td>{{ "{:,.2f}".format(c.total_spent) if c.total_spent else '0.00' }}</td>
-                </tr>
-                {% else %}
-                <tr><td colspan="3">No expenditures found.{% endfor %}
-            </tbody>
-        </table>
+
+<div class="container-fluid">
+<!-- =====================================================
+     HEADER
+     ===================================================== -->
+
+<div class="card shadow mb-4">
+
+    <div class="card-header bg-primary text-white
+                d-flex justify-content-between
+                align-items-center">
+
+        <div>
+
+            <h5 class="mb-0">
+                <i class="fas fa-file-invoice-dollar"></i>
+                Expenditure Report
+            </h5>
+
+            <small>
+                Financial Year {{ year }}
+            </small>
+
+        </div>
+
+        <div class="no-print">
+
+            <button
+                type="button"
+                class="btn btn-light btn-sm"
+                onclick="window.print()"
+            >
+
+                <i class="fas fa-print"></i>
+                Print Report
+
+            </button>
+
+        </div>
+
     </div>
+
+
+    <div class="card-body">
+
+
+        <!-- =================================================
+             FILTERS
+             ================================================= -->
+
+        <form
+            method="GET"
+            class="row g-3 mb-4 no-print"
+        >
+
+            <!-- YEAR -->
+
+            <div class="col-md-3">
+
+                <label class="form-label">
+                    Year
+                </label>
+
+                <select
+                    name="year"
+                    class="form-select"
+                >
+
+                    {% for y in range(2024, 2031) %}
+
+                        <option
+                            value="{{ y }}"
+                            {% if year == y %}
+                                selected
+                            {% endif %}
+                        >
+                            {{ y }}
+                        </option>
+
+                    {% endfor %}
+
+                </select>
+
+            </div>
+
+
+            <!-- CATEGORY -->
+
+            <div class="col-md-3">
+
+                <label class="form-label">
+                    Category
+                </label>
+
+                <select
+                    name="category_id"
+                    class="form-select"
+                >
+
+                    <option value="">
+                        All Categories
+                    </option>
+
+                    {% for category in categories %}
+
+                        <option
+                            value="{{ category.id }}"
+                            {% if category_id == category.id %}
+                                selected
+                            {% endif %}
+                        >
+
+                            {{ category.code }}
+                            -
+                            {{ category.name }}
+
+                        </option>
+
+                    {% endfor %}
+
+                </select>
+
+            </div>
+
+
+            <!-- STATUS -->
+
+            <div class="col-md-3">
+
+                <label class="form-label">
+                    Status
+                </label>
+
+                <select
+                    name="status"
+                    class="form-select"
+                >
+
+                    <option value="">
+                        All Statuses
+                    </option>
+
+                    <option
+                        value="Pending"
+                        {% if status == 'Pending' %}
+                            selected
+                        {% endif %}
+                    >
+                        Pending
+                    </option>
+
+                    <option
+                        value="Approved"
+                        {% if status == 'Approved' %}
+                            selected
+                        {% endif %}
+                    >
+                        Approved
+                    </option>
+
+                    <option
+                        value="Paid"
+                        {% if status == 'Paid' %}
+                            selected
+                        {% endif %}
+                    >
+                        Paid
+                    </option>
+
+                    <option
+                        value="Rejected"
+                        {% if status == 'Rejected' %}
+                            selected
+                        {% endif %}
+                    >
+                        Rejected
+                    </option>
+
+                </select>
+
+            </div>
+
+
+            <!-- FILTER BUTTON -->
+
+            <div class="col-md-3 d-flex align-items-end">
+
+                <button
+                    type="submit"
+                    class="btn btn-primary me-2"
+                >
+
+                    <i class="fas fa-filter"></i>
+                    Apply Filters
+
+                </button>
+
+
+                <a
+                    href="{{ url_for(
+                        'bursar_expenditure_report'
+                    ) }}"
+                    class="btn btn-outline-secondary"
+                >
+
+                    Reset
+
+                </a>
+
+            </div>
+
+        </form>
+
+
+        <!-- =================================================
+             SUMMARY CARDS
+             ================================================= -->
+
+        <div class="row g-3 mb-4">
+
+
+            <!-- TOTAL -->
+
+            <div class="col-md-3">
+
+                <div class="card border-primary shadow-sm">
+
+                    <div class="card-body">
+
+                        <h6 class="text-muted">
+                            Total Expenditure
+                        </h6>
+
+                        <h4>
+                            UGX
+                            {{
+                                "{:,.2f}".format(
+                                    total_expenditure or 0
+                                )
+                            }}
+                        </h4>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+
+            <!-- APPROVED -->
+
+            <div class="col-md-3">
+
+                <div class="card border-success shadow-sm">
+
+                    <div class="card-body">
+
+                        <h6 class="text-muted">
+                            Approved
+                        </h6>
+
+                        <h4 class="text-success">
+
+                            UGX
+                            {{
+                                "{:,.2f}".format(
+                                    approved_total or 0
+                                )
+                            }}
+
+                        </h4>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+
+            <!-- PAID -->
+
+            <div class="col-md-3">
+
+                <div class="card border-info shadow-sm">
+
+                    <div class="card-body">
+
+                        <h6 class="text-muted">
+                            Paid
+                        </h6>
+
+                        <h4 class="text-info">
+
+                            UGX
+                            {{
+                                "{:,.2f}".format(
+                                    paid_total or 0
+                                )
+                            }}
+
+                        </h4>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+
+            <!-- PENDING -->
+
+            <div class="col-md-3">
+
+                <div class="card border-warning shadow-sm">
+
+                    <div class="card-body">
+
+                        <h6 class="text-muted">
+                            Pending
+                        </h6>
+
+                        <h4 class="text-warning">
+
+                            UGX
+                            {{
+                                "{:,.2f}".format(
+                                    pending_total or 0
+                                )
+                            }}
+
+                        </h4>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+
+
+        <!-- =================================================
+             EXPENDITURE TABLE
+             ================================================= -->
+
+        <div class="table-responsive">
+
+            <table class="table
+                          table-bordered
+                          table-hover
+                          align-middle">
+
+                <thead class="table-primary">
+
+                    <tr>
+
+                        <th>#</th>
+
+                        <th>Voucher No.</th>
+
+                        <th>Category</th>
+
+                        <th>Description</th>
+
+                        <th>Amount (UGX)</th>
+
+                        <th>Date</th>
+
+                        <th>Payment Method</th>
+
+                        <th>Payee</th>
+
+                        <th>Status</th>
+
+                        <th>Recorded By</th>
+
+                    </tr>
+
+                </thead>
+
+
+                <tbody>
+
+                    {% for e in expenditures %}
+
+                    <tr>
+
+                        <td>
+                            {{ loop.index }}
+                        </td>
+
+
+                        <td>
+
+                            <strong>
+                                {{ e.voucher_no }}
+                            </strong>
+
+                        </td>
+
+
+                        <td>
+
+                            {% if e.category_code %}
+
+                                <span class="badge bg-secondary">
+
+                                    {{ e.category_code }}
+
+                                </span>
+
+                                <br>
+
+                                <small>
+                                    {{ e.category_name }}
+                                </small>
+
+                            {% else %}
+
+                                <span class="text-muted">
+                                    No category
+                                </span>
+
+                            {% endif %}
+
+                        </td>
+
+
+                        <td>
+                            {{ e.description or '-' }}
+                        </td>
+
+
+                        <td class="text-end">
+
+                            <strong>
+
+                                {{
+                                    "{:,.2f}".format(
+                                        e.amount or 0
+                                    )
+                                }}
+
+                            </strong>
+
+                        </td>
+
+
+                        <td>
+
+                            {{ e.expenditure_date
+                               or '-' }}
+
+                        </td>
+
+
+                        <td>
+
+                            {{ e.payment_method
+                               or '-' }}
+
+                        </td>
+
+
+                        <td>
+
+                            <strong>
+                                {{ e.payee_name or '-' }}
+                            </strong>
+
+                            {% if e.payee_phone %}
+
+                                <br>
+
+                                <small class="text-muted">
+
+                                    {{ e.payee_phone }}
+
+                                </small>
+
+                            {% endif %}
+
+                        </td>
+
+
+                        <td>
+
+                            {% if e.status == 'Paid' %}
+
+                                <span class="badge bg-info">
+                                    Paid
+                                </span>
+
+                            {% elif e.status == 'Approved' %}
+
+                                <span class="badge bg-success">
+                                    Approved
+                                </span>
+
+                            {% elif e.status == 'Pending' %}
+
+                                <span class="badge bg-warning text-dark">
+                                    Pending
+                                </span>
+
+                            {% elif e.status == 'Rejected' %}
+
+                                <span class="badge bg-danger">
+                                    Rejected
+                                </span>
+
+                            {% else %}
+
+                                <span class="badge bg-secondary">
+                                    {{ e.status or 'Unknown' }}
+                                </span>
+
+                            {% endif %}
+
+                        </td>
+
+
+                        <td>
+
+                            {{ e.recorded_by or '-' }}
+
+                        </td>
+
+                    </tr>
+
+
+                    {% else %}
+
+                    <tr>
+
+                        <td
+                            colspan="10"
+                            class="text-center py-5"
+                        >
+
+                            <i class="
+                                fas fa-file-invoice
+                                fa-3x
+                                text-muted
+                                mb-3
+                            "></i>
+
+                            <h5>
+                                No Expenditures Found
+                            </h5>
+
+                            <p class="text-muted">
+
+                                No expenditure records
+                                match the selected filters.
+
+                            </p>
+
+                        </td>
+
+                    </tr>
+
+                    {% endfor %}
+
+                </tbody>
+
+
+                {% if expenditures %}
+
+                <tfoot class="table-light">
+
+                    <tr>
+
+                        <th
+                            colspan="4"
+                            class="text-end"
+                        >
+                            TOTAL
+                        </th>
+
+                        <th class="text-end">
+
+                            {{
+                                "{:,.2f}".format(
+                                    total_expenditure or 0
+                                )
+                            }}
+
+                        </th>
+
+                        <th colspan="5"></th>
+
+                    </tr>
+
+                </tfoot>
+
+                {% endif %}
+
+            </table>
+
+        </div>
+
+    </div>
+
 </div>
+
+</div>
+
+<!-- =========================================================
+     PRINT STYLES
+     ========================================================= -->
+
+<style>
+
+@media print {
+
+    .no-print,
+    .sidebar,
+    .navbar,
+    .btn {
+        display: none !important;
+    }
+
+    body {
+        background: white !important;
+    }
+
+    .card {
+        border: none !important;
+        box-shadow: none !important;
+    }
+
+    .card-header {
+        color: black !important;
+        background: white !important;
+        border-bottom: 2px solid black !important;
+    }
+
+    .table {
+        font-size: 10px;
+    }
+
+}
+
+</style>
+
 {% endblock %}
