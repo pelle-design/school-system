@@ -5735,7 +5735,6 @@ def teacher_report_card(student_id):
             next_term_begins=next_term_begins,
             next_term_ends=next_term_ends,
             stamp_url=stamp_url,
-            can_view_only=can_view_only,
             school_name=school_name,
             school_address=school_address,
             school_phone=school_phone,
@@ -6717,25 +6716,27 @@ def teacher_print_all_report_cards():
             and class_upper[1] in ['5', '6']
         )
     )
-
-
     # =========================================================
     # BUILD ALL REPORTS
     # =========================================================
-
+    
     all_reports = []
-
-
+    
     for student in students_data:
-
+    
         student_id = student['student_id']
         full_name = student['full_name']
-
+    
         photo_url = get_photo_url(
             student['photo_path']
         )
+    
+        # =====================================================
+        # A-LEVEL
+        # =====================================================
+    
         if is_alevel:
-
+    
             cur.execute("""
                 SELECT
                     subject,
@@ -6756,47 +6757,51 @@ def teacher_print_all_report_cards():
                 term,
                 year
             ))
-
+    
             marks = cur.fetchall()
+    
+            # =================================================
+            # A-LEVEL TOTAL POINTS
+            # =================================================
+    
             total_points = sum(
-                m['points']
+                float(m['points'])
                 for m in marks
                 if m['points'] is not None
             ) if marks else 0
-            alevel_teacher_comment = get_alevel_class_teacher_comment(
-                total_points
+            
+            # A-LEVEL COMMENTS
+            alevel_teacher_comment = (
+                get_alevel_class_teacher_comment(
+                    total_points
+                )
             )
-            alevel_headteacher_comment = get_alevel_headteacher_comment(
-                total_points
+            alevel_headteacher_comment = (
+                get_alevel_headteacher_comment(
+                    total_points
+                )
             )
+            # SAVE A-LEVEL REPORT
             all_reports.append({
                 'student_id': student_id,
                 'full_name': full_name,
                 'photo_url': photo_url,
                 'marks': marks,
-    
-                'general_average': round(
-                    general_average, 2
-                ),
-    
-                'general_identifier': general_identifier,
-    
-                'avg_out_of_3': general_identifier,
-    
-                'general_grade': general_grade,
-    
-                'general_descriptor': general_descriptor,
-    
-                'teacher_comment': alevel_teacher_comment,
-    
-                'headteacher_comment': alevel_headteacher_comment
+                'total_points':
+                    total_points,
+                'teacher_comment':
+                    alevel_teacher_comment,
+                'headteacher_comment':
+                    alevel_headteacher_comment
             })
+    
+    
         # =====================================================
         # O-LEVEL
         # =====================================================
-
+    
         else:
-
+    
             cur.execute("""
                 SELECT
                     subject,
@@ -6822,51 +6827,61 @@ def teacher_print_all_report_cards():
                 term,
                 year
             ))
+    
             raw_marks = cur.fetchall()
+    
             marks = []
+    
             for m in raw_marks:
+    
                 ai_scores = []
+    
                 if m['ai1'] not in [None, '']:
                     ai_scores.append(
                         float(m['ai1'])
                     )
+    
                 if m['ai2'] not in [None, '']:
                     ai_scores.append(
                         float(m['ai2'])
                     )
+    
                 if m['ai3'] not in [None, '']:
                     ai_scores.append(
                         float(m['ai3'])
                     )
-
+    
                 # =================================================
                 # AI AVERAGE
                 # =================================================
-
+    
                 ai_average = (
                     sum(ai_scores) / len(ai_scores)
                     if ai_scores
                     else 0
                 )
-
+    
                 # =================================================
                 # AI CONTRIBUTION
                 # AI average is out of 3.
                 # Convert to contribution out of 20.
                 # =================================================
+    
                 ai_contribution = (
                     (ai_average / 3) * 20
                     if ai_average > 0
                     else 0
                 )
+    
                 # =================================================
                 # EOT
                 #
-                # EOT is already marked out of 80.
-                # Do NOT convert it.
+                # EOT is already out of 80.
                 # Only constrain it to 0-80.
-                # ================================================
+                # =================================================
+    
                 eot_score = m['eot_score']
+    
                 eot_contribution = (
                     max(
                         0,
@@ -6878,99 +6893,185 @@ def teacher_print_all_report_cards():
                     if eot_score is not None
                     else 0
                 )
+    
+                # =================================================
+                # TOTAL SCORE
+                # =================================================
+    
                 total_score = (
                     ai_contribution +
                     eot_contribution
                 )
-                grade, descriptor = get_olevel_grade_details(
-                    total_score
+    
+                # =================================================
+                # SUBJECT GRADE / DESCRIPTOR
+                # =================================================
+    
+                grade, descriptor = (
+                    get_olevel_grade_details(
+                        total_score
+                    )
                 )
+    
+                # =================================================
+                # SUBJECT IDENTIFIER
+                # =================================================
+    
                 identifier = round(
                     (total_score / 100) * 3,
                     2
                 )
+    
                 marks.append({
-
-                    'subject': m['subject'],
-
-                    'ai1': m['ai1'],
-
-                    'ai2': m['ai2'],
-
-                    'ai3': m['ai3'],
-
-                    'ai_average': round(
-                        ai_average,
-                        2
-                    ),
-
-                    'ai_contribution': round(
-                        ai_contribution,
-                        2
-                    ),
-
-                    'eot_score': eot_score,
-
-                    'total_score': round(
-                        total_score,
-                        2
-                    ),
-
-                    'grade': grade,
-                    'identifier': identifier,
-                    'descriptor': descriptor,
+    
+                    'subject':
+                        m['subject'],
+    
+                    'ai1':
+                        m['ai1'],
+    
+                    'ai2':
+                        m['ai2'],
+    
+                    'ai3':
+                        m['ai3'],
+    
+                    'ai_average':
+                        round(
+                            ai_average,
+                            2
+                        ),
+    
+                    'ai_contribution':
+                        round(
+                            ai_contribution,
+                            2
+                        ),
+    
+                    'eot_score':
+                        eot_score,
+    
+                    'total_score':
+                        round(
+                            total_score,
+                            2
+                        ),
+    
+                    'grade':
+                        grade,
+    
+                    'identifier':
+                        identifier,
+    
+                    'descriptor':
+                        descriptor,
+    
                     'teacher_initials':
                         m['teacher_initials']
-
                 })
-
-
+    
+    
             # =====================================================
-            # GENERAL AVERAGE
+            # O-LEVEL GENERAL AVERAGE
             # =====================================================
-
+    
             valid_marks = [
                 m for m in marks
                 if m['total_score'] is not None
                 and float(m['total_score']) > 0
             ]
+    
             total_final = sum(
                 float(m['total_score'])
                 for m in valid_marks
             )
+    
             count = len(valid_marks)
+    
             general_average = (
                 total_final / count
                 if count > 0
                 else 0
             )
+    
+            # =====================================================
+            # O-LEVEL GENERAL IDENTIFIER
+            # =====================================================
+    
             general_identifier = round(
                 (general_average / 100) * 3,
                 2
             )
+    
+            # =====================================================
+            # O-LEVEL GENERAL GRADE / DESCRIPTOR
+            # =====================================================
+    
             general_grade, general_descriptor = (
                 get_olevel_grade_details(
                     general_average
                 )
             )
-            olevel_teacher_comment = get_olevel_class_teacher_comment(
-                general_identifier
+    
+            # =====================================================
+            # O-LEVEL COMMENTS
+            #
+            # Comments are based on IDENTIFIER.
+            # =====================================================
+    
+            olevel_teacher_comment = (
+                get_olevel_class_teacher_comment(
+                    general_identifier
+                )
             )
-            olevel_headteacher_comment = get_olevel_headteacher_comment(
-                general_identifier
+    
+            olevel_headteacher_comment = (
+                get_olevel_headteacher_comment(
+                    general_identifier
+                )
             )
+    
+            # =====================================================
+            # SAVE O-LEVEL REPORT
+            # =====================================================
+    
             all_reports.append({
-                'student_id': student_id,
-                'full_name': full_name,
-                'photo_url': photo_url,
-                'marks': marks,
-                'general_average': round(general_average, 2),
-                'general_identifier': general_identifier,
-                'avg_out_of_3': general_identifier,
-                'general_grade': general_grade,
-                'general_descriptor': general_descriptor,
-                'teacher_comment': olevel_teacher_comment,
-                'headteacher_comment': olevel_headteacher_comment
+    
+                'student_id':
+                    student_id,
+    
+                'full_name':
+                    full_name,
+    
+                'photo_url':
+                    photo_url,
+    
+                'marks':
+                    marks,
+    
+                'general_average':
+                    round(
+                        general_average,
+                        2
+                    ),
+    
+                'general_identifier':
+                    general_identifier,
+    
+                'avg_out_of_3':
+                    general_identifier,
+    
+                'general_grade':
+                    general_grade,
+    
+                'general_descriptor':
+                    general_descriptor,
+    
+                'teacher_comment':
+                    olevel_teacher_comment,
+    
+                'headteacher_comment':
+                    olevel_headteacher_comment
             })
     cur.close()
     template = (
