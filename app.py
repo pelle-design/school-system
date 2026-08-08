@@ -8371,6 +8371,177 @@ def bursar_expenditure_add():
     return redirect(
         url_for('bursar_expenditure')
     )
+
+# =========================================================
+# BURSAR - EXPENDITURE REPORT
+# =========================================================
+
+@app.route('/bursar/expenditure/report')
+def bursar_expenditure_report():
+
+    if not check_permission(['bursar']):
+        abort(403)
+
+    year = request.args.get(
+        'year',
+        datetime.now().year,
+        type=int
+    )
+
+    category_id = request.args.get(
+        'category_id',
+        type=int
+    )
+
+    status = request.args.get(
+        'status',
+        ''
+    ).strip()
+
+    db = get_db()
+    cur = db.cursor()
+
+    # =====================================================
+    # GET CATEGORIES
+    # =====================================================
+
+    cur.execute("""
+        SELECT
+            id,
+            code,
+            name
+        FROM budget_categories
+        ORDER BY name
+    """)
+
+    categories = cur.fetchall()
+
+    # =====================================================
+    # GET EXPENDITURES
+    # =====================================================
+
+    query = """
+        SELECT
+            e.id,
+            e.voucher_no,
+            e.category_id,
+            e.description,
+            e.amount,
+            e.expenditure_date,
+            e.payment_method,
+            e.payee_name,
+            e.payee_phone,
+            e.status,
+            e.recorded_by,
+            e.created_at,
+
+            bc.code AS category_code,
+            bc.name AS category_name
+
+        FROM expenditures e
+
+        LEFT JOIN budget_categories bc
+            ON e.category_id = bc.id
+
+        WHERE (
+            bc.year = %s
+            OR bc.year IS NULL
+        )
+    """
+
+    params = [year]
+
+    # =====================================================
+    # CATEGORY FILTER
+    # =====================================================
+
+    if category_id:
+
+        query += """
+            AND e.category_id = %s
+        """
+
+        params.append(category_id)
+
+    # =====================================================
+    # STATUS FILTER
+    # =====================================================
+
+    if status:
+
+        query += """
+            AND e.status = %s
+        """
+
+        params.append(status)
+
+    # =====================================================
+    # ORDER
+    # =====================================================
+
+    query += """
+        ORDER BY
+            e.expenditure_date DESC,
+            e.id DESC
+    """
+
+    cur.execute(
+        query,
+        tuple(params)
+    )
+
+    expenditures = cur.fetchall()
+
+    # =====================================================
+    # SUMMARY
+    # =====================================================
+
+    total_expenditure = sum(
+        float(e['amount'] or 0)
+        for e in expenditures
+    )
+
+    approved_total = sum(
+        float(e['amount'] or 0)
+        for e in expenditures
+        if e['status'] == 'Approved'
+    )
+
+    paid_total = sum(
+        float(e['amount'] or 0)
+        for e in expenditures
+        if e['status'] == 'Paid'
+    )
+
+    pending_total = sum(
+        float(e['amount'] or 0)
+        for e in expenditures
+        if e['status'] == 'Pending'
+    )
+
+    rejected_total = sum(
+        float(e['amount'] or 0)
+        for e in expenditures
+        if e['status'] == 'Rejected'
+    )
+
+    cur.close()
+
+    return render_template(
+        'bursar/expenditure_report.html',
+        expenditures=expenditures,
+        categories=categories,
+        year=year,
+        category_id=category_id,
+        status=status,
+        total_expenditure=total_expenditure,
+        approved_total=approved_total,
+        paid_total=paid_total,
+        pending_total=pending_total,
+        rejected_total=rejected_total
+    )
+
+
 @app.route('/bursar/income_report')
 def bursar_income_report():
 
