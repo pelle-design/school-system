@@ -1597,6 +1597,15 @@ def process_bank_payment(payroll):
         results['error']="Bank API temporarily unavailable"
     return results
 
+# =========================================================
+# SIX-DIGIT PAYROLL APPROVAL CODE
+# =========================================================
+
+def generate_approval_code():
+    return ''.join(
+        str(secrets.randbelow(10))
+        for _ in range(6)
+    )
 # ==================== CONTEXT PROCESSORS ====================
 @app.context_processor
 def inject_now():
