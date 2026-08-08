@@ -6286,13 +6286,20 @@ def teacher_edit_student(student_id):
         admission_date = request.form.get(
             'admission_date',
             ''
-        )
-
+        ).strip()
+        
+        if admission_date == '':
+            admission_date = None
+        
+        
         date_of_birth = request.form.get(
             'date_of_birth',
             ''
-        )
-
+        ).strip()
+        
+        if date_of_birth == '':
+            date_of_birth = None
+            
         sex = request.form.get(
             'sex',
             ''
