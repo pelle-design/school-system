@@ -4,407 +4,552 @@
 
 {% block content %}
 
-<div class="container-fluid">
+<div class="card">
+<!-- =================================================
+     HEADER
+     ================================================= -->
 
-<div class="card shadow mb-4">
+<div class="card-header bg-primary text-white
+            d-flex justify-content-between
+            align-items-center">
 
-    <div class="card-header bg-primary text-white
-                d-flex justify-content-between
-                align-items-center">
+    <div>
+        <i class="fas fa-money-bill-wave"></i>
+        <strong>Student Fee Management</strong>
+    </div>
 
-        <div>
-            <i class="fas fa-money-bill-wave"></i>
-            <strong>Student Fee Management</strong>
+    <div>
+        <a href="{{ url_for('bursar_students') }}"
+           class="btn btn-light btn-sm">
+            <i class="fas fa-sync-alt"></i>
+            Refresh
+        </a>
+    </div>
+
+</div>
+
+
+<div class="card-body">
+
+    <!-- =================================================
+         SEARCH AND FILTER
+         ================================================= -->
+
+    <form method="GET"
+          action="{{ url_for('bursar_students') }}"
+          class="row g-2 mb-4">
+
+        <div class="col-md-4">
+
+            <label class="form-label">
+                Search Student
+            </label>
+
+            <input
+                type="text"
+                name="search"
+                value="{{ search or '' }}"
+                class="form-control"
+                placeholder="Student ID or full name">
+
         </div>
 
-        <div>
-            <a href="{{ url_for('bursar_students') }}"
-               class="btn btn-light btn-sm">
-                <i class="fas fa-sync-alt"></i>
-                Refresh
-            </a>
+
+        <div class="col-md-3">
+
+            <label class="form-label">
+                Class
+            </label>
+
+            <select name="class"
+                    class="form-select">
+
+                <option value="">
+                    All Classes
+                </option>
+
+                {% for cls in classes %}
+
+                <option value="{{ cls }}"
+                    {% if class_filter == cls %}
+                        selected
+                    {% endif %}>
+
+                    {{ cls }}
+
+                </option>
+
+                {% endfor %}
+
+            </select>
+
         </div>
+
+
+        <div class="col-md-2">
+
+            <label class="form-label">
+                Programme
+            </label>
+
+            <select name="programme"
+                    class="form-select">
+
+                <option value="">
+                    All
+                </option>
+
+                <option value="USE"
+                    {% if programme_filter == 'USE' %}
+                        selected
+                    {% endif %}>
+                    USE
+                </option>
+
+                <option value="Non-USE"
+                    {% if programme_filter == 'Non-USE' %}
+                        selected
+                    {% endif %}>
+                    Non-USE
+                </option>
+
+                <option value="UPOLET"
+                    {% if programme_filter == 'UPOLET' %}
+                        selected
+                    {% endif %}>
+                    UPOLET
+                </option>
+
+                <option value="Non-UPOLET"
+                    {% if programme_filter == 'Non-UPOLET' %}
+                        selected
+                    {% endif %}>
+                    Non-UPOLET
+                </option>
+
+            </select>
+
+        </div>
+
+
+        <div class="col-md-2">
+
+            <label class="form-label">
+                Residence
+            </label>
+
+            <select name="residence"
+                    class="form-select">
+
+                <option value="">
+                    All
+                </option>
+
+                <option value="Day"
+                    {% if residence_filter == 'Day' %}
+                        selected
+                    {% endif %}>
+                    Day
+                </option>
+
+                <option value="Boarding"
+                    {% if residence_filter == 'Boarding' %}
+                        selected
+                    {% endif %}>
+                    Boarding
+                </option>
+
+            </select>
+
+        </div>
+
+
+        <div class="col-md-1 d-flex align-items-end">
+
+            <button type="submit"
+                    class="btn btn-primary w-100"
+                    title="Search">
+
+                <i class="fas fa-search"></i>
+
+            </button>
+
+        </div>
+
+    </form>
+
+
+    <!-- =================================================
+         STUDENT COUNT
+         ================================================= -->
+
+    <div class="alert alert-info">
+
+        <i class="fas fa-users"></i>
+
+        <strong>
+            {{ students|length }}
+        </strong>
+
+        student(s) found.
 
     </div>
 
-    <div class="card-body">
 
-        <!-- =================================================
-             SEARCH AND FILTER
-             ================================================= -->
+    <!-- =================================================
+         STUDENT TABLE
+         ================================================= -->
 
-        <form method="GET"
-              action="{{ url_for('bursar_students') }}"
-              class="row g-2 mb-4">
+    <div class="table-responsive">
 
-            <div class="col-md-5">
+        <table class="table table-bordered
+                      table-striped table-hover
+                      align-middle">
 
-                <label class="form-label">
-                    Search Student
-                </label>
+            <thead class="table-dark">
 
-                <input
-                    type="text"
-                    name="search"
-                    value="{{ search or '' }}"
-                    class="form-control"
-                    placeholder="Student ID or full name">
+                <tr class="text-center">
 
-            </div>
+                    <th width="4%">
 
-            <div class="col-md-4">
+                        <input
+                            type="checkbox"
+                            id="selectAll"
+                            onclick="toggleAll(this)">
 
-                <label class="form-label">
-                    Class
-                </label>
+                    </th>
 
-                <select name="class"
-                        class="form-select">
+                    <th>
+                        Student ID
+                    </th>
 
-                    <option value="">
-                        All Classes
-                    </option>
+                    <th>
+                        Full Name
+                    </th>
 
-                    {% for cls in classes %}
+                    <th>
+                        Class
+                    </th>
 
-                    <option value="{{ cls }}"
-                        {% if class_filter == cls %}
-                            selected
-                        {% endif %}>
+                    <th>
+                        Programme
+                    </th>
 
-                        {{ cls }}
+                    <th>
+                        Residence
+                    </th>
 
-                    </option>
+                    <th>
+                        Total Fees
+                    </th>
 
-                    {% endfor %}
+                    <th>
+                        Paid
+                    </th>
 
-                </select>
+                    <th>
+                        Balance
+                    </th>
 
-            </div>
+                    <th>
+                        Parent Phone
+                    </th>
 
-            <div class="col-md-3 d-flex align-items-end">
+                    <th>
+                        Actions
+                    </th>
 
-                <button type="submit"
-                        class="btn btn-primary me-2">
+                </tr>
 
-                    <i class="fas fa-search"></i>
-                    Search
+            </thead>
 
-                </button>
 
-                <a href="{{ url_for('bursar_students') }}"
-                   class="btn btn-secondary">
+            <tbody>
 
-                    <i class="fas fa-times"></i>
-                    Clear
+                {% for s in students %}
 
-                </a>
+                <tr>
 
-            </div>
+                    <!-- SELECT -->
 
-        </form>
+                    <td class="text-center">
 
+                        <input
+                            type="checkbox"
+                            class="student-checkbox"
+                            value="{{ s.student_id }}">
 
-        <!-- =================================================
-             STUDENT COUNT
-             ================================================= -->
+                    </td>
 
-        <div class="alert alert-info">
 
-            <i class="fas fa-users"></i>
+                    <!-- STUDENT ID -->
 
-            <strong>
-                {{ students|length }}
-            </strong>
+                    <td class="text-center">
 
-            student(s) found.
+                        <strong>
+                            {{ s.student_id }}
+                        </strong>
 
-        </div>
+                    </td>
 
 
-        <!-- =================================================
-             STUDENT TABLE
-             ================================================= -->
+                    <!-- NAME -->
 
-        <div class="table-responsive">
+                    <td>
 
-            <table class="table table-bordered
-                          table-striped table-hover
-                          align-middle">
+                        <strong>
+                            {{ s.full_name }}
+                        </strong>
 
-                <thead class="table-dark">
+                    </td>
 
-                    <tr class="text-center">
 
-                        <th width="4%">
+                    <!-- CLASS -->
 
-                            <input
-                                type="checkbox"
-                                id="selectAll"
-                                onclick="toggleAll(this)">
+                    <td class="text-center">
 
-                        </th>
+                        {{ s.class or '-' }}
 
-                        <th width="10%">
-                            Student ID
-                        </th>
+                    </td>
 
-                        <th width="19%">
-                            Full Name
-                        </th>
 
-                        <th width="7%">
-                            Class
-                        </th>
+                    <!-- PROGRAMME -->
 
-                        <th width="12%">
-                            Total Fees
-                        </th>
+                    <td class="text-center">
 
-                        <th width="12%">
-                            Paid
-                        </th>
+                        {% if s.programme %}
 
-                        <th width="12%">
-                            Balance
-                        </th>
+                            {% if s.programme in ['USE', 'UPOLET'] %}
 
-                        <th width="12%">
-                            Parent Phone
-                        </th>
-
-                        <th width="12%">
-                            Actions
-                        </th>
-
-                    </tr>
-
-                </thead>
-
-
-                <tbody>
-
-                    {% for s in students %}
-
-                    <tr>
-
-                        <!-- SELECT -->
-
-                        <td class="text-center">
-
-                            <input
-                                type="checkbox"
-                                class="student-checkbox"
-                                value="{{ s.student_id }}">
-
-                        </td>
-
-
-                        <!-- STUDENT ID -->
-
-                        <td class="text-center">
-
-                            <strong>
-                                {{ s.student_id }}
-                            </strong>
-
-                        </td>
-
-
-                        <!-- NAME -->
-
-                        <td>
-
-                            <strong>
-                                {{ s.full_name }}
-                            </strong>
-
-                        </td>
-
-
-                        <!-- CLASS -->
-
-                        <td class="text-center">
-
-                            {{ s.class or '-' }}
-
-                        </td>
-
-
-                        <!-- TOTAL FEES -->
-
-                        <td class="text-end">
-
-                            {{ "{:,.2f}".format(
-                                s.fees_total|default(0)
-                            ) }}
-
-                        </td>
-
-
-                        <!-- PAID -->
-
-                        <td class="text-end text-success">
-
-                            {{ "{:,.2f}".format(
-                                s.fees_paid|default(0)
-                            ) }}
-
-                        </td>
-
-
-                        <!-- BALANCE -->
-
-                        <td class="text-end">
-
-                            {% set balance =
-                                s.fees_balance|default(0)
-                            %}
-
-                            {% if balance > 0 %}
-
-                                <span class="text-danger fw-bold">
-
-                                    {{ "{:,.2f}".format(balance) }}
-
-                                </span>
-
-                            {% elif balance == 0 %}
-
-                                <span class="text-success fw-bold">
-
-                                    0.00
-
+                                <span class="badge bg-success">
+                                    {{ s.programme }}
                                 </span>
 
                             {% else %}
 
-                                <span class="text-warning fw-bold">
-
-                                    {{ "{:,.2f}".format(balance) }}
-
+                                <span class="badge bg-secondary">
+                                    {{ s.programme }}
                                 </span>
 
                             {% endif %}
 
-                        </td>
+                        {% else %}
+
+                            <span class="text-muted">
+                                Not set
+                            </span>
+
+                        {% endif %}
+
+                    </td>
 
 
-                        <!-- PARENT PHONE -->
+                    <!-- RESIDENCE -->
 
-                        <td class="text-center">
+                    <td class="text-center">
 
-                            {% if s.parent_phone %}
+                        {% if s.residence == 'Boarding' %}
 
-                                <a
-                                    href="tel:{{ s.parent_phone }}"
-                                    class="text-decoration-none">
+                            <span class="badge bg-primary">
+                                <i class="fas fa-bed"></i>
+                                Boarding
+                            </span>
 
-                                    <i class="fas fa-phone"></i>
+                        {% elif s.residence == 'Day' %}
 
-                                    {{ s.parent_phone }}
+                            <span class="badge bg-info">
+                                <i class="fas fa-sun"></i>
+                                Day
+                            </span>
 
-                                </a>
+                        {% else %}
 
-                            {% else %}
+                            <span class="text-muted">
+                                Not set
+                            </span>
 
-                                <span class="text-muted">
-                                    -
-                                </span>
+                        {% endif %}
 
-                            {% endif %}
-
-                        </td>
-
-
-                        <!-- ACTIONS -->
-
-                        <td class="text-center">
-
-                            <div class="btn-group btn-group-sm"
-                                 role="group">
-
-                                <!-- VIEW / RECORD PAYMENT -->
-
-                                <a
-                                    href="{{ url_for(
-                                        'bursar_student_detail',
-                                        student_id=s.student_id
-                                    ) }}"
-                                    class="btn btn-info"
-                                    title="View Fee Account / Record Payment">
-
-                                    <i class="fas fa-money-bill-wave"></i>
-
-                                </a>
+                    </td>
 
 
-                                <!-- SEND REMINDER -->
+                    <!-- TOTAL FEES -->
 
-                                <a
-                                    href="{{ url_for(
-                                        'bursar_send_reminder',
-                                        student_id=s.student_id
-                                    ) }}"
-                                    class="btn btn-warning"
-                                    title="Send Fee Reminder">
+                    <td class="text-end">
 
-                                    <i class="fas fa-bell"></i>
+                        UGX
+                        {{ "{:,.2f}".format(
+                            s.fees_total|default(0)
+                        ) }}
 
-                                </a>
+                    </td>
 
 
-                                <!-- CLEARANCE -->
+                    <!-- PAID -->
 
-                                <a
-                                    href="{{ url_for(
-                                        'bursar_clearance',
-                                        student_id=s.student_id
-                                    ) }}"
-                                    class="btn btn-success"
-                                    title="Print Clearance Card">
+                    <td class="text-end text-success">
 
-                                    <i class="fas fa-print"></i>
+                        UGX
+                        {{ "{:,.2f}".format(
+                            s.fees_paid|default(0)
+                        ) }}
 
-                                </a>
-
-                            </div>
-
-                        </td>
-
-                    </tr>
+                    </td>
 
 
-                    {% else %}
+                    <!-- BALANCE -->
 
-                    <tr>
+                    <td class="text-end">
 
-                        <td colspan="9"
-                            class="text-center text-muted py-5">
+                        {% set balance =
+                            s.fees_balance|default(0)
+                        %}
 
-                            <i class="fas fa-folder-open
-                                      fa-3x mb-3 d-block"></i>
+                        {% if balance > 0 %}
 
-                            <h5>
-                                No students found
-                            </h5>
+                            <span class="text-danger fw-bold">
 
-                            <p class="mb-0">
-                                Try changing your search
-                                or class filter.
-                            </p>
+                                UGX
+                                {{ "{:,.2f}".format(balance) }}
 
-                        </td>
+                            </span>
 
-                    </tr>
+                        {% elif balance == 0 %}
 
-                    {% endfor %}
+                            <span class="text-success fw-bold">
 
-                </tbody>
+                                UGX 0.00
 
-            </table>
+                            </span>
 
-        </div>
+                        {% else %}
+
+                            <span class="text-warning fw-bold">
+
+                                UGX
+                                {{ "{:,.2f}".format(balance) }}
+
+                            </span>
+
+                        {% endif %}
+
+                    </td>
+
+
+                    <!-- PARENT PHONE -->
+
+                    <td class="text-center">
+
+                        {% if s.parent_phone %}
+
+                            <a
+                                href="tel:{{ s.parent_phone }}"
+                                class="text-decoration-none">
+
+                                <i class="fas fa-phone"></i>
+
+                                {{ s.parent_phone }}
+
+                            </a>
+
+                        {% else %}
+
+                            <span class="text-muted">
+                                -
+                            </span>
+
+                        {% endif %}
+
+                    </td>
+
+
+                    <!-- ACTIONS -->
+
+                    <td class="text-center">
+
+                        <div class="btn-group btn-group-sm"
+                             role="group">
+
+                            <!-- VIEW / RECORD PAYMENT -->
+
+                            <a
+                                href="{{ url_for(
+                                    'bursar_student_detail',
+                                    student_id=s.student_id
+                                ) }}"
+                                class="btn btn-info"
+                                title="View Fee Account / Record Payment">
+
+                                <i class="fas fa-money-bill-wave"></i>
+
+                            </a>
+
+
+                            <!-- SEND REMINDER -->
+
+                            <a
+                                href="{{ url_for(
+                                    'bursar_send_reminder',
+                                    student_id=s.student_id
+                                ) }}"
+                                class="btn btn-warning"
+                                title="Send Fee Reminder">
+
+                                <i class="fas fa-bell"></i>
+
+                            </a>
+
+
+                            <!-- CLEARANCE -->
+
+                            <a
+                                href="{{ url_for(
+                                    'bursar_clearance',
+                                    student_id=s.student_id
+                                ) }}"
+                                class="btn btn-success"
+                                title="Print Clearance Card">
+
+                                <i class="fas fa-print"></i>
+
+                            </a>
+
+                        </div>
+
+                    </td>
+
+                </tr>
+
+
+                {% else %}
+
+                <tr>
+
+                    <td colspan="11"
+                        class="text-center text-muted py-5">
+
+                        <i class="fas fa-folder-open
+                                  fa-3x mb-3 d-block"></i>
+
+                        <h5>
+                            No students found
+                        </h5>
+
+                        <p class="mb-0">
+                            Try changing your search
+                            or class, programme, or
+                            residence filter.
+                        </p>
+
+                    </td>
+
+                </tr>
+
+                {% endfor %}
+
+            </tbody>
+
+        </table>
 
     </div>
 
