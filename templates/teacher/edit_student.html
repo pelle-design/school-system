@@ -149,4 +149,90 @@
         </form>
     </div>
 </div>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+
+    const classInput = document.querySelector('[name="class"]');
+    const programmeSelect = document.querySelector('#programme');
+
+    if (!classInput || !programmeSelect) {
+        return;
+    }
+
+    function updateProgrammeOptions() {
+
+        const className = classInput.value
+            .trim()
+            .toUpperCase();
+
+        const currentValue = programmeSelect.value;
+
+        const isOLevel =
+            /^S\.[1-4][A-Z]*$/.test(className);
+
+        const isALevel =
+            /^S\.[56][A-Z]*$/.test(className);
+
+        Array.from(
+            programmeSelect.options
+        ).forEach(function (option) {
+
+            if (option.value === '') {
+                option.hidden = false;
+                return;
+            }
+
+            if (isOLevel) {
+
+                option.hidden = ![
+                    'USE',
+                    'Non-USE'
+                ].includes(option.value);
+
+            } else if (isALevel) {
+
+                option.hidden = ![
+                    'UPOLET',
+                    'Non-UPOLET'
+                ].includes(option.value);
+
+            } else {
+
+                option.hidden = false;
+            }
+        });
+
+        /*
+         * Clear an invalid programme when
+         * the class changes.
+         */
+
+        if (
+            isOLevel &&
+            !['USE', 'Non-USE'].includes(currentValue)
+        ) {
+            programmeSelect.value = '';
+        }
+
+        if (
+            isALevel &&
+            !['UPOLET', 'Non-UPOLET'].includes(currentValue)
+        ) {
+            programmeSelect.value = '';
+        }
+    }
+
+    classInput.addEventListener(
+        'input',
+        updateProgrammeOptions
+    );
+
+    classInput.addEventListener(
+        'change',
+        updateProgrammeOptions
+    );
+
+    updateProgrammeOptions();
+});
+</script>
 {% endblock %}
