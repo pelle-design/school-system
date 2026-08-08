@@ -7840,36 +7840,161 @@ def bursar_dashboard():
 def bursar_students():
     if not check_permission(['bursar']):
         abort(403)
-
-    search = request.args.get('search','').strip()
-    class_filter = request.args.get('class','').strip()
-
+    
+    # =====================================================
+    # GET FILTERS
+    # =====================================================
+    
+    search = request.args.get(
+        'search',
+        ''
+    ).strip()
+    
+    class_filter = request.args.get(
+        'class',
+        ''
+    ).strip()
+    
+    programme_filter = request.args.get(
+        'programme',
+        ''
+    ).strip()
+    
+    residence_filter = request.args.get(
+        'residence',
+        ''
+    ).strip()
+    
+    
+    # =====================================================
+    # DATABASE
+    # =====================================================
+    
     db = get_db_dict()
     cur = db.cursor()
-
+    
+    
+    # =====================================================
+    # GET STUDENTS
+    # =====================================================
+    
     query = """
-        SELECT student_id, full_name, class, parent_phone,
-               fees_total, fees_paid, fees_balance
+        SELECT
+            student_id,
+            full_name,
+            class,
+            programme,
+            residence,
+            parent_phone,
+            fees_total,
+            fees_paid,
+            fees_balance
         FROM students
         WHERE 1=1
     """
-
+    
     params = []
-
+    
+    
+    # =====================================================
+    # SEARCH
+    # =====================================================
+    
     if search:
-        query += " AND (student_id ILIKE %s OR full_name ILIKE %s)"
+    
+        query += """
+            AND (
+                student_id ILIKE %s
+                OR full_name ILIKE %s
+            )
+        """
+    
         pattern = f"%{search}%"
-        params.extend([pattern, pattern])
-
+    
+        params.extend([
+            pattern,
+            pattern
+        ])
+    
+    
+    # =====================================================
+    # CLASS FILTER
+    #
+    # IMPORTANT:
+    # Streams remain unchanged.
+    #
+    # Example:
+    # S.1A
+    # S.1B
+    # S.3
+    # S.5
+    # S.6
+    # =====================================================
+    
     if class_filter:
-        query += " AND class=%s"
-        params.append(class_filter)
-
-    query += " ORDER BY full_name"
-
-    cur.execute(query, params)
+    
+        query += """
+            AND class=%s
+        """
+    
+        params.append(
+            class_filter
+        )
+    
+    
+    # =====================================================
+    # PROGRAMME FILTER
+    # =====================================================
+    
+    if programme_filter:
+    
+        query += """
+            AND programme=%s
+        """
+    
+        params.append(
+            programme_filter
+        )
+    
+    
+    # =====================================================
+    # RESIDENCE FILTER
+    # =====================================================
+    
+    if residence_filter:
+    
+        query += """
+            AND residence=%s
+        """
+    
+        params.append(
+            residence_filter
+        )
+    
+    
+    # =====================================================
+    # ORDER
+    # =====================================================
+    
+    query += """
+        ORDER BY
+            class,
+            full_name
+    """
+    
+    
+    cur.execute(
+        query,
+        params
+    )
+    
     students = cur.fetchall()
-
+    
+    
+    # =====================================================
+    # GET AVAILABLE CLASSES
+    # =====================================================
+    
     cur.execute("""
         SELECT DISTINCT class
         FROM students
@@ -7877,19 +8002,39 @@ def bursar_students():
         AND class != ''
         ORDER BY class
     """)
-
-    classes = [row['class'] for row in cur.fetchall()]
-
+    
+    classes = [
+        row['class']
+        for row in cur.fetchall()
+    ]
+    
+    
+    # =====================================================
+    # CLOSE DATABASE
+    # =====================================================
+    
     cur.close()
-
+    
+    
+    # =====================================================
+    # RETURN TEMPLATE
+    # =====================================================
+    
     return render_template(
         'bursar/students.html',
+    
         students=students,
+    
         classes=classes,
+    
         search=search,
-        class_filter=class_filter
+    
+        class_filter=class_filter,
+    
+        programme_filter=programme_filter,
+    
+        residence_filter=residence_filter
     )
-
 # =========================================================
 # BURSAR - STUDENT FEE CLASSIFICATION
 # =========================================================
