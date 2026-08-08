@@ -1606,6 +1606,23 @@ def generate_approval_code():
         str(secrets.randbelow(10))
         for _ in range(6)
     )
+
+def generate_secure_token(expiry_hours=2):
+
+    characters = string.ascii_letters + string.digits
+
+    token = ''.join(
+        secrets.choice(characters)
+        for _ in range(32)
+    )
+
+    expires_at = datetime.utcnow() + timedelta(
+        hours=expiry_hours
+    )
+
+    return token, expires_at
+
+
 # ==================== CONTEXT PROCESSORS ====================
 @app.context_processor
 def inject_now():
