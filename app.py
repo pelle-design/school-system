@@ -7674,6 +7674,508 @@ def bursar_students():
         search=search,
         class_filter=class_filter
     )
+
+# =========================================================
+# BURSAR - STUDENT FEE CLASSIFICATION
+# =========================================================
+
+@app.route('/bursar/students/classification')
+def bursar_student_classification():
+
+    if not check_permission(['bursar']):
+        abort(403)
+
+    year = request.args.get(
+        'year',
+        datetime.now().year,
+        type=int
+    )
+
+    term = request.args.get(
+        'term',
+        'Term 1'
+    ).strip()
+
+    search = request.args.get(
+        'search',
+        ''
+    ).strip()
+
+    class_filter = request.args.get(
+        'class',
+        ''
+    ).strip()
+
+    db = get_db_dict()
+    cur = db.cursor()
+
+    # =====================================================
+    # GET STUDENTS
+    # =====================================================
+
+    query = """
+        SELECT
+            student_id,
+            full_name,
+            class,
+            parent_phone,
+            programme,
+            residence,
+            fees_total,
+            fees_paid,
+            fees_balance
+        FROM students
+        WHERE 1=1
+    """
+
+    params = []
+
+    if search:
+
+        query += """
+            AND (
+                student_id ILIKE %s
+                OR full_name ILIKE %s
+            )
+        """
+
+        pattern = f"%{search}%"
+
+        params.extend([
+            pattern,
+            pattern
+        ])
+
+    if class_filter:
+
+        query += """
+            AND class = %s
+        """
+
+        params.append(class_filter)
+
+    query += """
+        ORDER BY
+            class,
+            full_name
+    """
+
+    cur.execute(
+        query,
+        tuple(params)
+    )
+
+    students = cur.fetchall()
+
+    # =====================================================
+    # GET CLASSES
+    # =====================================================
+
+    cur.execute("""
+        SELECT DISTINCT class
+        FROM students
+        WHERE class IS NOT NULL
+        AND class != ''
+        ORDER BY class
+    """)
+
+    classes = [
+        row['class']
+        for row in cur.fetchall()
+    ]
+
+    # =====================================================
+    # GET FEE STRUCTURES
+    # =====================================================
+
+    cur.execute("""
+        SELECT
+            id,
+            level,
+            programme,
+            residence,
+            term,
+            year,
+            amount,
+            description
+        FROM student_fee_structure
+        WHERE term = %s
+        AND year = %s
+        ORDER BY
+            CASE level
+                WHEN 'S.1' THEN 1
+                WHEN 'S.2' THEN 2
+                WHEN 'S.3' THEN 3
+                WHEN 'S.4' THEN 4
+                WHEN 'S.5' THEN 5
+                WHEN 'S.6' THEN 6
+                ELSE 7
+            END,
+            programme,
+            residence
+    """, (
+        term,
+        year
+    ))
+
+    fee_structures = cur.fetchall()
+
+    cur.close()
+
+    return render_template(
+        'bursar/student_classification.html',
+        students=students,
+        classes=classes,
+        fee_structures=fee_structures,
+        year=year,
+        term=term,
+        search=search,
+        class_filter=class_filter
+    )
+
+# =========================================================
+# SAVE STUDENT FEE CLASSIFICATION
+# =========================================================
+
+@app.route(
+    '/bursar/students/classification/update',
+    methods=['POST']
+)
+def bursar_student_classification_update():
+
+    if not check_permission(['bursar']):
+        abort(403)
+
+    student_id = request.form.get(
+        'student_id',
+        ''
+    ).strip()
+
+    programme = request.form.get(
+        'programme',
+        ''
+    ).strip()
+
+    residence = request.form.get(
+        'residence',
+        ''
+    ).strip()
+
+    term = request.form.get(
+        'term',
+        'Term 1'
+    ).strip()
+
+    year = request.form.get(
+        'year',
+        datetime.now().year,
+        type=int
+    )
+
+    if not student_id:
+
+        flash(
+            'Student ID is required.',
+            'danger'
+        )
+
+        return redirect(
+            url_for(
+                'bursar_student_classification',
+                year=year,
+                term=term
+            )
+        )
+
+    # =====================================================
+    # VALIDATE PROGRAMME
+    # =====================================================
+
+    if programme not in [
+        'USE',
+        'Non-USE',
+        'UPOLET',
+        'Non-UPOLET'
+    ]:
+
+        flash(
+            'Invalid programme selected.',
+            'danger'
+        )
+
+        return redirect(
+            url_for(
+                'bursar_student_classification',
+                year=year,
+                term=term
+            )
+        )
+
+    # =====================================================
+    # VALIDATE RESIDENCE
+    # =====================================================
+
+    if residence not in [
+        'Day',
+        'Boarding'
+    ]:
+
+        flash(
+            'Please select Day or Boarding.',
+            'danger'
+        )
+
+        return redirect(
+            url_for(
+                'bursar_student_classification',
+                year=year,
+                term=term
+            )
+        )
+
+    db = get_db_dict()
+    cur = db.cursor()
+
+    try:
+
+        # =================================================
+        # GET STUDENT CLASS
+        # =================================================
+
+        cur.execute("""
+            SELECT
+                student_id,
+                full_name,
+                class
+            FROM students
+            WHERE student_id = %s
+        """, (
+            student_id,
+        ))
+
+        student = cur.fetchone()
+
+        if not student:
+
+            flash(
+                'Student not found.',
+                'danger'
+            )
+
+            cur.close()
+
+            return redirect(
+                url_for(
+                    'bursar_student_classification',
+                    year=year,
+                    term=term
+                )
+            )
+
+        # =================================================
+        # DETERMINE LEVEL FROM CLASS
+        #
+        # S.1A -> S.1
+        # S.1B -> S.1
+        # S.5  -> S.5
+        # S.6  -> S.6
+        # =================================================
+
+        class_name = (
+            student['class'] or ''
+        ).strip().upper()
+
+        match = re.match(
+            r'^(S\.[1-6])',
+            class_name
+        )
+
+        if not match:
+
+            flash(
+                f"Could not determine level from class "
+                f"{class_name}.",
+                'danger'
+            )
+
+            cur.close()
+
+            return redirect(
+                url_for(
+                    'bursar_student_classification',
+                    year=year,
+                    term=term
+                )
+            )
+
+        level = match.group(1)
+
+        # =================================================
+        # CHECK PROGRAMME AGAINST LEVEL
+        #
+        # S.1-S.4 = USE / Non-USE
+        # S.5-S.6 = UPOLET / Non-UPOLET
+        # =================================================
+
+        if level in [
+            'S.1',
+            'S.2',
+            'S.3',
+            'S.4'
+        ]:
+
+            allowed_programmes = [
+                'USE',
+                'Non-USE'
+            ]
+
+        else:
+
+            allowed_programmes = [
+                'UPOLET',
+                'Non-UPOLET'
+            ]
+
+        if programme not in allowed_programmes:
+
+            flash(
+                f'{programme} is not valid for {level}.',
+                'danger'
+            )
+
+            cur.close()
+
+            return redirect(
+                url_for(
+                    'bursar_student_classification',
+                    year=year,
+                    term=term
+                )
+            )
+
+        # =================================================
+        # FIND FEE STRUCTURE
+        # =================================================
+
+        cur.execute("""
+            SELECT
+                amount
+            FROM student_fee_structure
+            WHERE level = %s
+            AND programme = %s
+            AND residence = %s
+            AND term = %s
+            AND year = %s
+        """, (
+            level,
+            programme,
+            residence,
+            term,
+            year
+        ))
+
+        fee_structure = cur.fetchone()
+
+        if not fee_structure:
+
+            flash(
+                f'No fee structure exists for '
+                f'{level} - {programme} - {residence} '
+                f'for {term}, {year}.',
+                'danger'
+            )
+
+            cur.close()
+
+            return redirect(
+                url_for(
+                    'bursar_student_classification',
+                    year=year,
+                    term=term
+                )
+            )
+
+        fees_total = float(
+            fee_structure['amount'] or 0
+        )
+
+        # =================================================
+        # GET EXISTING PAYMENTS
+        # =================================================
+
+        cur.execute("""
+            SELECT
+                COALESCE(
+                    SUM(amount),
+                    0
+                ) AS total_paid
+            FROM payments
+            WHERE student_id = %s
+        """, (
+            student_id,
+        ))
+
+        payment_result = cur.fetchone()
+
+        total_paid = float(
+            payment_result['total_paid'] or 0
+        )
+
+        fees_balance = max(
+            fees_total - total_paid,
+            0
+        )
+
+        # =================================================
+        # UPDATE STUDENT
+        # =================================================
+
+        cur.execute("""
+            UPDATE students
+            SET
+                programme = %s,
+                residence = %s,
+                fees_total = %s,
+                fees_paid = %s,
+                fees_balance = %s
+            WHERE student_id = %s
+        """, (
+            programme,
+            residence,
+            fees_total,
+            total_paid,
+            fees_balance,
+            student_id
+        ))
+
+        db.commit()
+
+        flash(
+            f"Fee classification for "
+            f"{student['full_name']} updated successfully.",
+            'success'
+        )
+
+    except Exception as e:
+
+        db.rollback()
+
+        flash(
+            f'Could not update fee classification: {e}',
+            'danger'
+        )
+
+    finally:
+
+        cur.close()
+
+    return redirect(
+        url_for(
+            'bursar_student_classification',
+            year=year,
+            term=term
+        )
+    )
 @app.route('/bursar/student/<student_id>')
 def bursar_student_detail(student_id):
 
