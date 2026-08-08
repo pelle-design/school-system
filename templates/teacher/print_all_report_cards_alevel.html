@@ -364,9 +364,9 @@ Print All A-Level Report Cards
     </tr>
 
 </table>
-
-
-<!-- COMMENTS AND SIGNATURES SECTION -->
+<!-- =====================================================
+     COMMENTS AND SIGNATURES
+     ===================================================== -->
 
 <div class="row mt-4">
 
@@ -380,10 +380,13 @@ Print All A-Level Report Cards
 
                 <td style="width:70%;vertical-align:top;">
 
-                    <strong>👩‍🏫 Class Teacher's Comment:</strong>
+                    <strong>
+                        👩‍🏫 Class Teacher's Comment:
+                    </strong>
 
                     <div class="comment-box mt-2">
-                        {{ teacher_comment or 'No comment available.' }}
+                        {{ report.teacher_comment
+                        or 'No comment available.' }}
                     </div>
 
                 </td>
@@ -415,10 +418,13 @@ Print All A-Level Report Cards
 
                 <td style="width:70%;vertical-align:top;">
 
-                    <strong>👨‍🎓 Headteacher's Comment:</strong>
+                    <strong>
+                        👨‍🎓 Headteacher's Comment:
+                    </strong>
 
                     <div class="comment-box mt-2">
-                        {{ headteacher_comment or 'No comment available.' }}
+                        {{ report.headteacher_comment
+                        or 'No comment available.' }}
                     </div>
 
                 </td>
@@ -440,7 +446,6 @@ Print All A-Level Report Cards
     </div>
 
 </div>
-
 <!-- =====================================================
      TERM DATES
      ===================================================== -->
