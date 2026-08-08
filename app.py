@@ -284,8 +284,46 @@ def init_db():
             UNIQUE(student_id, subject, term, year)
         )
     """)
-
-
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS fee_payment_requests (
+            id SERIAL PRIMARY KEY,
+    
+            prn VARCHAR(10) NOT NULL UNIQUE,
+    
+            student_id TEXT NOT NULL,
+    
+            amount NUMERIC(12,2) NOT NULL,
+    
+            term TEXT NOT NULL,
+    
+            year INTEGER NOT NULL,
+    
+            payment_status TEXT NOT NULL DEFAULT 'pending',
+    
+            payment_method TEXT,
+    
+            provider_transaction_id TEXT,
+    
+            created_by TEXT,
+    
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+            expires_at TIMESTAMP,
+    
+            paid_at TIMESTAMP,
+    
+            CONSTRAINT fee_payment_requests_student_fk
+                FOREIGN KEY (student_id)
+                REFERENCES students(student_id)
+                ON DELETE CASCADE,
+    
+            CONSTRAINT fee_payment_requests_prn_format
+                CHECK (prn ~ '^[0-9]{10}$'),
+    
+            CONSTRAINT fee_payment_requests_amount_positive
+                CHECK (amount > 0)
+        )
+    """)
     # ATTENDANCE
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS attendance (
@@ -1558,6 +1596,38 @@ def get_user_classes(user_id=None, assignment_type=None):
 
     return [row['class_name'] for row in rows]
 
+def generate_fee_prn():
+    """
+    Generate a random 10-digit fee payment reference.
+    """
+
+    while True:
+
+        prn = ''.join(
+            str(secrets.randbelow(10))
+            for _ in range(10)
+        )
+
+        db = get_db_dict()
+        cur = db.cursor()
+
+        cur.execute(
+            """
+            SELECT 1
+            FROM fee_payment_requests
+            WHERE prn=%s
+            LIMIT 1
+            """,
+            (prn,)
+        )
+
+        exists = cur.fetchone()
+
+        cur.close()
+        db.close()
+
+        if not exists:
+            return prn    
 
 def teacher_has_class_access(user_id, student_class, assignment_type=None):
     """
@@ -9508,6 +9578,176 @@ def bursar_record_payment():
         )
     )
 
+@app.route('/bursar/payment-request/create', methods=['POST'])
+def bursar_create_payment_request():
+
+    if not check_permission(['bursar']):
+        abort(403)
+
+    student_id = request.form.get('student_id', '').strip()
+    amount_raw = request.form.get('amount', '').strip()
+    term = request.form.get('term', 'Term 1').strip()
+    year = request.form.get(
+        'year',
+        datetime.now().year,
+        type=int
+    )
+
+    if not student_id:
+        flash('Student is required.', 'danger')
+        return redirect(url_for('bursar_students'))
+
+    try:
+        amount = float(amount_raw)
+    except (ValueError, TypeError):
+        flash('Invalid payment amount.', 'danger')
+        return redirect(
+            url_for(
+                'bursar_student_detail',
+                student_id=student_id
+            )
+        )
+
+    if amount <= 0:
+        flash(
+            'Payment amount must be greater than zero.',
+            'danger'
+        )
+        return redirect(
+            url_for(
+                'bursar_student_detail',
+                student_id=student_id
+            )
+        )
+
+    db = get_db_dict()
+    cur = db.cursor()
+
+    try:
+
+        # ============================================
+        # GET STUDENT
+        # ============================================
+
+        cur.execute("""
+            SELECT
+                student_id,
+                full_name,
+                fees_balance
+            FROM students
+            WHERE student_id=%s
+        """, (student_id,))
+
+        student = cur.fetchone()
+
+        if not student:
+            flash(
+                'Student not found.',
+                'danger'
+            )
+            return redirect(
+                url_for('bursar_students')
+            )
+
+        balance = float(
+            student['fees_balance'] or 0
+        )
+
+        # ============================================
+        # CHECK BALANCE
+        # ============================================
+
+        if balance <= 0:
+            flash(
+                'This student has no outstanding balance.',
+                'warning'
+            )
+            return redirect(
+                url_for(
+                    'bursar_student_detail',
+                    student_id=student_id
+                )
+            )
+
+        if amount > balance:
+            flash(
+                f'Amount cannot exceed the outstanding balance '
+                f'of UGX {balance:,.2f}.',
+                'danger'
+            )
+            return redirect(
+                url_for(
+                    'bursar_student_detail',
+                    student_id=student_id
+                )
+            )
+
+        # ============================================
+        # GENERATE RANDOM 10-DIGIT PRN
+        # ============================================
+
+        prn = generate_fee_prn()
+
+        # ============================================
+        # SAVE PAYMENT REQUEST
+        # ============================================
+
+        cur.execute("""
+            INSERT INTO fee_payment_requests
+            (
+                prn,
+                student_id,
+                amount,
+                term,
+                year,
+                payment_status,
+                created_by
+            )
+            VALUES
+            (
+                %s,
+                %s,
+                %s,
+                %s,
+                %s,
+                'pending',
+                %s
+            )
+        """, (
+            prn,
+            student_id,
+            amount,
+            term,
+            year,
+            session.get('username')
+        ))
+
+        db.commit()
+
+        flash(
+            f'Payment PRN generated successfully: {prn}',
+            'success'
+        )
+
+    except Exception as e:
+
+        db.rollback()
+
+        flash(
+            f'Unable to generate PRN: {str(e)}',
+            'danger'
+        )
+
+    finally:
+        cur.close()
+        db.close()
+
+    return redirect(
+        url_for(
+            'bursar_student_detail',
+            student_id=student_id
+        )
+    )
 @app.route('/bursar/print_receipts')
 def bursar_print_receipts():
     if not check_permission(['bursar']):
