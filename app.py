@@ -8027,11 +8027,6 @@ def bursar_budget():
 
     db = get_db()
     cur = db.cursor()
-
-    # =====================================================
-    # GET BUDGET CATEGORIES AND ACTUAL EXPENDITURE
-    # =====================================================
-
     cur.execute("""
         SELECT
             bc.id,
@@ -8077,16 +8072,28 @@ def bursar_budget():
     """, (year,))
 
     categories = cur.fetchall()
+    total_allocated = sum(
+        float(item['allocated_amount'] or 0)
+        for item in categories
+    )
 
+    total_spent = sum(
+        float(item['spent'] or 0)
+        for item in categories
+    )
+
+    total_balance = (
+        total_allocated - total_spent
+    )
     cur.close()
-
     return render_template(
         'bursar/budget.html',
         categories=categories,
-        year=year
+        year=year,
+        total_allocated=total_allocated,
+        total_spent=total_spent,
+        total_balance=total_balance
     )
-
-
 # =========================================================
 # BURSAR - ADD BUDGET CATEGORY
 # =========================================================
