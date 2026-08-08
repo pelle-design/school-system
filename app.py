@@ -8208,6 +8208,169 @@ def bursar_budget_add():
             year=year
         ))
 
+@app.route('/bursar/expenditure', methods=['GET'])
+def bursar_expenditure():
+    if not check_permission(['bursar']):
+        abort(403)
+
+    db = get_db()
+    cur = db.cursor()
+
+    # =====================================================
+    # GET BUDGET CATEGORIES
+    # =====================================================
+
+    cur.execute("""
+        SELECT
+            id,
+            code,
+            name,
+            allocated_amount,
+            year
+        FROM budget_categories
+        ORDER BY name
+    """)
+
+    categories = cur.fetchall()
+
+    # =====================================================
+    # GET EXPENDITURES
+    # =====================================================
+
+    cur.execute("""
+        SELECT
+            e.id,
+            e.voucher_no,
+            e.category_id,
+            e.description,
+            e.amount,
+            e.expenditure_date,
+            e.payment_method,
+            e.payee_name,
+            e.payee_phone,
+            e.status,
+            e.recorded_by,
+            e.created_at,
+            bc.code AS category_code,
+            bc.name AS category_name
+        FROM expenditures e
+        LEFT JOIN budget_categories bc
+            ON e.category_id = bc.id
+        ORDER BY e.expenditure_date DESC, e.id DESC
+    """)
+
+    expenditures = cur.fetchall()
+
+    # =====================================================
+    # TOTAL EXPENDITURE
+    # =====================================================
+
+    total_expenditure = sum(
+        float(e['amount'] or 0)
+        for e in expenditures
+    )
+
+    cur.close()
+
+    return render_template(
+        'bursar/expenditure.html',
+        categories=categories,
+        expenditures=expenditures,
+        total_expenditure=total_expenditure
+    )
+
+@app.route('/bursar/expenditure/add', methods=['POST'])
+def bursar_expenditure_add():
+    if not check_permission(['bursar']):
+        abort(403)
+
+    voucher_no = request.form.get('voucher_no', '').strip()
+    category_id = request.form.get('category_id')
+    description = request.form.get('description', '').strip()
+    amount = request.form.get('amount')
+    expenditure_date = request.form.get('expenditure_date')
+    payment_method = request.form.get('payment_method', '').strip()
+    payee_name = request.form.get('payee_name', '').strip()
+    payee_phone = request.form.get('payee_phone', '').strip()
+    status = request.form.get('status', 'Pending').strip()
+
+    if not voucher_no:
+        flash('Voucher number is required.', 'danger')
+        return redirect(url_for('bursar_expenditure'))
+
+    if not category_id:
+        flash('Please select a budget category.', 'danger')
+        return redirect(url_for('bursar_expenditure'))
+
+    if not amount:
+        flash('Expenditure amount is required.', 'danger')
+        return redirect(url_for('bursar_expenditure'))
+
+    try:
+        amount = float(amount)
+
+        if amount <= 0:
+            raise ValueError
+
+    except (ValueError, TypeError):
+        flash('Enter a valid expenditure amount.', 'danger')
+        return redirect(url_for('bursar_expenditure'))
+
+    db = get_db()
+    cur = db.cursor()
+
+    try:
+        cur.execute("""
+            INSERT INTO expenditures (
+                voucher_no,
+                category_id,
+                description,
+                amount,
+                expenditure_date,
+                payment_method,
+                payee_name,
+                payee_phone,
+                status,
+                recorded_by
+            )
+            VALUES (
+                %s, %s, %s, %s, %s,
+                %s, %s, %s, %s, %s
+            )
+        """, (
+            voucher_no,
+            category_id,
+            description,
+            amount,
+            expenditure_date,
+            payment_method,
+            payee_name,
+            payee_phone,
+            status,
+            session.get('user_id')
+        ))
+
+        db.commit()
+
+        flash(
+            'Expenditure recorded successfully.',
+            'success'
+        )
+
+    except Exception as e:
+        db.rollback()
+
+        flash(
+            f'Could not record expenditure: {str(e)}',
+            'danger'
+        )
+
+    finally:
+        cur.close()
+
+    return redirect(
+        url_for('bursar_expenditure')
+    )
 @app.route('/bursar/income_report')
 def bursar_income_report():
 
