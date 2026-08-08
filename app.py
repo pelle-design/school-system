@@ -1703,6 +1703,208 @@ def get_student_level(class_name):
         return match.group(1)
 
     return None
+
+# =========================================================
+# APPLY STUDENT FEE STRUCTURE
+# =========================================================
+
+def apply_student_fee_structure(
+    student_id,
+    term='Term 1',
+    year=None
+):
+
+    if year is None:
+        year = datetime.now().year
+
+    db = get_db_dict()
+    cur = db.cursor()
+
+    try:
+
+        # =================================================
+        # GET STUDENT
+        # =================================================
+
+        cur.execute("""
+            SELECT
+                student_id,
+                class,
+                programme,
+                residence
+            FROM students
+            WHERE student_id = %s
+        """, (
+            student_id,
+        ))
+
+        student = cur.fetchone()
+
+        if not student:
+            return False, 'Student not found.'
+
+        # =================================================
+        # DETERMINE LEVEL
+        # =================================================
+
+        level = get_student_level(
+            student['class']
+        )
+
+        if not level:
+
+            return False, (
+                f"Could not determine level from "
+                f"class {student['class']}."
+            )
+
+        programme = (
+            student['programme'] or ''
+        ).strip()
+
+        residence = (
+            student['residence'] or ''
+        ).strip()
+
+        # =================================================
+        # CHECK PROGRAMME
+        # =================================================
+
+        if level in [
+            'S.1',
+            'S.2',
+            'S.3',
+            'S.4'
+        ]:
+
+            valid_programmes = [
+                'USE',
+                'Non-USE'
+            ]
+
+        else:
+
+            valid_programmes = [
+                'UPOLET',
+                'Non-UPOLET'
+            ]
+
+        if programme not in valid_programmes:
+
+            return False, (
+                f"Invalid or missing programme "
+                f"for {level}."
+            )
+
+        # =================================================
+        # CHECK RESIDENCE
+        # =================================================
+
+        if residence not in [
+            'Day',
+            'Boarding'
+        ]:
+
+            return False, (
+                'Invalid or missing residence.'
+            )
+
+        # =================================================
+        # FIND FEE STRUCTURE
+        # =================================================
+
+        cur.execute("""
+            SELECT
+                amount
+            FROM student_fee_structure
+            WHERE level = %s
+            AND programme = %s
+            AND residence = %s
+            AND term = %s
+            AND year = %s
+        """, (
+            level,
+            programme,
+            residence,
+            term,
+            year
+        ))
+
+        fee = cur.fetchone()
+
+        if not fee:
+
+            return False, (
+                f'No fee structure found for '
+                f'{level} - {programme} - '
+                f'{residence} - {term} - {year}.'
+            )
+
+        fees_total = float(
+            fee['amount'] or 0
+        )
+
+        # =================================================
+        # CALCULATE PAYMENTS
+        # =================================================
+
+        cur.execute("""
+            SELECT
+                COALESCE(
+                    SUM(amount),
+                    0
+                ) AS total_paid
+            FROM payments
+            WHERE student_id = %s
+        """, (
+            student_id,
+        ))
+
+        payment = cur.fetchone()
+
+        fees_paid = float(
+            payment['total_paid'] or 0
+        )
+
+        fees_balance = max(
+            fees_total - fees_paid,
+            0
+        )
+
+        # =================================================
+        # UPDATE STUDENT
+        # =================================================
+
+        cur.execute("""
+            UPDATE students
+            SET
+                fees_total = %s,
+                fees_paid = %s,
+                fees_balance = %s
+            WHERE student_id = %s
+        """, (
+            fees_total,
+            fees_paid,
+            fees_balance,
+            student_id
+        ))
+
+        db.commit()
+
+        return True, (
+            f'Fee structure applied successfully. '
+            f'Total fees: UGX {fees_total:,.2f}'
+        )
+
+    except Exception as e:
+
+        db.rollback()
+
+        return False, str(e)
+
+    finally:
+
+        cur.close()
 # ==================== CONTEXT PROCESSORS ====================
 @app.context_processor
 def inject_now():
@@ -7846,10 +8048,6 @@ def bursar_student_classification():
         class_filter=class_filter
     )
 
-# =========================================================
-# SAVE STUDENT FEE CLASSIFICATION
-# =========================================================
-
 @app.route(
     '/bursar/students/classification/update',
     methods=['POST']
@@ -7885,6 +8083,10 @@ def bursar_student_classification_update():
         type=int
     )
 
+    # =====================================================
+    # BASIC VALIDATION
+    # =====================================================
+
     if not student_id:
 
         flash(
@@ -7899,10 +8101,6 @@ def bursar_student_classification_update():
                 term=term
             )
         )
-
-    # =====================================================
-    # VALIDATE PROGRAMME
-    # =====================================================
 
     if programme not in [
         'USE',
@@ -7923,10 +8121,6 @@ def bursar_student_classification_update():
                 term=term
             )
         )
-
-    # =====================================================
-    # VALIDATE RESIDENCE
-    # =====================================================
 
     if residence not in [
         'Day',
@@ -7952,7 +8146,7 @@ def bursar_student_classification_update():
     try:
 
         # =================================================
-        # GET STUDENT CLASS
+        # GET STUDENT
         # =================================================
 
         cur.execute("""
@@ -7975,8 +8169,6 @@ def bursar_student_classification_update():
                 'danger'
             )
 
-            cur.close()
-
             return redirect(
                 url_for(
                     'bursar_student_classification',
@@ -7986,32 +8178,26 @@ def bursar_student_classification_update():
             )
 
         # =================================================
-        # DETERMINE LEVEL FROM CLASS
+        # DETERMINE LEVEL
         #
         # S.1A -> S.1
         # S.1B -> S.1
+        # S.3A -> S.3
         # S.5  -> S.5
         # S.6  -> S.6
         # =================================================
 
-        class_name = (
-            student['class'] or ''
-        ).strip().upper()
-
-        match = re.match(
-            r'^(S\.[1-6])',
-            class_name
+        level = get_student_level(
+            student['class']
         )
 
-        if not match:
+        if not level:
 
             flash(
-                f"Could not determine level from class "
-                f"{class_name}.",
+                f"Could not determine the level from "
+                f"class {student['class']}.",
                 'danger'
             )
-
-            cur.close()
 
             return redirect(
                 url_for(
@@ -8021,13 +8207,8 @@ def bursar_student_classification_update():
                 )
             )
 
-        level = match.group(1)
-
         # =================================================
-        # CHECK PROGRAMME AGAINST LEVEL
-        #
-        # S.1-S.4 = USE / Non-USE
-        # S.5-S.6 = UPOLET / Non-UPOLET
+        # VALIDATE PROGRAMME AGAINST LEVEL
         # =================================================
 
         if level in [
@@ -8037,27 +8218,25 @@ def bursar_student_classification_update():
             'S.4'
         ]:
 
-            allowed_programmes = [
+            valid_programmes = [
                 'USE',
                 'Non-USE'
             ]
 
         else:
 
-            allowed_programmes = [
+            valid_programmes = [
                 'UPOLET',
                 'Non-UPOLET'
             ]
 
-        if programme not in allowed_programmes:
+        if programme not in valid_programmes:
 
             flash(
                 f'{programme} is not valid for {level}.',
                 'danger'
             )
 
-            cur.close()
-
             return redirect(
                 url_for(
                     'bursar_student_classification',
@@ -8067,120 +8246,65 @@ def bursar_student_classification_update():
             )
 
         # =================================================
-        # FIND FEE STRUCTURE
-        # =================================================
-
-        cur.execute("""
-            SELECT
-                amount
-            FROM student_fee_structure
-            WHERE level = %s
-            AND programme = %s
-            AND residence = %s
-            AND term = %s
-            AND year = %s
-        """, (
-            level,
-            programme,
-            residence,
-            term,
-            year
-        ))
-
-        fee_structure = cur.fetchone()
-
-        if not fee_structure:
-
-            flash(
-                f'No fee structure exists for '
-                f'{level} - {programme} - {residence} '
-                f'for {term}, {year}.',
-                'danger'
-            )
-
-            cur.close()
-
-            return redirect(
-                url_for(
-                    'bursar_student_classification',
-                    year=year,
-                    term=term
-                )
-            )
-
-        fees_total = float(
-            fee_structure['amount'] or 0
-        )
-
-        # =================================================
-        # GET EXISTING PAYMENTS
-        # =================================================
-
-        cur.execute("""
-            SELECT
-                COALESCE(
-                    SUM(amount),
-                    0
-                ) AS total_paid
-            FROM payments
-            WHERE student_id = %s
-        """, (
-            student_id,
-        ))
-
-        payment_result = cur.fetchone()
-
-        total_paid = float(
-            payment_result['total_paid'] or 0
-        )
-
-        fees_balance = max(
-            fees_total - total_paid,
-            0
-        )
-
-        # =================================================
-        # UPDATE STUDENT
+        # SAVE PROGRAMME + RESIDENCE
         # =================================================
 
         cur.execute("""
             UPDATE students
             SET
                 programme = %s,
-                residence = %s,
-                fees_total = %s,
-                fees_paid = %s,
-                fees_balance = %s
+                residence = %s
             WHERE student_id = %s
         """, (
             programme,
             residence,
-            fees_total,
-            total_paid,
-            fees_balance,
             student_id
         ))
 
         db.commit()
-
-        flash(
-            f"Fee classification for "
-            f"{student['full_name']} updated successfully.",
-            'success'
-        )
 
     except Exception as e:
 
         db.rollback()
 
         flash(
-            f'Could not update fee classification: {e}',
+            f'Could not save student classification: {e}',
             'danger'
+        )
+
+        cur.close()
+
+        return redirect(
+            url_for(
+                'bursar_student_classification',
+                year=year,
+                term=term
+            )
         )
 
     finally:
 
         cur.close()
+    success, message = apply_student_fee_structure(
+        student_id,
+        term,
+        year
+    )
+
+    if success:
+
+        flash(
+            f"{student['full_name']}: {message}",
+            'success'
+        )
+
+    else:
+
+        flash(
+            f"Classification saved, but fee structure "
+            f"could not be applied: {message}",
+            'warning'
+        )
 
     return redirect(
         url_for(
@@ -8189,6 +8313,8 @@ def bursar_student_classification_update():
             term=term
         )
     )
+
+
 @app.route('/bursar/student/<student_id>')
 def bursar_student_detail(student_id):
 
@@ -8208,16 +8334,21 @@ def bursar_student_detail(student_id):
             full_name,
             class,
             parent_phone,
+            programme,
+            residence,
             fees_total,
             fees_paid,
             fees_balance
         FROM students
         WHERE student_id=%s
-    """, (student_id,))
+    """, (
+        student_id,
+    ))
 
     student = cur.fetchone()
 
     if not student:
+
         cur.close()
 
         flash(
@@ -8244,13 +8375,17 @@ def bursar_student_detail(student_id):
             notes
         FROM payments
         WHERE student_id=%s
-        ORDER BY payment_date DESC, id DESC
-    """, (student_id,))
+        ORDER BY
+            payment_date DESC,
+            id DESC
+    """, (
+        student_id,
+    ))
 
     payments = cur.fetchall()
 
     # =====================================================
-    # CALCULATE TOTAL PAID
+    # CALCULATE TOTAL PAID FROM PAYMENT RECORDS
     # =====================================================
 
     total_paid = sum(
@@ -8259,63 +8394,119 @@ def bursar_student_detail(student_id):
     )
 
     # =====================================================
-    # DETERMINE LEVEL
+    # DETERMINE STUDENT LEVEL
+    #
+    # Students may be stored as:
+    #
+    # S.1A
+    # S.1B
+    # S.3A
+    #
+    # or as:
+    #
+    # S.3
+    # S.5
+    # S.6
     # =====================================================
 
     student_class = (
         student['class'] or ''
     ).strip().upper()
 
-    if student_class in [
-        'S.1', 'S.2', 'S.3', 'S.4'
-    ]:
+    level = student_class
 
-        level = student_class
+    # -----------------------------------------------------
+    # STREAMED O-LEVEL STUDENT
+    #
+    # S.1A -> S.1
+    # S.2B -> S.2
+    # -----------------------------------------------------
+
+    match = re.match(
+        r'^(S\.[1-6])',
+        student_class
+    )
+
+    if match:
+
+        level = match.group(1)
+
+    # =====================================================
+    # PROGRAMME OPTIONS
+    # =====================================================
+
+    if level in [
+        'S.1',
+        'S.2',
+        'S.3',
+        'S.4'
+    ]:
 
         programme_options = [
             'USE',
             'Non-USE'
         ]
 
-        programme_label = 'Programme'
-
-    elif student_class in [
-        'S.5', 'S.6'
+    elif level in [
+        'S.5',
+        'S.6'
     ]:
-
-        level = student_class
 
         programme_options = [
             'UPOLET',
             'Non-UPOLET'
         ]
 
-        programme_label = 'Programme'
-
     else:
-
-        level = student_class
 
         programme_options = []
 
-        programme_label = 'Programme'
+    programme_label = 'Programme'
 
     # =====================================================
-    # GET SELECTED FEE PARAMETERS
+    # GET SAVED CLASSIFICATION
+    # =====================================================
+
+    selected_programme = (
+        student['programme']
+        or ''
+    ).strip()
+
+    selected_residence = (
+        student['residence']
+        or ''
+    ).strip()
+
+    # =====================================================
+    # ALLOW URL VALUES TO OVERRIDE
     #
-    # These come from query parameters after the bursar
-    # selects the student's programme/residence.
+    # This allows the bursar to preview another
+    # classification if needed.
     # =====================================================
 
-    selected_programme = request.args.get(
-        'programme',
-        ''
-    ).strip()
+    url_programme = request.args.get(
+        'programme'
+    )
 
-    selected_residence = request.args.get(
-        'residence',
-        ''
-    ).strip()
+    url_residence = request.args.get(
+        'residence'
+    )
+
+    if url_programme:
+
+        selected_programme = (
+            url_programme.strip()
+        )
+
+    if url_residence:
+
+        selected_residence = (
+            url_residence.strip()
+        )
+
+    # =====================================================
+    # TERM AND YEAR
+    # =====================================================
 
     selected_term = request.args.get(
         'term',
@@ -8328,12 +8519,13 @@ def bursar_student_detail(student_id):
         type=int
     )
 
+    # =====================================================
+    # GET APPLICABLE FEE STRUCTURE
+    # =====================================================
+
     applicable_fee = None
     fee_description = None
-
-    # =====================================================
-    # LOOK UP APPLICABLE FEE
-    # =====================================================
+    fee_structure_id = None
 
     if (
         selected_programme
@@ -8365,46 +8557,90 @@ def bursar_student_detail(student_id):
 
         if fee_record:
 
+            fee_structure_id = fee_record['id']
+
             applicable_fee = float(
                 fee_record['amount'] or 0
             )
 
             fee_description = (
                 fee_record['description']
+                or ''
             )
 
     # =====================================================
-    # CALCULATE BALANCE
-    # =====================================================
-
-    if applicable_fee is not None:
-
-        fees_balance = max(
-            applicable_fee - total_paid,
-            0
-        )
-
-    else:
-
-        fees_balance = 0
-
-    # =====================================================
-    # EXISTING STORED VALUES
-    #
-    # Used only as fallback/display until a fee structure
-    # has been selected.
+    # STORED STUDENT FEE TOTAL
     # =====================================================
 
     stored_fees_total = float(
         student['fees_total'] or 0
     )
 
-    stored_fees_balance = max(
-        stored_fees_total - total_paid,
+    # =====================================================
+    # DETERMINE EFFECTIVE FEE TOTAL
+    #
+    # If a matching fee structure exists, use it.
+    # Otherwise use student's stored fees_total.
+    # =====================================================
+
+    if applicable_fee is not None:
+
+        fees_total = applicable_fee
+
+    else:
+
+        fees_total = stored_fees_total
+
+    # =====================================================
+    # CALCULATE BALANCE
+    # =====================================================
+
+    fees_balance = max(
+        fees_total - total_paid,
         0
     )
 
+    # =====================================================
+    # KEEP STUDENT FEE FIGURES SYNCHRONIZED
+    #
+    # Only update when the calculated values differ.
+    # =====================================================
+
+    if (
+        abs(stored_fees_total - fees_total) > 0.001
+        or
+        abs(
+            float(student['fees_paid'] or 0)
+            - total_paid
+        ) > 0.001
+        or
+        abs(
+            float(student['fees_balance'] or 0)
+            - fees_balance
+        ) > 0.001
+    ):
+
+        cur.execute("""
+            UPDATE students
+            SET
+                fees_total=%s,
+                fees_paid=%s,
+                fees_balance=%s
+            WHERE student_id=%s
+        """, (
+            fees_total,
+            total_paid,
+            fees_balance,
+            student_id
+        ))
+
+        db.commit()
+
     cur.close()
+
+    # =====================================================
+    # RETURN TEMPLATE
+    # =====================================================
 
     return render_template(
         'bursar/student_detail.html',
@@ -8415,21 +8651,15 @@ def bursar_student_detail(student_id):
 
         total_paid=total_paid,
 
-        fees_total=(
-            applicable_fee
-            if applicable_fee is not None
-            else stored_fees_total
-        ),
+        fees_total=fees_total,
 
-        fees_balance=(
-            fees_balance
-            if applicable_fee is not None
-            else stored_fees_balance
-        ),
+        fees_balance=fees_balance,
 
         applicable_fee=applicable_fee,
 
         fee_description=fee_description,
+
+        fee_structure_id=fee_structure_id,
 
         level=level,
 
@@ -8445,6 +8675,7 @@ def bursar_student_detail(student_id):
 
         selected_year=selected_year
     )
+
 
 @app.route(
     '/bursar/student/<student_id>/fee-details',
@@ -8828,65 +9059,321 @@ def bursar_fees_delete(fee_id):
 
 @app.route('/bursar/record_payment', methods=['POST'])
 def bursar_record_payment():
+
     if not check_permission(['bursar']):
         abort(403)
 
-    student_id = request.form['student_id']
-    amount = float(request.form['amount'])
-    payment_method = request.form.get('payment_method', 'Cash')
-    notes = request.form.get('notes', '')
-    receipt_no = generate_receipt_number()
+    # =====================================================
+    # GET FORM DATA
+    # =====================================================
+
+    student_id = request.form.get(
+        'student_id',
+        ''
+    ).strip()
+
+    amount_raw = request.form.get(
+        'amount',
+        ''
+    ).strip()
+
+    payment_method = request.form.get(
+        'payment_method',
+        'Cash'
+    ).strip()
+
+    notes = request.form.get(
+        'notes',
+        ''
+    ).strip()
+
+    # =====================================================
+    # VALIDATE STUDENT ID
+    # =====================================================
+
+    if not student_id:
+
+        flash(
+            'Student ID is required.',
+            'danger'
+        )
+
+        return redirect(
+            url_for('bursar_students')
+        )
+
+    # =====================================================
+    # VALIDATE PAYMENT AMOUNT
+    # =====================================================
+
+    try:
+
+        amount = float(amount_raw)
+
+        if amount <= 0:
+            raise ValueError
+
+    except (ValueError, TypeError):
+
+        flash(
+            'Enter a valid payment amount greater than zero.',
+            'danger'
+        )
+
+        return redirect(
+            url_for(
+                'bursar_student_detail',
+                student_id=student_id
+            )
+        )
 
     db = get_db_dict()
     cur = db.cursor()
 
-    cur.execute("""
-        SELECT full_name, parent_phone, fees_paid, fees_balance
-        FROM students
-        WHERE student_id=%s
-    """, (student_id,))
-    student = cur.fetchone()
+    try:
 
-    if not student:
-        flash('Student not found.', 'danger')
-        return redirect(url_for('bursar_students'))
+        # =================================================
+        # GET STUDENT
+        # =================================================
 
-    cur.execute("""
-        INSERT INTO payments
-        (student_id, amount, payment_date, receipt_no,
-         payment_method, notes, recorded_by)
-        VALUES (%s, %s, CURRENT_DATE, %s, %s, %s, %s)
-    """, (
-        student_id,
-        amount,
-        receipt_no,
-        payment_method,
-        notes,
-        session.get('username')
-    ))
+        cur.execute("""
+            SELECT
+                student_id,
+                full_name,
+                parent_phone,
+                COALESCE(fees_total, 0) AS fees_total
+            FROM students
+            WHERE student_id=%s
+            FOR UPDATE
+        """, (
+            student_id,
+        ))
 
-    new_paid = student['fees_paid'] + amount
-    new_balance = student['fees_balance'] - amount
+        student = cur.fetchone()
 
-    cur.execute("""
-        UPDATE students
-        SET fees_paid=%s, fees_balance=%s
-        WHERE student_id=%s
-    """, (new_paid, new_balance, student_id))
+        if not student:
 
-    db.commit()
-    cur.close()
+            flash(
+                'Student not found.',
+                'danger'
+            )
 
-    if student['parent_phone']:
-        send_fee_sms(
-            student['parent_phone'],
-            student['full_name'],
-            amount,
-            new_balance
+            return redirect(
+                url_for('bursar_students')
+            )
+
+        # =================================================
+        # GET CURRENT TOTAL OF PAYMENT RECORDS
+        #
+        # This becomes the source of truth.
+        # =================================================
+
+        cur.execute("""
+            SELECT
+                COALESCE(
+                    SUM(amount),
+                    0
+                ) AS total_paid
+            FROM payments
+            WHERE student_id=%s
+        """, (
+            student_id,
+        ))
+
+        payment_summary = cur.fetchone()
+
+        current_paid = float(
+            payment_summary['total_paid'] or 0
         )
 
-    flash(f'Payment recorded. Receipt: {receipt_no}', 'success')
-    return redirect(url_for('bursar_student_detail', student_id=student_id))
+        # =================================================
+        # CHECK PAYMENT AGAINST FEES
+        # =================================================
+
+        fees_total = float(
+            student['fees_total'] or 0
+        )
+
+        new_paid = current_paid + amount
+
+        # Prevent accidental overpayment
+        if new_paid > fees_total:
+
+            maximum_payment = max(
+                fees_total - current_paid,
+                0
+            )
+
+            flash(
+                f'Payment exceeds the remaining balance. '
+                f'Maximum amount that can be paid is '
+                f'UGX {maximum_payment:,.2f}.',
+                'danger'
+            )
+
+            return redirect(
+                url_for(
+                    'bursar_student_detail',
+                    student_id=student_id
+                )
+            )
+
+        # =================================================
+        # GENERATE RECEIPT NUMBER
+        # =================================================
+
+        receipt_no = generate_receipt_number()
+
+        # =================================================
+        # INSERT PAYMENT
+        # =================================================
+
+        cur.execute("""
+            INSERT INTO payments
+            (
+                student_id,
+                amount,
+                payment_date,
+                receipt_no,
+                payment_method,
+                notes,
+                recorded_by
+            )
+            VALUES
+            (
+                %s,
+                %s,
+                CURRENT_DATE,
+                %s,
+                %s,
+                %s,
+                %s
+            )
+        """, (
+            student_id,
+            amount,
+            receipt_no,
+            payment_method,
+            notes,
+            session.get('username')
+        ))
+
+        # =================================================
+        # RECALCULATE TOTAL PAID FROM PAYMENT RECORDS
+        #
+        # We do this AFTER inserting the payment.
+        # =================================================
+
+        cur.execute("""
+            SELECT
+                COALESCE(
+                    SUM(amount),
+                    0
+                ) AS total_paid
+            FROM payments
+            WHERE student_id=%s
+        """, (
+            student_id,
+        ))
+
+        payment_summary = cur.fetchone()
+
+        total_paid = float(
+            payment_summary['total_paid'] or 0
+        )
+
+        # =================================================
+        # CALCULATE BALANCE
+        # =================================================
+
+        fees_balance = max(
+            fees_total - total_paid,
+            0
+        )
+
+        # =================================================
+        # UPDATE STUDENT FEE FIGURES
+        # =================================================
+
+        cur.execute("""
+            UPDATE students
+            SET
+                fees_paid=%s,
+                fees_balance=%s
+            WHERE student_id=%s
+        """, (
+            total_paid,
+            fees_balance,
+            student_id
+        ))
+
+        # =================================================
+        # COMMIT EVERYTHING TOGETHER
+        # =================================================
+
+        db.commit()
+
+    except Exception as e:
+
+        db.rollback()
+
+        flash(
+            f'Could not record payment: {str(e)}',
+            'danger'
+        )
+
+        return redirect(
+            url_for(
+                'bursar_student_detail',
+                student_id=student_id
+            )
+        )
+
+    finally:
+
+        cur.close()
+
+    # =====================================================
+    # SEND SMS AFTER SUCCESSFUL COMMIT
+    # =====================================================
+
+    if student['parent_phone']:
+
+        try:
+
+            send_fee_sms(
+                student['parent_phone'],
+                student['full_name'],
+                amount,
+                fees_balance
+            )
+
+        except Exception as e:
+
+            # Payment has already been successfully saved.
+            # SMS failure should not undo the payment.
+
+            print(
+                f"Fee SMS failed: {str(e)}"
+            )
+
+    # =====================================================
+    # SUCCESS MESSAGE
+    # =====================================================
+
+    flash(
+        f'Payment recorded successfully. '
+        f'Receipt: {receipt_no}. '
+        f'New balance: UGX {fees_balance:,.2f}',
+        'success'
+    )
+
+    return redirect(
+        url_for(
+            'bursar_student_detail',
+            student_id=student_id
+        )
+    )
 
 @app.route('/bursar/print_receipts')
 def bursar_print_receipts():
