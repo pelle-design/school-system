@@ -121,6 +121,10 @@
 
             {% elif session.role == 'bursar' %}
                 <a href="{{ url_for('bursar_students') }}"><i class="fas fa-users"></i> Fee Management</a>
+                <a href="{{ url_for('bursar_fees') }}">
+                    <i class="fas fa-money-bill-wave"></i>
+                    Student Fees
+                </a>
                 <div class="dropdown-menu-item">
                     <a href="#" onclick="toggleDropdown(this); return false;">
                         <i class="fas fa-user-tie"></i> Staff Payroll
