@@ -1,4 +1,4 @@
-```html
+
 {% extends "base.html" %}
 
 {% block title %}
@@ -457,171 +457,163 @@ Fee Details - {{ student.full_name }}
     </div>
 
     {% endif %}
-
-
-
     <!-- =========================================================
-         GENERATE PAYMENT REQUEST / PRN
+         GENERATE PAYMENT PRN
          ========================================================= -->
-
-    <div class="card shadow mb-3">
-
+    
+    <div class="card shadow mt-4">
+    
         <div class="card-header bg-dark text-white">
-
-            <i class="fas fa-barcode"></i>
+            <i class="fas fa-receipt"></i>
             Generate School Fees PRN
-
         </div>
-
-
+    
         <div class="card-body">
-
-            {% if fees_balance > 0 %}
-
-            <div class="alert alert-info">
-
-                <i class="fas fa-info-circle"></i>
-
+    
+            <p class="text-muted">
                 Generate a unique 10-digit PRN for this student's
-                outstanding school fees.
-
-                The PRN can later be used for payment through the
-                configured payment providers.
-
-            </div>
-
-
+                school fees payment. The PRN can later be used by
+                the parent/student to make payment through the
+                connected payment providers.
+            </p>
+    
             <form
                 method="POST"
                 action="{{ url_for(
-                    'bursar_generate_fee_prn'
+                    'bursar_generate_fee_prn',
+                    student_id=student.student_id
                 ) }}"
             >
-
-                <input
-                    type="hidden"
-                    name="student_id"
-                    value="{{ student.student_id }}"
-                >
-
-                <input
-                    type="hidden"
-                    name="term"
-                    value="{{ selected_term }}"
-                >
-
-                <input
-                    type="hidden"
-                    name="year"
-                    value="{{ selected_year }}"
-                >
-
-
-                <div class="row align-items-end">
-
-                    <div class="col-md-5 mb-3">
-
+    
+                <div class="row">
+    
+                    <!-- AMOUNT -->
+    
+                    <div class="col-md-4 mb-3">
+    
                         <label class="form-label">
-                            <strong>Amount to Pay</strong>
+                            <strong>Amount (UGX)</strong>
                         </label>
-
+    
                         <input
                             type="number"
                             name="amount"
                             class="form-control"
-                            step="0.01"
                             min="1"
-                            max="{{ fees_balance }}"
-                            value="{{ fees_balance }}"
+                            max="{{ fees_balance if fees_balance > 0 else '' }}"
+                            step="0.01"
                             required
                         >
-
+    
                         <small class="text-muted">
-                            Maximum:
-                            UGX
-                            {{
-                                "{:,.2f}".format(
-                                    fees_balance or 0
-                                )
-                            }}
+                            Outstanding balance:
+                            UGX {{ "{:,.2f}".format(fees_balance or 0) }}
                         </small>
-
+    
                     </div>
-
-
-                    <div class="col-md-4 mb-3">
-
-                        <label class="form-label">
-                            <strong>Payment Method</strong>
-                        </label>
-
-                        <select
-                            name="payment_method"
-                            class="form-select"
-                        >
-
-                            <option value="">
-                                -- Select Payment Method --
-                            </option>
-
-                            <option value="MTN Mobile Money">
-                                MTN Mobile Money
-                            </option>
-
-                            <option value="Airtel Money">
-                                Airtel Money
-                            </option>
-
-                            <option value="Centenary Bank">
-                                Centenary Bank
-                            </option>
-
-                            <option value="Stanbic Bank">
-                                Stanbic Bank
-                            </option>
-
-                        </select>
-
-                    </div>
-
-
+    
+    
+                    <!-- TERM -->
+    
                     <div class="col-md-3 mb-3">
-
+    
+                        <label class="form-label">
+                            <strong>Term</strong>
+                        </label>
+    
+                        <select
+                            name="term"
+                            class="form-select"
+                            required
+                        >
+    
+                            <option value="Term 1"
+                                {% if selected_term == 'Term 1' %}
+                                    selected
+                                {% endif %}>
+                                Term 1
+                            </option>
+    
+                            <option value="Term 2"
+                                {% if selected_term == 'Term 2' %}
+                                    selected
+                                {% endif %}>
+                                Term 2
+                            </option>
+    
+                            <option value="Term 3"
+                                {% if selected_term == 'Term 3' %}
+                                    selected
+                                {% endif %}>
+                                Term 3
+                            </option>
+    
+                        </select>
+    
+                    </div>
+    
+    
+                    <!-- YEAR -->
+    
+                    <div class="col-md-3 mb-3">
+    
+                        <label class="form-label">
+                            <strong>Year</strong>
+                        </label>
+    
+                        <input
+                            type="number"
+                            name="year"
+                            class="form-control"
+                            value="{{ selected_year }}"
+                            min="2020"
+                            max="2100"
+                            required
+                        >
+    
+                    </div>
+    
+    
+                    <!-- BUTTON -->
+    
+                    <div class="col-md-2 mb-3 d-flex align-items-end">
+    
                         <button
                             type="submit"
                             class="btn btn-dark w-100"
+                            {% if fees_balance <= 0 %}
+                                disabled
+                            {% endif %}
                         >
-
-                            <i class="fas fa-barcode"></i>
-
+    
+                            <i class="fas fa-qrcode"></i>
                             Generate PRN
-
+    
                         </button>
-
+    
                     </div>
-
+    
                 </div>
-
+    
             </form>
-
-            {% else %}
-
-            <div class="alert alert-success mb-0">
-
-                <i class="fas fa-check-circle"></i>
-
-                This student has no outstanding balance.
-                A new PRN cannot be generated.
-
-            </div>
-
+    
+    
+            {% if fees_balance <= 0 %}
+    
+                <div class="alert alert-success mt-3 mb-0">
+    
+                    <i class="fas fa-check-circle"></i>
+    
+                    This student has no outstanding balance.
+                    A new PRN cannot be generated.
+    
+                </div>
+    
             {% endif %}
-
+    
         </div>
-
+    
     </div>
-
-
 
     <!-- =========================================================
          EXISTING PAYMENT REQUESTS / PRNs
