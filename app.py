@@ -7620,8 +7620,21 @@ def bursar_generate_payroll():
     if not check_permission(['bursar']):
         abort(403)
     if request.method=='POST':
-        month_year=request.form['month_year']
-        selected_staff=request.form.getlist('staff_ids')
+        month_year_input = request.form['month_year']
+        selected_staff = request.form.getlist('staff_ids')
+        try:
+            month_year = datetime.strptime(
+                month_year_input,
+                '%Y-%m'
+            ).date().replace(day=1)
+        except (ValueError, TypeError):
+            flash(
+                'Invalid payroll month. Please select a valid month.',
+                'danger'
+            )
+            return redirect(
+                url_for('bursar_generate_payroll')
+            )
         if not selected_staff:
             flash('No staff selected.','danger')
             return redirect(url_for('bursar_generate_payroll'))
