@@ -7330,7 +7330,14 @@ def bursar_student_detail(student_id):
     # =====================================================
 
     cur.execute("""
-        SELECT *
+        SELECT
+            id,
+            receipt_no,
+            amount,
+            payment_date,
+            payment_method,
+            recorded_by,
+            notes
         FROM payments
         WHERE student_id=%s
         ORDER BY payment_date DESC, id DESC
@@ -7339,7 +7346,7 @@ def bursar_student_detail(student_id):
     payments = cur.fetchall()
 
     # =====================================================
-    # CALCULATE TOTAL PAID FROM PAYMENT RECORDS
+    # CALCULATE TOTAL PAID
     # =====================================================
 
     total_paid = sum(
@@ -7348,15 +7355,148 @@ def bursar_student_detail(student_id):
     )
 
     # =====================================================
-    # USE STUDENT STORED FEE TOTAL
+    # DETERMINE LEVEL
     # =====================================================
 
-    fees_total = float(
+    student_class = (
+        student['class'] or ''
+    ).strip().upper()
+
+    if student_class in [
+        'S.1', 'S.2', 'S.3', 'S.4'
+    ]:
+
+        level = student_class
+
+        programme_options = [
+            'USE',
+            'Non-USE'
+        ]
+
+        programme_label = 'Programme'
+
+    elif student_class in [
+        'S.5', 'S.6'
+    ]:
+
+        level = student_class
+
+        programme_options = [
+            'UPOLET',
+            'Non-UPOLET'
+        ]
+
+        programme_label = 'Programme'
+
+    else:
+
+        level = student_class
+
+        programme_options = []
+
+        programme_label = 'Programme'
+
+    # =====================================================
+    # GET SELECTED FEE PARAMETERS
+    #
+    # These come from query parameters after the bursar
+    # selects the student's programme/residence.
+    # =====================================================
+
+    selected_programme = request.args.get(
+        'programme',
+        ''
+    ).strip()
+
+    selected_residence = request.args.get(
+        'residence',
+        ''
+    ).strip()
+
+    selected_term = request.args.get(
+        'term',
+        'Term 1'
+    ).strip()
+
+    selected_year = request.args.get(
+        'year',
+        datetime.now().year,
+        type=int
+    )
+
+    applicable_fee = None
+    fee_description = None
+
+    # =====================================================
+    # LOOK UP APPLICABLE FEE
+    # =====================================================
+
+    if (
+        selected_programme
+        and selected_residence
+        and level
+    ):
+
+        cur.execute("""
+            SELECT
+                id,
+                amount,
+                description
+            FROM student_fee_structure
+            WHERE level=%s
+            AND programme=%s
+            AND residence=%s
+            AND term=%s
+            AND year=%s
+            LIMIT 1
+        """, (
+            level,
+            selected_programme,
+            selected_residence,
+            selected_term,
+            selected_year
+        ))
+
+        fee_record = cur.fetchone()
+
+        if fee_record:
+
+            applicable_fee = float(
+                fee_record['amount'] or 0
+            )
+
+            fee_description = (
+                fee_record['description']
+            )
+
+    # =====================================================
+    # CALCULATE BALANCE
+    # =====================================================
+
+    if applicable_fee is not None:
+
+        fees_balance = max(
+            applicable_fee - total_paid,
+            0
+        )
+
+    else:
+
+        fees_balance = 0
+
+    # =====================================================
+    # EXISTING STORED VALUES
+    #
+    # Used only as fallback/display until a fee structure
+    # has been selected.
+    # =====================================================
+
+    stored_fees_total = float(
         student['fees_total'] or 0
     )
 
-    fees_balance = max(
-        fees_total - total_paid,
+    stored_fees_balance = max(
+        stored_fees_total - total_paid,
         0
     )
 
@@ -7364,12 +7504,116 @@ def bursar_student_detail(student_id):
 
     return render_template(
         'bursar/student_detail.html',
+
         student=student,
+
         payments=payments,
-        fees_total=fees_total,
+
         total_paid=total_paid,
-        fees_balance=fees_balance
+
+        fees_total=(
+            applicable_fee
+            if applicable_fee is not None
+            else stored_fees_total
+        ),
+
+        fees_balance=(
+            fees_balance
+            if applicable_fee is not None
+            else stored_fees_balance
+        ),
+
+        applicable_fee=applicable_fee,
+
+        fee_description=fee_description,
+
+        level=level,
+
+        programme_options=programme_options,
+
+        programme_label=programme_label,
+
+        selected_programme=selected_programme,
+
+        selected_residence=selected_residence,
+
+        selected_term=selected_term,
+
+        selected_year=selected_year
     )
+
+@app.route(
+    '/bursar/student/<student_id>/fee-details',
+    methods=['POST']
+)
+def bursar_student_fee_details(student_id):
+
+    if not check_permission(['bursar']):
+        abort(403)
+
+    programme = request.form.get(
+        'programme',
+        ''
+    ).strip()
+
+    residence = request.form.get(
+        'residence',
+        ''
+    ).strip()
+
+    term = request.form.get(
+        'term',
+        'Term 1'
+    ).strip()
+
+    year = request.form.get(
+        'year',
+        datetime.now().year,
+        type=int
+    )
+
+    if not programme:
+
+        flash(
+            'Please select the programme.',
+            'danger'
+        )
+
+        return redirect(
+            url_for(
+                'bursar_student_detail',
+                student_id=student_id
+            )
+        )
+
+    if residence not in [
+        'Day',
+        'Boarding'
+    ]:
+
+        flash(
+            'Please select Day or Boarding.',
+            'danger'
+        )
+
+        return redirect(
+            url_for(
+                'bursar_student_detail',
+                student_id=student_id
+            )
+        )
+
+    return redirect(
+        url_for(
+            'bursar_student_detail',
+            student_id=student_id,
+            programme=programme,
+            residence=residence,
+            term=term,
+            year=year
+        )
+    )
+
 
 @app.route('/bursar/fees')
 def bursar_fees():
