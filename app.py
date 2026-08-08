@@ -9741,6 +9741,189 @@ def bursar_create_payment_request():
         )
     )
 
+@app.route('/bursar/student/<student_id>/generate_prn', methods=['POST'])
+def bursar_generate_fee_prn(student_id):
+
+    if not check_permission(['bursar']):
+        abort(403)
+
+    db = get_db_dict()
+    cur = db.cursor()
+
+    # Get student
+    cur.execute("""
+        SELECT
+            student_id,
+            full_name,
+            fees_balance
+        FROM students
+        WHERE student_id=%s
+    """, (student_id,))
+
+    student = cur.fetchone()
+
+    if not student:
+        cur.close()
+        flash('Student not found.', 'danger')
+        return redirect(url_for('bursar_students'))
+
+    # Get submitted details
+    amount_raw = request.form.get('amount', '').strip()
+    term = request.form.get('term', 'Term 1').strip()
+    year = request.form.get(
+        'year',
+        datetime.now().year,
+        type=int
+    )
+
+    if not amount_raw:
+        cur.close()
+        flash('Please enter the amount.', 'danger')
+        return redirect(
+            url_for(
+                'bursar_student_detail',
+                student_id=student_id
+            )
+        )
+
+    try:
+        amount = float(amount_raw)
+    except ValueError:
+        cur.close()
+        flash('Invalid payment amount.', 'danger')
+        return redirect(
+            url_for(
+                'bursar_student_detail',
+                student_id=student_id
+            )
+        )
+
+    if amount <= 0:
+        cur.close()
+        flash('Payment amount must be greater than zero.', 'danger')
+        return redirect(
+            url_for(
+                'bursar_student_detail',
+                student_id=student_id
+            )
+        )
+
+    # Check outstanding balance
+    balance = float(student['fees_balance'] or 0)
+
+    if balance <= 0:
+        cur.close()
+        flash('This student has no outstanding fees.', 'warning')
+        return redirect(
+            url_for(
+                'bursar_student_detail',
+                student_id=student_id
+            )
+        )
+
+    if amount > balance:
+        cur.close()
+        flash(
+            f'Amount cannot exceed the outstanding balance '
+            f'of UGX {balance:,.2f}.',
+            'danger'
+        )
+        return redirect(
+            url_for(
+                'bursar_student_detail',
+                student_id=student_id
+            )
+        )
+
+    prn = None
+
+    for _ in range(20):
+
+        candidate = str(
+            random.randint(
+                1000000000,
+                9999999999
+            )
+        )
+
+        cur.execute("""
+            SELECT id
+            FROM fee_payment_requests
+            WHERE prn=%s
+        """, (candidate,))
+
+        if not cur.fetchone():
+            prn = candidate
+            break
+
+    if not prn:
+        cur.close()
+
+        flash(
+            'Unable to generate a unique PRN. Please try again.',
+            'danger'
+        )
+
+        return redirect(
+            url_for(
+                'bursar_student_detail',
+                student_id=student_id
+            )
+        )
+
+    # =====================================================
+    # CREATE PAYMENT REQUEST
+    # =====================================================
+
+    cur.execute("""
+        INSERT INTO fee_payment_requests
+        (
+            prn,
+            student_id,
+            amount,
+            term,
+            year,
+            payment_status,
+            created_by,
+            created_at
+        )
+        VALUES
+        (
+            %s,
+            %s,
+            %s,
+            %s,
+            %s,
+            'pending',
+            %s,
+            CURRENT_TIMESTAMP
+        )
+        RETURNING id
+    """, (
+        prn,
+        student_id,
+        amount,
+        term,
+        year,
+        session.get('username')
+    ))
+
+    request_id = cur.fetchone()['id']
+
+    db.commit()
+    cur.close()
+
+    flash(
+        f'Payment PRN {prn} generated successfully.',
+        'success'
+    )
+
+    return redirect(
+        url_for(
+            'bursar_fee_prn',
+            request_id=request_id
+        )
+    )
 @app.route('/bursar/payment-request/<int:request_id>/print')
 def bursar_print_payment_prn(request_id):
 
