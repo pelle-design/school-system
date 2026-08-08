@@ -9536,10 +9536,6 @@ def bursar_record_payment():
 
         cur.close()
 
-    # =====================================================
-    # SEND SMS AFTER SUCCESSFUL COMMIT
-    # =====================================================
-
     if student['parent_phone']:
 
         try:
@@ -9559,10 +9555,6 @@ def bursar_record_payment():
             print(
                 f"Fee SMS failed: {str(e)}"
             )
-
-    # =====================================================
-    # SUCCESS MESSAGE
-    # =====================================================
 
     flash(
         f'Payment recorded successfully. '
@@ -9747,6 +9739,79 @@ def bursar_create_payment_request():
             'bursar_student_detail',
             student_id=student_id
         )
+    )
+
+@app.route('/bursar/payment-request/<int:request_id>/print')
+def bursar_print_payment_prn(request_id):
+
+    if not check_permission(['bursar']):
+        abort(403)
+
+    db = get_db_dict()
+    cur = db.cursor()
+
+    cur.execute("""
+        SELECT
+            fpr.id,
+            fpr.prn,
+            fpr.amount,
+            fpr.term,
+            fpr.year,
+            fpr.payment_status,
+            fpr.payment_method,
+            fpr.created_at,
+
+            s.student_id,
+            s.full_name,
+            s.class,
+            s.parent_phone
+
+        FROM fee_payment_requests fpr
+
+        JOIN students s
+            ON s.student_id = fpr.student_id
+
+        WHERE fpr.id=%s
+    """, (request_id,))
+
+    payment_request = cur.fetchone()
+
+    if not payment_request:
+
+        cur.close()
+
+        flash(
+            'Payment request not found.',
+            'danger'
+        )
+
+        return redirect(
+            url_for('bursar_students')
+        )
+
+    # --------------------------------------------
+    # SCHOOL INFORMATION
+    # --------------------------------------------
+
+    cur.execute("""
+        SELECT
+            school_name,
+            school_address,
+            school_phone,
+            school_email,
+            logo_url
+        FROM school_settings
+        WHERE id=1
+    """)
+
+    school = cur.fetchone()
+
+    cur.close()
+
+    return render_template(
+        'bursar/print_payment_prn.html',
+        payment_request=payment_request,
+        school=school
     )
 @app.route('/bursar/print_receipts')
 def bursar_print_receipts():
