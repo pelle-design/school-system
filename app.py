@@ -6314,21 +6314,6 @@ def teacher_edit_student(student_id):
             'disability',
             ''
         )
-
-        parent_email = request.form.get(
-            'parent_email',
-            ''
-        )
-
-        address = request.form.get(
-            'address',
-            ''
-        )
-
-        # =================================================
-        # NEW: PROGRAMME
-        # =================================================
-
         programme = request.form.get(
             'programme',
             ''
@@ -6492,8 +6477,6 @@ def teacher_edit_student(student_id):
                 sex=%s,
                 preferred_house=%s,
                 disability=%s,
-                parent_email=%s,
-                address=%s,
                 photo_path=%s,
                 programme=%s,
                 residence=%s
@@ -6509,8 +6492,6 @@ def teacher_edit_student(student_id):
             sex,
             preferred_house,
             disability,
-            parent_email,
-            address,
             photo_path,
             programme,
             residence,
