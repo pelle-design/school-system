@@ -1622,7 +1622,38 @@ def generate_secure_token(expiry_hours=2):
 
     return token, expires_at
 
+def generate_voucher_no():
+    db = get_db_dict()
+    cur = db.cursor()
 
+    today = datetime.now()
+    prefix = f"EV-{today.strftime('%Y%m')}"
+
+    cur.execute("""
+        SELECT voucher_no
+        FROM expenditures
+        WHERE voucher_no LIKE %s
+        ORDER BY id DESC
+        LIMIT 1
+    """, (f"{prefix}-%",))
+
+    last = cur.fetchone()
+
+    cur.close()
+
+    if last and last.get('voucher_no'):
+        try:
+            last_num = int(
+                last['voucher_no'].split('-')[-1]
+            )
+        except (ValueError, AttributeError):
+            last_num = 0
+    else:
+        last_num = 0
+
+    next_num = last_num + 1
+
+    return f"{prefix}-{next_num:04d}"
 # ==================== CONTEXT PROCESSORS ====================
 @app.context_processor
 def inject_now():
@@ -8344,45 +8375,86 @@ def bursar_expenditure():
 
 @app.route('/bursar/expenditure/add', methods=['POST'])
 def bursar_expenditure_add():
+
     if not check_permission(['bursar']):
         abort(403)
-
-    voucher_no = request.form.get('voucher_no', '').strip()
+    voucher_no = generate_voucher_no()
     category_id = request.form.get('category_id')
-    description = request.form.get('description', '').strip()
-    amount = request.form.get('amount')
-    expenditure_date = request.form.get('expenditure_date')
-    payment_method = request.form.get('payment_method', '').strip()
-    payee_name = request.form.get('payee_name', '').strip()
-    payee_phone = request.form.get('payee_phone', '').strip()
-    status = request.form.get('status', 'Pending').strip()
 
-    if not voucher_no:
-        flash('Voucher number is required.', 'danger')
-        return redirect(url_for('bursar_expenditure'))
+    description = request.form.get(
+        'description',
+        ''
+    ).strip()
+
+    amount = request.form.get('amount')
+
+    expenditure_date = request.form.get(
+        'expenditure_date'
+    )
+
+    payment_method = request.form.get(
+        'payment_method',
+        ''
+    ).strip()
+
+    payee_name = request.form.get(
+        'payee_name',
+        ''
+    ).strip()
+
+    payee_phone = request.form.get(
+        'payee_phone',
+        ''
+    ).strip()
+
+    status = request.form.get(
+        'status',
+        'Pending'
+    ).strip()
 
     if not category_id:
-        flash('Please select a budget category.', 'danger')
-        return redirect(url_for('bursar_expenditure'))
 
+        flash(
+            'Please select a budget category.',
+            'danger'
+        )
+
+        return redirect(
+            url_for('bursar_expenditure')
+        )
     if not amount:
-        flash('Expenditure amount is required.', 'danger')
-        return redirect(url_for('bursar_expenditure'))
+
+        flash(
+            'Expenditure amount is required.',
+            'danger'
+        )
+
+        return redirect(
+            url_for('bursar_expenditure')
+        )
 
     try:
+
         amount = float(amount)
 
         if amount <= 0:
             raise ValueError
 
     except (ValueError, TypeError):
-        flash('Enter a valid expenditure amount.', 'danger')
-        return redirect(url_for('bursar_expenditure'))
 
+        flash(
+            'Enter a valid expenditure amount.',
+            'danger'
+        )
+
+        return redirect(
+            url_for('bursar_expenditure')
+        )
     db = get_db()
     cur = db.cursor()
 
     try:
+
         cur.execute("""
             INSERT INTO expenditures (
                 voucher_no,
@@ -8416,11 +8488,13 @@ def bursar_expenditure_add():
         db.commit()
 
         flash(
-            'Expenditure recorded successfully.',
+            f'Expenditure recorded successfully. '
+            f'Voucher: {voucher_no}',
             'success'
         )
 
     except Exception as e:
+
         db.rollback()
 
         flash(
@@ -8429,6 +8503,7 @@ def bursar_expenditure_add():
         )
 
     finally:
+
         cur.close()
 
     return redirect(
