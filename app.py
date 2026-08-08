@@ -7953,7 +7953,260 @@ def bursar_print_fees_list():
         total_paid=total_paid,
         total_balance=total_balance
     )
+# =========================================================
+# BURSAR - BUDGET MANAGEMENT
+# =========================================================
 
+@app.route('/bursar/budget')
+def bursar_budget():
+
+    if not check_permission(['bursar']):
+        abort(403)
+
+    year = request.args.get(
+        'year',
+        datetime.now().year,
+        type=int
+    )
+
+    db = get_db()
+    cur = db.cursor()
+
+    # =====================================================
+    # GET BUDGET CATEGORIES AND ACTUAL EXPENDITURE
+    # =====================================================
+
+    cur.execute("""
+        SELECT
+            bc.id,
+            bc.code,
+            bc.name,
+            bc.description,
+            bc.allocated_amount,
+            bc.year,
+
+            COALESCE(
+                SUM(
+                    CASE
+                        WHEN e.status IS NULL
+                             OR LOWER(e.status) != 'cancelled'
+                        THEN e.amount
+                        ELSE 0
+                    END
+                ),
+                0
+            ) AS spent
+
+        FROM budget_categories bc
+
+        LEFT JOIN expenditures e
+            ON e.category_id = bc.id
+            AND EXTRACT(
+                YEAR FROM e.expenditure_date
+            ) = bc.year
+
+        WHERE bc.year = %s
+
+        GROUP BY
+            bc.id,
+            bc.code,
+            bc.name,
+            bc.description,
+            bc.allocated_amount,
+            bc.year
+
+        ORDER BY
+            bc.code,
+            bc.name
+    """, (year,))
+
+    categories = cur.fetchall()
+
+    cur.close()
+
+    return render_template(
+        'bursar/budget.html',
+        categories=categories,
+        year=year
+    )
+
+
+# =========================================================
+# BURSAR - ADD BUDGET CATEGORY
+# =========================================================
+
+@app.route('/bursar/budget/add', methods=['POST'])
+def bursar_budget_add():
+
+    if not check_permission(['bursar']):
+        abort(403)
+
+    year = request.form.get(
+        'year',
+        datetime.now().year,
+        type=int
+    )
+
+    code = request.form.get(
+        'code',
+        ''
+    ).strip()
+
+    name = request.form.get(
+        'name',
+        ''
+    ).strip()
+
+    description = request.form.get(
+        'description',
+        ''
+    ).strip()
+
+    allocated_amount = request.form.get(
+        'allocated_amount',
+        '0'
+    ).strip()
+
+    # =====================================================
+    # VALIDATION
+    # =====================================================
+
+    if not code:
+        flash(
+            'Budget category code is required.',
+            'danger'
+        )
+        return redirect(
+            url_for(
+                'bursar_budget',
+                year=year
+            )
+        )
+
+    if not name:
+        flash(
+            'Budget category name is required.',
+            'danger'
+        )
+        return redirect(
+            url_for(
+                'bursar_budget',
+                year=year
+            )
+        )
+
+    try:
+
+        allocated_amount = float(
+            allocated_amount
+        )
+
+        if allocated_amount < 0:
+            raise ValueError
+
+    except (ValueError, TypeError):
+
+        flash(
+            'Allocated amount must be a valid positive number.',
+            'danger'
+        )
+
+        return redirect(
+            url_for(
+                'bursar_budget',
+                year=year
+            )
+        )
+
+    db = get_db()
+    cur = db.cursor()
+
+    try:
+
+        # =================================================
+        # CHECK DUPLICATE CODE FOR SAME YEAR
+        # =================================================
+
+        cur.execute("""
+            SELECT id
+            FROM budget_categories
+            WHERE code=%s
+            AND year=%s
+        """, (
+            code,
+            year
+        ))
+
+        existing = cur.fetchone()
+
+        if existing:
+
+            flash(
+                f'Budget category {code} already exists for {year}.',
+                'warning'
+            )
+
+            cur.close()
+
+            return redirect(
+                url_for(
+                    'bursar_budget',
+                    year=year
+                )
+            )
+
+        # =================================================
+        # INSERT CATEGORY
+        # =================================================
+
+        cur.execute("""
+            INSERT INTO budget_categories (
+                code,
+                name,
+                description,
+                allocated_amount,
+                year
+            )
+            VALUES (
+                %s,
+                %s,
+                %s,
+                %s,
+                %s
+            )
+        """, (
+            code,
+            name,
+            description,
+            allocated_amount,
+            year
+        ))
+
+        db.commit()
+
+        flash(
+            'Budget category added successfully.',
+            'success'
+        )
+
+    except Exception as e:
+
+        db.rollback()
+
+        flash(
+            f'Unable to add budget category: {str(e)}',
+            'danger'
+        )
+
+    finally:
+
+        cur.close()
+
+    return redirect(
+        url_for(
+            'bursar_budget',
+            year=year
+        ))
 
 @app.route('/bursar/income_report')
 def bursar_income_report():
