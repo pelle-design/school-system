@@ -1,103 +1,1518 @@
 {% extends "base.html" %}
+
 {% block title %}Budget Management{% endblock %}
+
 {% block content %}
-<div class="card shadow mb-4">
-    <div class="card-header bg-primary text-white d-flex justify-content-between">
-        <span>Budget Categories - {{ year }}</span>
-        <div>
-            <form method="GET" class="d-inline">
-                <select name="year" class="form-select form-select-sm d-inline w-auto" onchange="this.form.submit()">
-                    <option value="2024" {% if year == 2024 %}selected{% endif %}>2024</option>
-                    <option value="2025" {% if year == 2025 %}selected{% endif %}>2025</option>
-                </select>
-            </form>
-            <button class="btn btn-light btn-sm" data-bs-toggle="modal" data-bs-target="#addCategoryModal">+ Add Category</button>
-        </div>
+
+<div class="container-fluid">
+<!-- =========================================================
+     PAGE HEADER
+     ========================================================= -->
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+
+    <div>
+        <h3 class="mb-1">
+            <i class="fas fa-chart-pie"></i>
+            Budget Management
+        </h3>
+
+        <small class="text-muted">
+            Manage budget allocations, expenditures and balances
+        </small>
     </div>
-    <div class="card-body">
-        <div class="table-responsive">
-            <table class="table table-hover">
-                <thead>
-                    <tr>
-                        <th>Code</th>
-                        <th>Category</th>
-                        <th>Allocated (UGX)</th>
-                        <th>Spent (UGX)</th>
-                        <th>Balance (UGX)</th>
-                        <th>Utilization</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for item in categories %}
-                    <tr>
-                        <td>{{ item.code }}</td>
-                        <td>{{ item.name }}</td>
-                        <td>{{ "{:,.2f}".format(item.allocated_amount or 0) }}</td>
-                        <td>{{ "{:,.2f}".format(item.spent or 0) }}</td>
-                        <td class="{% if ((item.allocated_amount or 0) - (item.spent or 0)) < 0 %}text-danger{% else %}text-success{% endif %}">
-                            {{ "{:,.2f}".format((item.allocated_amount or 0) - (item.spent or 0)) }}
-                        </td>
-                        <td style="width: 200px;">
-                            {% if item.allocated_amount and item.allocated_amount > 0 %}
-                                {% set percent = ((item.spent or 0) / item.allocated_amount * 100) %}
-                                <div class="progress">
-                                    <div class="progress-bar 
-                                        {% if percent > 90 %}bg-danger
-                                        {% elif percent > 70 %}bg-warning
-                                        {% else %}bg-success
-                                        {% endif %}" 
-                                        style="width: {{ percent }}%;">
-                                        {{ "%.1f"|format(percent) }}%
-                                    </div>
-                                </div>
-                            {% else %}
-                                <span class="text-muted">No budget</span>
-                            {% endif %}
-                        </td>
-                    </tr>
-                    {% else %}
-                    <tr><td colspan="6">No budget categories found.</td></tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
+
+    <div class="d-flex gap-2">
+
+        <!-- YEAR FILTER -->
+        <form method="GET">
+
+            <select
+                name="year"
+                class="form-select"
+                onchange="this.form.submit()"
+            >
+
+                {% for y in years %}
+
+                    <option
+                        value="{{ y }}"
+                        {% if year == y %}selected{% endif %}
+                    >
+                        {{ y }}
+                    </option>
+
+                {% endfor %}
+
+            </select>
+
+        </form>
+
+        <!-- ADD CATEGORY -->
+        <button
+            type="button"
+            class="btn btn-primary"
+            data-bs-toggle="modal"
+            data-bs-target="#addCategoryModal"
+        >
+            <i class="fas fa-plus"></i>
+            Add Category
+        </button>
+
     </div>
+
 </div>
 
-<!-- Add Category Modal -->
-<div class="modal fade" id="addCategoryModal" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header bg-primary text-white">
-                <h5 class="modal-title">Add Budget Category</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+
+<!-- =========================================================
+     SUMMARY CARDS
+     ========================================================= -->
+
+<div class="row mb-4">
+
+    <!-- TOTAL ALLOCATED -->
+
+    <div class="col-md-4 mb-3">
+
+        <div class="card shadow-sm border-start border-primary border-4 h-100">
+
+            <div class="card-body">
+
+                <div class="d-flex justify-content-between">
+
+                    <div>
+
+                        <small class="text-muted">
+                            TOTAL ALLOCATED
+                        </small>
+
+                        <h4 class="mt-2 mb-0">
+                            UGX {{ "{:,.2f}".format(total_allocated or 0) }}
+                        </h4>
+
+                    </div>
+
+                    <div class="text-primary fs-2">
+                        <i class="fas fa-wallet"></i>
+                    </div>
+
+                </div>
+
             </div>
-            <form method="POST" action="{{ url_for('bursar_budget_add') }}">
-                <div class="modal-body">
-                    <input type="hidden" name="year" value="{{ year }}">
-                    <div class="mb-2">
-                        <label>Code</label>
-                        <input type="text" name="code" class="form-control" required>
-                    </div>
-                    <div class="mb-2">
-                        <label>Category Name</label>
-                        <input type="text" name="name" class="form-control" required>
-                    </div>
-                    <div class="mb-2">
-                        <label>Description</label>
-                        <textarea name="description" class="form-control" rows="2"></textarea>
-                    </div>
-                    <div class="mb-2">
-                        <label>Allocated Amount (UGX)</label>
-                        <input type="number" name="allocated_amount" class="form-control" step="0.01" required>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="submit" class="btn btn-primary">Save</button>
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                </div>
-            </form>
+
         </div>
+
     </div>
+
+
+    <!-- TOTAL SPENT -->
+
+    <div class="col-md-4 mb-3">
+
+        <div class="card shadow-sm border-start border-danger border-4 h-100">
+
+            <div class="card-body">
+
+                <div class="d-flex justify-content-between">
+
+                    <div>
+
+                        <small class="text-muted">
+                            TOTAL SPENT
+                        </small>
+
+                        <h4 class="mt-2 mb-0">
+                            UGX {{ "{:,.2f}".format(total_spent or 0) }}
+                        </h4>
+
+                    </div>
+
+                    <div class="text-danger fs-2">
+                        <i class="fas fa-money-bill-wave"></i>
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+
+    <!-- BALANCE -->
+
+    <div class="col-md-4 mb-3">
+
+        <div class="card shadow-sm border-start border-success border-4 h-100">
+
+            <div class="card-body">
+
+                <div class="d-flex justify-content-between">
+
+                    <div>
+
+                        <small class="text-muted">
+                            REMAINING BALANCE
+                        </small>
+
+                        <h4
+                            class="mt-2 mb-0
+                            {% if total_balance < 0 %}
+                                text-danger
+                            {% else %}
+                                text-success
+                            {% endif %}"
+                        >
+                            UGX {{ "{:,.2f}".format(total_balance or 0) }}
+                        </h4>
+
+                    </div>
+
+                    <div class="text-success fs-2">
+                        <i class="fas fa-coins"></i>
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
 </div>
+
+
+<!-- =========================================================
+     BUDGET CATEGORIES
+     ========================================================= -->
+
+<div class="card shadow mb-4">
+
+    <div class="card-header bg-primary text-white">
+
+        <div class="d-flex justify-content-between align-items-center">
+
+            <span>
+                <i class="fas fa-layer-group"></i>
+                Budget Categories - {{ year }}
+            </span>
+
+            <button
+                class="btn btn-light btn-sm"
+                data-bs-toggle="modal"
+                data-bs-target="#addCategoryModal"
+            >
+                <i class="fas fa-plus"></i>
+                Add Category
+            </button>
+
+        </div>
+
+    </div>
+
+
+    <div class="card-body">
+
+        <div class="table-responsive">
+
+            <table class="table table-hover table-bordered align-middle">
+
+                <thead class="table-light">
+
+                    <tr>
+
+                        <th>Code</th>
+
+                        <th>Category</th>
+
+                        <th>Description</th>
+
+                        <th>Allocated (UGX)</th>
+
+                        <th>Spent (UGX)</th>
+
+                        <th>Balance (UGX)</th>
+
+                        <th>Utilization</th>
+
+                        <th class="text-center">
+                            Actions
+                        </th>
+
+                    </tr>
+
+                </thead>
+
+
+                <tbody>
+
+                    {% for item in categories %}
+
+                    {% set allocated = item.allocated_amount or 0 %}
+                    {% set spent = item.spent or 0 %}
+                    {% set balance = allocated - spent %}
+
+                    <tr>
+
+                        <td>
+                            <strong>
+                                {{ item.code }}
+                            </strong>
+                        </td>
+
+                        <td>
+                            {{ item.name }}
+                        </td>
+
+                        <td>
+                            {{ item.description or '-' }}
+                        </td>
+
+                        <td>
+                            {{ "{:,.2f}".format(allocated) }}
+                        </td>
+
+                        <td>
+                            {{ "{:,.2f}".format(spent) }}
+                        </td>
+
+                        <td
+                            class="
+                            {% if balance < 0 %}
+                                text-danger fw-bold
+                            {% else %}
+                                text-success fw-bold
+                            {% endif %}
+                            "
+                        >
+                            {{ "{:,.2f}".format(balance) }}
+                        </td>
+
+
+                        <!-- UTILIZATION -->
+
+                        <td style="min-width:180px;">
+
+                            {% if allocated > 0 %}
+
+                                {% set percent =
+                                    (spent / allocated * 100)
+                                %}
+
+                                {% if percent > 100 %}
+                                    {% set display_percent = 100 %}
+                                {% else %}
+                                    {% set display_percent = percent %}
+                                {% endif %}
+
+                                <div class="progress"
+                                     style="height:22px;">
+
+                                    <div
+                                        class="progress-bar
+                                        {% if percent > 100 %}
+                                            bg-danger
+                                        {% elif percent > 90 %}
+                                            bg-warning
+                                        {% else %}
+                                            bg-success
+                                        {% endif %}"
+                                        style="width:{{ display_percent }}%;"
+                                    >
+                                        {{ "%.1f"|format(percent) }}%
+                                    </div>
+
+                                </div>
+
+                            {% else %}
+
+                                <span class="text-muted">
+                                    No budget
+                                </span>
+
+                            {% endif %}
+
+                        </td>
+
+
+                        <!-- ACTIONS -->
+
+                        <td class="text-center">
+
+                            <button
+                                class="btn btn-sm btn-outline-primary"
+                                data-bs-toggle="modal"
+                                data-bs-target="#editCategoryModal{{ item.id }}"
+                                title="Edit"
+                            >
+                                <i class="fas fa-edit"></i>
+                            </button>
+
+
+                            <form
+                                method="POST"
+                                action="{{ url_for('bursar_budget_delete', category_id=item.id) }}"
+                                class="d-inline"
+                                onsubmit="return confirm(
+                                    'Delete this budget category?'
+                                );"
+                            >
+
+                                <button
+                                    type="submit"
+                                    class="btn btn-sm btn-outline-danger"
+                                    title="Delete"
+                                >
+                                    <i class="fas fa-trash"></i>
+                                </button>
+
+                            </form>
+
+                        </td>
+
+                    </tr>
+
+
+                    <!-- EDIT CATEGORY MODAL -->
+
+                    <div
+                        class="modal fade"
+                        id="editCategoryModal{{ item.id }}"
+                        tabindex="-1"
+                    >
+
+                        <div class="modal-dialog">
+
+                            <div class="modal-content">
+
+                                <div class="modal-header bg-primary text-white">
+
+                                    <h5 class="modal-title">
+                                        Edit Budget Category
+                                    </h5>
+
+                                    <button
+                                        type="button"
+                                        class="btn-close"
+                                        data-bs-dismiss="modal"
+                                    ></button>
+
+                                </div>
+
+
+                                <form
+                                    method="POST"
+                                    action="{{ url_for('bursar_budget_edit', category_id=item.id) }}"
+                                >
+
+                                    <div class="modal-body">
+
+                                        <input
+                                            type="hidden"
+                                            name="year"
+                                            value="{{ year }}"
+                                        >
+
+                                        <div class="mb-3">
+
+                                            <label class="form-label">
+                                                Code
+                                            </label>
+
+                                            <input
+                                                type="text"
+                                                name="code"
+                                                class="form-control"
+                                                value="{{ item.code }}"
+                                                required
+                                            >
+
+                                        </div>
+
+
+                                        <div class="mb-3">
+
+                                            <label class="form-label">
+                                                Category Name
+                                            </label>
+
+                                            <input
+                                                type="text"
+                                                name="name"
+                                                class="form-control"
+                                                value="{{ item.name }}"
+                                                required
+                                            >
+
+                                        </div>
+
+
+                                        <div class="mb-3">
+
+                                            <label class="form-label">
+                                                Description
+                                            </label>
+
+                                            <textarea
+                                                name="description"
+                                                class="form-control"
+                                                rows="3"
+                                            >{{ item.description or '' }}</textarea>
+
+                                        </div>
+
+
+                                        <div class="mb-3">
+
+                                            <label class="form-label">
+                                                Allocated Amount (UGX)
+                                            </label>
+
+                                            <input
+                                                type="number"
+                                                name="allocated_amount"
+                                                class="form-control"
+                                                step="0.01"
+                                                min="0"
+                                                value="{{ item.allocated_amount or 0 }}"
+                                                required
+                                            >
+
+                                        </div>
+
+                                    </div>
+
+
+                                    <div class="modal-footer">
+
+                                        <button
+                                            type="submit"
+                                            class="btn btn-primary"
+                                        >
+                                            Save Changes
+                                        </button>
+
+                                        <button
+                                            type="button"
+                                            class="btn btn-secondary"
+                                            data-bs-dismiss="modal"
+                                        >
+                                            Cancel
+                                        </button>
+
+                                    </div>
+
+                                </form>
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                    {% else %}
+
+                    <tr>
+
+                        <td
+                            colspan="8"
+                            class="text-center text-muted py-4"
+                        >
+                            No budget categories found for {{ year }}.
+                        </td>
+
+                    </tr>
+
+                    {% endfor %}
+
+                </tbody>
+
+            </table>
+
+        </div>
+
+    </div>
+
+</div>
+
+
+<!-- =========================================================
+     EXPENDITURES
+     ========================================================= -->
+
+<div class="card shadow mb-4">
+
+    <div class="card-header bg-dark text-white">
+
+        <div class="d-flex justify-content-between align-items-center">
+
+            <span>
+                <i class="fas fa-receipt"></i>
+                Expenditure Records - {{ year }}
+            </span>
+
+            <button
+                class="btn btn-light btn-sm"
+                data-bs-toggle="modal"
+                data-bs-target="#addExpenditureModal"
+            >
+                <i class="fas fa-plus"></i>
+                Record Expenditure
+            </button>
+
+        </div>
+
+    </div>
+
+
+    <div class="card-body">
+
+        <div class="table-responsive">
+
+            <table class="table table-hover table-bordered align-middle">
+
+                <thead class="table-light">
+
+                    <tr>
+
+                        <th>Voucher No.</th>
+
+                        <th>Date</th>
+
+                        <th>Category</th>
+
+                        <th>Description</th>
+
+                        <th>Payee</th>
+
+                        <th>Payment Method</th>
+
+                        <th>Amount (UGX)</th>
+
+                        <th>Status</th>
+
+                        <th>Actions</th>
+
+                    </tr>
+
+                </thead>
+
+
+                <tbody>
+
+                    {% for expense in expenditures %}
+
+                    <tr>
+
+                        <td>
+                            <strong>
+                                {{ expense.voucher_no }}
+                            </strong>
+                        </td>
+
+                        <td>
+                            {{ expense.expenditure_date or '-' }}
+                        </td>
+
+                        <td>
+                            {{ expense.category_name or '-' }}
+                        </td>
+
+                        <td>
+                            {{ expense.description or '-' }}
+                        </td>
+
+                        <td>
+
+                            {{ expense.payee_name or '-' }}
+
+                            {% if expense.payee_phone %}
+
+                                <br>
+
+                                <small class="text-muted">
+                                    {{ expense.payee_phone }}
+                                </small>
+
+                            {% endif %}
+
+                        </td>
+
+                        <td>
+                            {{ expense.payment_method or '-' }}
+                        </td>
+
+                        <td>
+                            {{ "{:,.2f}".format(expense.amount or 0) }}
+                        </td>
+
+
+                        <td>
+
+                            {% if expense.status == 'Paid' %}
+
+                                <span class="badge bg-success">
+                                    Paid
+                                </span>
+
+                            {% elif expense.status == 'Approved' %}
+
+                                <span class="badge bg-primary">
+                                    Approved
+                                </span>
+
+                            {% elif expense.status == 'Pending' %}
+
+                                <span class="badge bg-warning text-dark">
+                                    Pending
+                                </span>
+
+                            {% elif expense.status == 'Cancelled' %}
+
+                                <span class="badge bg-danger">
+                                    Cancelled
+                                </span>
+
+                            {% else %}
+
+                                <span class="badge bg-secondary">
+                                    {{ expense.status or 'Not Set' }}
+                                </span>
+
+                            {% endif %}
+
+                        </td>
+
+
+                        <td>
+
+                            <button
+                                class="btn btn-sm btn-outline-primary"
+                                data-bs-toggle="modal"
+                                data-bs-target="#editExpenditureModal{{ expense.id }}"
+                                title="Edit"
+                            >
+                                <i class="fas fa-edit"></i>
+                            </button>
+
+
+                            <form
+                                method="POST"
+                                action="{{ url_for('bursar_expenditure_delete', expenditure_id=expense.id) }}"
+                                class="d-inline"
+                                onsubmit="return confirm(
+                                    'Delete this expenditure?'
+                                );"
+                            >
+
+                                <button
+                                    type="submit"
+                                    class="btn btn-sm btn-outline-danger"
+                                    title="Delete"
+                                >
+                                    <i class="fas fa-trash"></i>
+                                </button>
+
+                            </form>
+
+                        </td>
+
+                    </tr>
+
+
+                    <!-- EDIT EXPENDITURE MODAL -->
+
+                    <div
+                        class="modal fade"
+                        id="editExpenditureModal{{ expense.id }}"
+                        tabindex="-1"
+                    >
+
+                        <div class="modal-dialog modal-lg">
+
+                            <div class="modal-content">
+
+                                <div class="modal-header bg-primary text-white">
+
+                                    <h5 class="modal-title">
+                                        Edit Expenditure
+                                    </h5>
+
+                                    <button
+                                        type="button"
+                                        class="btn-close"
+                                        data-bs-dismiss="modal"
+                                    ></button>
+
+                                </div>
+
+
+                                <form
+                                    method="POST"
+                                    action="{{ url_for('bursar_expenditure_edit', expenditure_id=expense.id) }}"
+                                >
+
+                                    <div class="modal-body">
+
+                                        <input
+                                            type="hidden"
+                                            name="year"
+                                            value="{{ year }}"
+                                        >
+
+
+                                        <div class="row">
+
+                                            <div class="col-md-6 mb-3">
+
+                                                <label class="form-label">
+                                                    Voucher Number
+                                                </label>
+
+                                                <input
+                                                    type="text"
+                                                    name="voucher_no"
+                                                    class="form-control"
+                                                    value="{{ expense.voucher_no }}"
+                                                    required
+                                                >
+
+                                            </div>
+
+
+                                            <div class="col-md-6 mb-3">
+
+                                                <label class="form-label">
+                                                    Expenditure Date
+                                                </label>
+
+                                                <input
+                                                    type="date"
+                                                    name="expenditure_date"
+                                                    class="form-control"
+                                                    value="{{ expense.expenditure_date }}"
+                                                    required
+                                                >
+
+                                            </div>
+
+
+                                            <div class="col-md-6 mb-3">
+
+                                                <label class="form-label">
+                                                    Budget Category
+                                                </label>
+
+                                                <select
+                                                    name="category_id"
+                                                    class="form-select"
+                                                    required
+                                                >
+
+                                                    {% for category in categories %}
+
+                                                        <option
+                                                            value="{{ category.id }}"
+                                                            {% if category.id == expense.category_id %}
+                                                                selected
+                                                            {% endif %}
+                                                        >
+                                                            {{ category.code }}
+                                                            -
+                                                            {{ category.name }}
+                                                        </option>
+
+                                                    {% endfor %}
+
+                                                </select>
+
+                                            </div>
+
+
+                                            <div class="col-md-6 mb-3">
+
+                                                <label class="form-label">
+                                                    Amount (UGX)
+                                                </label>
+
+                                                <input
+                                                    type="number"
+                                                    name="amount"
+                                                    class="form-control"
+                                                    step="0.01"
+                                                    min="0"
+                                                    value="{{ expense.amount or 0 }}"
+                                                    required
+                                                >
+
+                                            </div>
+
+
+                                            <div class="col-md-12 mb-3">
+
+                                                <label class="form-label">
+                                                    Description
+                                                </label>
+
+                                                <textarea
+                                                    name="description"
+                                                    class="form-control"
+                                                    rows="2"
+                                                    required
+                                                >{{ expense.description or '' }}</textarea>
+
+                                            </div>
+
+
+                                            <div class="col-md-6 mb-3">
+
+                                                <label class="form-label">
+                                                    Payment Method
+                                                </label>
+
+                                                <select
+                                                    name="payment_method"
+                                                    class="form-select"
+                                                    required
+                                                >
+
+                                                    {% for method in [
+                                                        'Cash',
+                                                        'Bank Transfer',
+                                                        'Mobile Money',
+                                                        'Cheque',
+                                                        'Other'
+                                                    ] %}
+
+                                                        <option
+                                                            value="{{ method }}"
+                                                            {% if expense.payment_method == method %}
+                                                                selected
+                                                            {% endif %}
+                                                        >
+                                                            {{ method }}
+                                                        </option>
+
+                                                    {% endfor %}
+
+                                                </select>
+
+                                            </div>
+
+
+                                            <div class="col-md-6 mb-3">
+
+                                                <label class="form-label">
+                                                    Status
+                                                </label>
+
+                                                <select
+                                                    name="status"
+                                                    class="form-select"
+                                                    required
+                                                >
+
+                                                    {% for status in [
+                                                        'Pending',
+                                                        'Approved',
+                                                        'Paid',
+                                                        'Cancelled'
+                                                    ] %}
+
+                                                        <option
+                                                            value="{{ status }}"
+                                                            {% if expense.status == status %}
+                                                                selected
+                                                            {% endif %}
+                                                        >
+                                                            {{ status }}
+                                                        </option>
+
+                                                    {% endfor %}
+
+                                                </select>
+
+                                            </div>
+
+
+                                            <div class="col-md-6 mb-3">
+
+                                                <label class="form-label">
+                                                    Payee Name
+                                                </label>
+
+                                                <input
+                                                    type="text"
+                                                    name="payee_name"
+                                                    class="form-control"
+                                                    value="{{ expense.payee_name or '' }}"
+                                                    required
+                                                >
+
+                                            </div>
+
+
+                                            <div class="col-md-6 mb-3">
+
+                                                <label class="form-label">
+                                                    Payee Phone
+                                                </label>
+
+                                                <input
+                                                    type="text"
+                                                    name="payee_phone"
+                                                    class="form-control"
+                                                    value="{{ expense.payee_phone or '' }}"
+                                                >
+
+                                            </div>
+
+                                        </div>
+
+                                    </div>
+
+
+                                    <div class="modal-footer">
+
+                                        <button
+                                            type="submit"
+                                            class="btn btn-primary"
+                                        >
+                                            Save Changes
+                                        </button>
+
+                                        <button
+                                            type="button"
+                                            class="btn btn-secondary"
+                                            data-bs-dismiss="modal"
+                                        >
+                                            Cancel
+                                        </button>
+
+                                    </div>
+
+                                </form>
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                    {% else %}
+
+                    <tr>
+
+                        <td
+                            colspan="9"
+                            class="text-center text-muted py-4"
+                        >
+                            No expenditures recorded for {{ year }}.
+                        </td>
+
+                    </tr>
+
+                    {% endfor %}
+
+                </tbody>
+
+            </table>
+
+        </div>
+
+    </div>
+
+</div>
+```
+
+</div>
+
+<!-- =========================================================
+     ADD CATEGORY MODAL
+     ========================================================= -->
+
+<div
+    class="modal fade"
+    id="addCategoryModal"
+    tabindex="-1"
+>
+<div class="modal-dialog">
+
+    <div class="modal-content">
+
+        <div class="modal-header bg-primary text-white">
+
+            <h5 class="modal-title">
+                <i class="fas fa-plus"></i>
+                Add Budget Category
+            </h5>
+
+            <button
+                type="button"
+                class="btn-close"
+                data-bs-dismiss="modal"
+            ></button>
+
+        </div>
+
+
+        <form
+            method="POST"
+            action="{{ url_for('bursar_budget_add') }}"
+        >
+
+            <div class="modal-body">
+
+                <input
+                    type="hidden"
+                    name="year"
+                    value="{{ year }}"
+                >
+
+
+                <div class="mb-3">
+
+                    <label class="form-label">
+                        Code
+                    </label>
+
+                    <input
+                        type="text"
+                        name="code"
+                        class="form-control"
+                        placeholder="e.g. ADM-001"
+                        required
+                    >
+
+                </div>
+
+
+                <div class="mb-3">
+
+                    <label class="form-label">
+                        Category Name
+                    </label>
+
+                    <input
+                        type="text"
+                        name="name"
+                        class="form-control"
+                        placeholder="e.g. Administration"
+                        required
+                    >
+
+                </div>
+
+
+                <div class="mb-3">
+
+                    <label class="form-label">
+                        Description
+                    </label>
+
+                    <textarea
+                        name="description"
+                        class="form-control"
+                        rows="3"
+                        placeholder="Describe this budget category"
+                    ></textarea>
+
+                </div>
+
+
+                <div class="mb-3">
+
+                    <label class="form-label">
+                        Allocated Amount (UGX)
+                    </label>
+
+                    <input
+                        type="number"
+                        name="allocated_amount"
+                        class="form-control"
+                        step="0.01"
+                        min="0"
+                        required
+                    >
+
+                </div>
+
+            </div>
+
+
+            <div class="modal-footer">
+
+                <button
+                    type="submit"
+                    class="btn btn-primary"
+                >
+                    Save Category
+                </button>
+
+                <button
+                    type="button"
+                    class="btn btn-secondary"
+                    data-bs-dismiss="modal"
+                >
+                    Cancel
+                </button>
+
+            </div>
+
+        </form>
+
+    </div>
+
+</div>
+```
+
+</div>
+
+<!-- =========================================================
+     ADD EXPENDITURE MODAL
+     ========================================================= -->
+
+<div
+    class="modal fade"
+    id="addExpenditureModal"
+    tabindex="-1"
+>
+
+```
+<div class="modal-dialog modal-lg">
+
+    <div class="modal-content">
+
+        <div class="modal-header bg-dark text-white">
+
+            <h5 class="modal-title">
+
+                <i class="fas fa-receipt"></i>
+
+                Record Expenditure
+
+            </h5>
+
+            <button
+                type="button"
+                class="btn-close btn-close-white"
+                data-bs-dismiss="modal"
+            ></button>
+
+        </div>
+
+
+        <form
+            method="POST"
+            action="{{ url_for('bursar_expenditure_add') }}"
+        >
+
+            <div class="modal-body">
+
+                <input
+                    type="hidden"
+                    name="year"
+                    value="{{ year }}"
+                >
+
+
+                <div class="row">
+
+                    <!-- VOUCHER -->
+
+                    <div class="col-md-6 mb-3">
+
+                        <label class="form-label">
+                            Voucher Number
+                        </label>
+
+                        <input
+                            type="text"
+                            name="voucher_no"
+                            class="form-control"
+                            placeholder="e.g. PV-0001"
+                            required
+                        >
+
+                    </div>
+
+
+                    <!-- DATE -->
+
+                    <div class="col-md-6 mb-3">
+
+                        <label class="form-label">
+                            Expenditure Date
+                        </label>
+
+                        <input
+                            type="date"
+                            name="expenditure_date"
+                            class="form-control"
+                            required
+                        >
+
+                    </div>
+
+
+                    <!-- CATEGORY -->
+
+                    <div class="col-md-6 mb-3">
+
+                        <label class="form-label">
+                            Budget Category
+                        </label>
+
+                        <select
+                            name="category_id"
+                            class="form-select"
+                            required
+                        >
+
+                            <option value="">
+                                -- Select Category --
+                            </option>
+
+                            {% for category in categories %}
+
+                                <option value="{{ category.id }}">
+
+                                    {{ category.code }}
+                                    -
+                                    {{ category.name }}
+
+                                </option>
+
+                            {% endfor %}
+
+                        </select>
+
+                    </div>
+
+
+                    <!-- AMOUNT -->
+
+                    <div class="col-md-6 mb-3">
+
+                        <label class="form-label">
+                            Amount (UGX)
+                        </label>
+
+                        <input
+                            type="number"
+                            name="amount"
+                            class="form-control"
+                            step="0.01"
+                            min="0"
+                            required
+                        >
+
+                    </div>
+
+
+                    <!-- DESCRIPTION -->
+
+                    <div class="col-md-12 mb-3">
+
+                        <label class="form-label">
+                            Description
+                        </label>
+
+                        <textarea
+                            name="description"
+                            class="form-control"
+                            rows="3"
+                            placeholder="What was the money spent on?"
+                            required
+                        ></textarea>
+
+                    </div>
+
+
+                    <!-- PAYMENT METHOD -->
+
+                    <div class="col-md-6 mb-3">
+
+                        <label class="form-label">
+                            Payment Method
+                        </label>
+
+                        <select
+                            name="payment_method"
+                            class="form-select"
+                            required
+                        >
+
+                            <option value="">
+                                -- Select Payment Method --
+                            </option>
+
+                            <option value="Cash">
+                                Cash
+                            </option>
+
+                            <option value="Bank Transfer">
+                                Bank Transfer
+                            </option>
+
+                            <option value="Mobile Money">
+                                Mobile Money
+                            </option>
+
+                            <option value="Cheque">
+                                Cheque
+                            </option>
+
+                            <option value="Other">
+                                Other
+                            </option>
+
+                        </select>
+
+                    </div>
+
+
+                    <!-- STATUS -->
+
+                    <div class="col-md-6 mb-3">
+
+                        <label class="form-label">
+                            Status
+                        </label>
+
+                        <select
+                            name="status"
+                            class="form-select"
+                            required
+                        >
+
+                            <option value="Pending">
+                                Pending
+                            </option>
+
+                            <option value="Approved">
+                                Approved
+                            </option>
+
+                            <option value="Paid">
+                                Paid
+                            </option>
+
+                            <option value="Cancelled">
+                                Cancelled
+                            </option>
+
+                        </select>
+
+                        <small class="text-muted">
+                            The bursar can choose the current
+                            expenditure status.
+                        </small>
+
+                    </div>
+
+
+                    <!-- PAYEE -->
+
+                    <div class="col-md-6 mb-3">
+
+                        <label class="form-label">
+                            Payee Name
+                        </label>
+
+                        <input
+                            type="text"
+                            name="payee_name"
+                            class="form-control"
+                            placeholder="Person or company paid"
+                            required
+                        >
+
+                    </div>
+
+
+                    <!-- PHONE -->
+
+                    <div class="col-md-6 mb-3">
+
+                        <label class="form-label">
+                            Payee Phone
+                        </label>
+
+                        <input
+                            type="text"
+                            name="payee_phone"
+                            class="form-control"
+                            placeholder="Optional"
+                        >
+
+                    </div>
+
+                </div>
+
+            </div>
+
+
+            <div class="modal-footer">
+
+                <button
+                    type="submit"
+                    class="btn btn-dark"
+                >
+                    <i class="fas fa-save"></i>
+                    Record Expenditure
+                </button>
+
+                <button
+                    type="button"
+                    class="btn btn-secondary"
+                    data-bs-dismiss="modal"
+                >
+                    Cancel
+                </button>
+
+            </div>
+
+        </form>
+
+    </div>
+
+</div>
+```
+
+</div>
+
+<!-- =========================================================
+     DEFAULT EXPENDITURE DATE
+     ========================================================= -->
+
+<script>
+
+document.addEventListener(
+    "DOMContentLoaded",
+    function () {
+
+        const dateInput =
+            document.querySelector(
+                '#addExpenditureModal input[name="expenditure_date"]'
+            );
+
+        if (dateInput && !dateInput.value) {
+
+            const today =
+                new Date()
+                    .toISOString()
+                    .split('T')[0];
+
+            dateInput.value = today;
+
+        }
+
+    }
+);
+
+</script>
+
 {% endblock %}
