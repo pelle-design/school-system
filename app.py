@@ -7535,17 +7535,34 @@ def generate_staff_no():
     return generate_unique_number('STF','staff','staff_no',year_format=True)
 
 def generate_payroll_no():
-    year_month=datetime.now().strftime("%Y%m")
-    cur=get_db().cursor()
-    cur.execute("SELECT payroll_no FROM payroll WHERE payroll_no LIKE %s ORDER BY payroll_no DESC LIMIT 1",(f'PR-{year_month}-%',))
-    last=cur.fetchone()
+    db = get_db_dict()
+    cur = db.cursor()
+
+    today = datetime.now()
+    prefix = f"PR-{today.strftime('%Y%m')}"
+
+    cur.execute("""
+        SELECT payroll_no
+        FROM payroll
+        WHERE payroll_no LIKE %s
+        ORDER BY id DESC
+        LIMIT 1
+    """, (f"{prefix}-%",))
+
+    last = cur.fetchone()
     cur.close()
-    if last:
-        last_num=int(last[0].split('-')[-1])
-        new_num=last_num+1
+
+    if last and last.get('payroll_no'):
+        try:
+            last_num = int(last['payroll_no'].split('-')[-1])
+        except (ValueError, AttributeError):
+            last_num = 0
     else:
-        new_num=1
-    return f"PR-{year_month}-{new_num:04d}"
+        last_num = 0
+
+    next_num = last_num + 1
+
+    return f"{prefix}-{next_num:04d}"
 
 @app.route('/bursar/staff')
 def bursar_staff():
