@@ -1,120 +1,810 @@
 {% extends "base.html" %}
-{% block title %}Fee Details - {{ student.full_name }}{% endblock %}
+
+{% block title %}
+Fee Details - {{ student.full_name }}
+{% endblock %}
+
 {% block content %}
-<div class="row">
-    <div class="col-md-4 mb-3">
-        <div class="card shadow">
-            <div class="card-header bg-primary text-white">Student Information</div>
-            <div class="card-body">
-                <p><strong>Student ID:</strong> {{ student.student_id }}</p>
-                <p><strong>Full Name:</strong> {{ student.full_name }}</p>
-                <p><strong>Class:</strong> {{ student.class }}</p>
-                <p><strong>Parent Phone:</strong> {{ student.parent_phone or 'Not registered' }}</p>
-                <hr>
-                <p><strong>Total Fees:</strong> UGX {{ student.fees_total|round(2) }}</p>
-                <p><strong>Amount Paid:</strong> UGX {{ student.fees_paid|round(2) }}</p>
-                <p class="fw-bold {% if student.fees_balance > 0 %}text-danger{% else %}text-success{% endif %}">
-                    <strong>Balance:</strong> UGX {{ student.fees_balance|round(2) }}
-                </p>
-            </div>
-        </div>
+
+<div class="container-fluid">
+
+```
+<!-- =====================================================
+     PAGE HEADER
+     ===================================================== -->
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+
+    <div>
+        <h3 class="mb-1">
+            <i class="fas fa-user-graduate"></i>
+            Student Fee Details
+        </h3>
+
+        <p class="text-muted mb-0">
+            {{ student.full_name }}
+            — {{ student.student_id }}
+        </p>
     </div>
-    <div class="col-md-8 mb-3">
-        <div class="card shadow">
-            <div class="card-header bg-primary text-white">Record Payment</div>
-            <div class="card-body">
-                <form method="POST" action="{{ url_for('bursar_record_payment') }}">
-                    <input type="hidden" name="student_id" value="{{ student.student_id }}">
-                    <div class="row">
-                        <div class="col-md-4 mb-2">
-                            <label>Amount (UGX)</label>
-                            <input type="number" name="amount" class="form-control" step="0.01" required>
-                        </div>
-                        <div class="col-md-3 mb-2">
-                            <label>Payment Method</label>
-                            <select name="payment_method" class="form-select">
-                                <option>Cash</option>
-                                <option>Bank Transfer</option>
-                                <option>Mobile Money</option>
-                                <option>Cheque</option>
-                            </select>
-                        </div>
-                        <div class="col-md-5 mb-2">
-                            <label>Notes (Optional)</label>
-                            <input type="text" name="notes" class="form-control" placeholder="Receipt notes...">
-                        </div>
-                    </div>
-                    <button type="submit" class="btn btn-success mt-2">Record Payment</button>
-                </form>
-            </div>
-        </div>
-    </div>
+
+    <a
+        href="{{ url_for('bursar_students') }}"
+        class="btn btn-outline-primary"
+    >
+        <i class="fas fa-arrow-left"></i>
+        Back to Students
+    </a>
+
 </div>
-<div class="card shadow">
-    <div class="card-header bg-secondary text-white d-flex justify-content-between">
-        <span>Payment History</span>
-        <button onclick="printSelectedReceipts()" class="btn btn-light btn-sm">Print Selected Receipts</button>
+
+
+<!-- =====================================================
+     STUDENT INFORMATION
+     ===================================================== -->
+
+<div class="card shadow mb-4">
+
+    <div class="card-header bg-primary text-white">
+        <i class="fas fa-id-card"></i>
+        Student Information
     </div>
+
     <div class="card-body">
+
+        <div class="row">
+
+            <div class="col-md-3 mb-2">
+                <strong>Student ID</strong>
+                <div>
+                    {{ student.student_id }}
+                </div>
+            </div>
+
+            <div class="col-md-3 mb-2">
+                <strong>Full Name</strong>
+                <div>
+                    {{ student.full_name }}
+                </div>
+            </div>
+
+            <div class="col-md-2 mb-2">
+                <strong>Class</strong>
+                <div>
+                    {{ student.class or '-' }}
+                </div>
+            </div>
+
+            <div class="col-md-2 mb-2">
+                <strong>Level</strong>
+                <div>
+                    {{ level or '-' }}
+                </div>
+            </div>
+
+            <div class="col-md-2 mb-2">
+                <strong>Parent Phone</strong>
+                <div>
+                    {{ student.parent_phone or 'Not registered' }}
+                </div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+
+<!-- =====================================================
+     FEE CONFIGURATION
+     ===================================================== -->
+
+<div class="card shadow mb-4">
+
+    <div class="card-header bg-success text-white">
+
+        <i class="fas fa-money-check-alt"></i>
+        Fee Configuration
+
+    </div>
+
+    <div class="card-body">
+
+        <form
+            method="POST"
+            action="{{ url_for(
+                'bursar_student_fee_details',
+                student_id=student.student_id
+            ) }}"
+        >
+
+            <div class="row">
+
+                <!-- PROGRAMME -->
+
+                <div class="col-md-3 mb-3">
+
+                    <label class="form-label">
+                        <strong>{{ programme_label }}</strong>
+                    </label>
+
+                    <select
+                        name="programme"
+                        class="form-select"
+                        required
+                    >
+
+                        <option value="">
+                            -- Select Programme --
+                        </option>
+
+                        {% for option in programme_options %}
+
+                        <option
+                            value="{{ option }}"
+                            {% if selected_programme == option %}
+                            selected
+                            {% endif %}
+                        >
+                            {{ option }}
+                        </option>
+
+                        {% endfor %}
+
+                    </select>
+
+                </div>
+
+
+                <!-- RESIDENCE -->
+
+                <div class="col-md-3 mb-3">
+
+                    <label class="form-label">
+                        <strong>Residence</strong>
+                    </label>
+
+                    <select
+                        name="residence"
+                        class="form-select"
+                        required
+                    >
+
+                        <option value="">
+                            -- Select Residence --
+                        </option>
+
+                        <option
+                            value="Day"
+                            {% if selected_residence == 'Day' %}
+                            selected
+                            {% endif %}
+                        >
+                            Day
+                        </option>
+
+                        <option
+                            value="Boarding"
+                            {% if selected_residence == 'Boarding' %}
+                            selected
+                            {% endif %}
+                        >
+                            Boarding
+                        </option>
+
+                    </select>
+
+                </div>
+
+
+                <!-- TERM -->
+
+                <div class="col-md-3 mb-3">
+
+                    <label class="form-label">
+                        <strong>Term</strong>
+                    </label>
+
+                    <select
+                        name="term"
+                        class="form-select"
+                        required
+                    >
+
+                        <option
+                            value="Term 1"
+                            {% if selected_term == 'Term 1' %}
+                            selected
+                            {% endif %}
+                        >
+                            Term 1
+                        </option>
+
+                        <option
+                            value="Term 2"
+                            {% if selected_term == 'Term 2' %}
+                            selected
+                            {% endif %}
+                        >
+                            Term 2
+                        </option>
+
+                        <option
+                            value="Term 3"
+                            {% if selected_term == 'Term 3' %}
+                            selected
+                            {% endif %}
+                        >
+                            Term 3
+                        </option>
+
+                    </select>
+
+                </div>
+
+
+                <!-- YEAR -->
+
+                <div class="col-md-2 mb-3">
+
+                    <label class="form-label">
+                        <strong>Year</strong>
+                    </label>
+
+                    <input
+                        type="number"
+                        name="year"
+                        class="form-control"
+                        value="{{ selected_year }}"
+                        min="2020"
+                        max="2100"
+                        required
+                    >
+
+                </div>
+
+
+                <!-- BUTTON -->
+
+                <div class="col-md-1 mb-3 d-flex align-items-end">
+
+                    <button
+                        type="submit"
+                        class="btn btn-success w-100"
+                        title="Load Fee"
+                    >
+                        <i class="fas fa-search"></i>
+                    </button>
+
+                </div>
+
+            </div>
+
+        </form>
+
+    </div>
+
+</div>
+
+
+<!-- =====================================================
+     FEE SUMMARY
+     ===================================================== -->
+
+<div class="row mb-4">
+
+    <!-- APPLICABLE FEE -->
+
+    <div class="col-md-4 mb-3">
+
+        <div class="card shadow border-primary h-100">
+
+            <div class="card-body">
+
+                <div class="text-muted">
+                    Applicable Fees
+                </div>
+
+                <h4 class="text-primary">
+
+                    UGX
+                    {{
+                        "{:,.2f}".format(
+                            fees_total or 0
+                        )
+                    }}
+
+                </h4>
+
+                {% if applicable_fee is not none %}
+
+                    <small class="text-success">
+
+                        {{ level }}
+                        |
+                        {{ selected_programme }}
+                        |
+                        {{ selected_residence }}
+                        |
+                        {{ selected_term }}
+                        |
+                        {{ selected_year }}
+
+                    </small>
+
+                {% else %}
+
+                    <small class="text-warning">
+                        Select the fee configuration above.
+                    </small>
+
+                {% endif %}
+
+            </div>
+
+        </div>
+
+    </div>
+
+
+    <!-- PAID -->
+
+    <div class="col-md-4 mb-3">
+
+        <div class="card shadow border-success h-100">
+
+            <div class="card-body">
+
+                <div class="text-muted">
+                    Total Paid
+                </div>
+
+                <h4 class="text-success">
+
+                    UGX
+                    {{
+                        "{:,.2f}".format(
+                            total_paid or 0
+                        )
+                    }}
+
+                </h4>
+
+            </div>
+
+        </div>
+
+    </div>
+
+
+    <!-- BALANCE -->
+
+    <div class="col-md-4 mb-3">
+
+        <div class="card shadow h-100">
+
+            <div class="card-body">
+
+                <div class="text-muted">
+                    Balance
+                </div>
+
+                <h4
+                    class="
+                    {% if fees_balance > 0 %}
+                        text-danger
+                    {% else %}
+                        text-success
+                    {% endif %}
+                    "
+                >
+
+                    UGX
+                    {{
+                        "{:,.2f}".format(
+                            fees_balance or 0
+                        )
+                    }}
+
+                </h4>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+
+{% if fee_description %}
+
+<div class="alert alert-info">
+
+    <i class="fas fa-info-circle"></i>
+
+    <strong>Fee Description:</strong>
+
+    {{ fee_description }}
+
+</div>
+
+{% endif %}
+
+
+<!-- =====================================================
+     RECORD PAYMENT
+     ===================================================== -->
+
+<div class="card shadow mb-4">
+
+    <div class="card-header bg-primary text-white">
+
+        <i class="fas fa-money-bill-wave"></i>
+        Record Payment
+
+    </div>
+
+    <div class="card-body">
+
+        <form
+            method="POST"
+            action="{{ url_for('bursar_record_payment') }}"
+        >
+
+            <input
+                type="hidden"
+                name="student_id"
+                value="{{ student.student_id }}"
+            >
+
+            <div class="row">
+
+                <div class="col-md-4 mb-3">
+
+                    <label class="form-label">
+                        Amount (UGX)
+                    </label>
+
+                    <input
+                        type="number"
+                        name="amount"
+                        class="form-control"
+                        step="0.01"
+                        min="1"
+                        max="{{ fees_balance if fees_balance > 0 else '' }}"
+                        required
+                    >
+
+                </div>
+
+
+                <div class="col-md-3 mb-3">
+
+                    <label class="form-label">
+                        Payment Method
+                    </label>
+
+                    <select
+                        name="payment_method"
+                        class="form-select"
+                        required
+                    >
+
+                        <option value="Cash">
+                            Cash
+                        </option>
+
+                        <option value="Bank Transfer">
+                            Bank Transfer
+                        </option>
+
+                        <option value="Mobile Money">
+                            Mobile Money
+                        </option>
+
+                        <option value="Cheque">
+                            Cheque
+                        </option>
+
+                    </select>
+
+                </div>
+
+
+                <div class="col-md-5 mb-3">
+
+                    <label class="form-label">
+                        Notes
+                    </label>
+
+                    <input
+                        type="text"
+                        name="notes"
+                        class="form-control"
+                        placeholder="Receipt notes..."
+                    >
+
+                </div>
+
+            </div>
+
+
+            <button
+                type="submit"
+                class="btn btn-success"
+                {% if fees_balance <= 0 %}
+                disabled
+                {% endif %}
+            >
+
+                <i class="fas fa-save"></i>
+                Record Payment
+
+            </button>
+
+            {% if fees_balance <= 0 %}
+
+                <span class="text-success ms-2">
+                    <i class="fas fa-check-circle"></i>
+                    Fees fully paid.
+                </span>
+
+            {% endif %}
+
+        </form>
+
+    </div>
+
+</div>
+
+
+<!-- =====================================================
+     PAYMENT HISTORY
+     ===================================================== -->
+
+<div class="card shadow mb-4">
+
+    <div
+        class="
+        card-header
+        bg-secondary
+        text-white
+        d-flex
+        justify-content-between
+        align-items-center
+        "
+    >
+
+        <span>
+            <i class="fas fa-history"></i>
+            Payment History
+        </span>
+
+        <button
+            type="button"
+            onclick="printSelectedReceipts()"
+            class="btn btn-light btn-sm"
+        >
+            <i class="fas fa-print"></i>
+            Print Selected Receipts
+        </button>
+
+    </div>
+
+
+    <div class="card-body">
+
         <div class="table-responsive">
-            <table class="table table-hover">
-                <thead>
+
+            <table class="table table-bordered table-hover">
+
+                <thead class="table-light">
+
                     <tr>
-                        <th><input type="checkbox" id="selectAll" onclick="toggleAll(this)"></th>
+
+                        <th>
+                            <input
+                                type="checkbox"
+                                id="selectAll"
+                                onclick="toggleAll(this)"
+                            >
+                        </th>
+
                         <th>Receipt No</th>
                         <th>Amount</th>
                         <th>Date</th>
                         <th>Method</th>
                         <th>Recorded By</th>
                         <th>Notes</th>
+
                     </tr>
+
                 </thead>
+
+
                 <tbody>
+
                     {% for p in payments %}
+
                     <tr>
-                        <td><input type="checkbox" class="receipt-checkbox" value="{{ p.id }}"></td>
-                        <td>{{ p.receipt_no }}</td>
-                        <td>UGX {{ "{:,.2f}".format(p.amount) }}</td>
-                        <td>{{ p.payment_date }}</td>
-                        <td>{{ p.payment_method }}</td>
-                        <td>{{ p.recorded_by or '-' }}</td>
-                        <td>{{ p.notes or '-' }}</td>
+
+                        <td>
+
+                            <input
+                                type="checkbox"
+                                class="receipt-checkbox"
+                                value="{{ p.id }}"
+                            >
+
+                        </td>
+
+                        <td>
+                            {{ p.receipt_no or '-' }}
+                        </td>
+
+                        <td>
+
+                            UGX
+                            {{
+                                "{:,.2f}".format(
+                                    p.amount or 0
+                                )
+                            }}
+
+                        </td>
+
+                        <td>
+                            {{ p.payment_date or '-' }}
+                        </td>
+
+                        <td>
+                            {{ p.payment_method or '-' }}
+                        </td>
+
+                        <td>
+                            {{ p.recorded_by or '-' }}
+                        </td>
+
+                        <td>
+                            {{ p.notes or '-' }}
+                        </td>
+
                     </tr>
+
                     {% else %}
-                    <tr><td colspan="7">No payment records found.</td></tr>
+
+                    <tr>
+
+                        <td
+                            colspan="7"
+                            class="text-center text-muted py-4"
+                        >
+
+                            <i
+                                class="
+                                fas
+                                fa-receipt
+                                fa-2x
+                                mb-2
+                                d-block
+                                "
+                            ></i>
+
+                            No payment records found.
+
+                        </td>
+
+                    </tr>
+
                     {% endfor %}
+
                 </tbody>
+
             </table>
+
         </div>
+
     </div>
+
 </div>
 
-<div class="mt-3">
-    <a href="{{ url_for('bursar_clearance', student_id=student.student_id) }}" class="btn btn-info">
-    <i class="fas fa-print"></i> Clearance Card
+
+<!-- =====================================================
+     ACTIONS
+     ===================================================== -->
+
+<div class="mb-4">
+
+    <a
+        href="{{ url_for(
+            'bursar_clearance',
+            student_id=student.student_id
+        ) }}"
+        class="btn btn-info"
+    >
+        <i class="fas fa-print"></i>
+        Clearance Card
     </a>
-    <a href="{{ url_for('bursar_send_reminder', student_id=student.student_id) }}" class="btn btn-warning">Send Reminder</a>
-    <a href="{{ url_for('bursar_students') }}" class="btn btn-outline-primary">Back to Students</a>
+
+    <a
+        href="{{ url_for(
+            'bursar_send_reminder',
+            student_id=student.student_id
+        ) }}"
+        class="btn btn-warning"
+    >
+        <i class="fas fa-bell"></i>
+        Send Reminder
+    </a>
+
+    <a
+        href="{{ url_for('bursar_students') }}"
+        class="btn btn-outline-primary"
+    >
+        <i class="fas fa-arrow-left"></i>
+        Back to Students
+    </a>
+
 </div>
+```
+
+</div>
+
 <script>
+
 function toggleAll(source) {
-    var checkboxes = document.querySelectorAll('.receipt-checkbox');
-    for(var i = 0; i < checkboxes.length; i++) {
-        checkboxes[i].checked = source.checked;
-    }
+
+    const checkboxes =
+        document.querySelectorAll(
+            '.receipt-checkbox'
+        );
+
+    checkboxes.forEach(function(checkbox) {
+
+        checkbox.checked =
+            source.checked;
+
+    });
+
 }
+
 
 function printSelectedReceipts() {
-    var selected = [];
-    var checkboxes = document.querySelectorAll('.receipt-checkbox:checked');
-    for(var i = 0; i < checkboxes.length; i++) {
-        selected.push(checkboxes[i].value);
+
+    const selected = [];
+
+    const checkboxes =
+        document.querySelectorAll(
+            '.receipt-checkbox:checked'
+        );
+
+    checkboxes.forEach(function(checkbox) {
+
+        selected.push(
+            checkbox.value
+        );
+
+    });
+
+    if (selected.length === 0) {
+
+        alert(
+            'Please select at least one receipt.'
+        );
+
+        return;
+
     }
-    if(selected.length > 0) {
-        window.open('/bursar/print_receipts?ids=' + selected.join(','), '_blank');
-    } else {
-        alert('Please select at least one receipt');
-    }
+
+    window.open(
+        '/bursar/print_receipts?ids='
+        + selected.join(','),
+        '_blank'
+    );
+
 }
+
 </script>
+
 {% endblock %}
