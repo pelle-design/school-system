@@ -1,0 +1,588 @@
+{% extends "base.html" %}
+
+{% block title %}Student Fee Classification{% endblock %}
+
+{% block content %}
+
+<div class="container-fluid">
+
+    <div class="card shadow mb-3">
+
+        <div class="card-header bg-primary text-white">
+
+            <div class="d-flex justify-content-between align-items-center">
+
+                <span>
+                    <i class="fas fa-users"></i>
+                    Student Fee Classification
+                </span>
+
+                <a href="{{ url_for('bursar_students') }}"
+                   class="btn btn-light btn-sm">
+                    <i class="fas fa-arrow-left"></i>
+                    Students
+                </a>
+
+            </div>
+
+        </div>
+
+        <div class="card-body">
+
+            <form method="GET"
+                  action="{{ url_for('bursar_student_classification') }}">
+
+                <div class="row">
+
+                    <div class="col-md-3 mb-2">
+
+                        <label class="form-label">
+                            Search Student
+                        </label>
+
+                        <input
+                            type="text"
+                            name="search"
+                            class="form-control"
+                            value="{{ search }}"
+                            placeholder="Name or Student ID"
+                        >
+
+                    </div>
+
+                    <div class="col-md-2 mb-2">
+
+                        <label class="form-label">
+                            Class
+                        </label>
+
+                        <select
+                            name="class"
+                            class="form-select"
+                        >
+
+                            <option value="">
+                                All Classes
+                            </option>
+
+                            {% for c in classes %}
+
+                            <option
+                                value="{{ c }}"
+                                {% if class_filter == c %}
+                                selected
+                                {% endif %}
+                            >
+                                {{ c }}
+                            </option>
+
+                            {% endfor %}
+
+                        </select>
+
+                    </div>
+
+                    <div class="col-md-2 mb-2">
+
+                        <label class="form-label">
+                            Term
+                        </label>
+
+                        <select
+                            name="term"
+                            class="form-select"
+                        >
+
+                            {% for t in ['Term 1','Term 2','Term 3'] %}
+
+                            <option
+                                value="{{ t }}"
+                                {% if term == t %}
+                                selected
+                                {% endif %}
+                            >
+                                {{ t }}
+                            </option>
+
+                            {% endfor %}
+
+                        </select>
+
+                    </div>
+
+                    <div class="col-md-2 mb-2">
+
+                        <label class="form-label">
+                            Year
+                        </label>
+
+                        <input
+                            type="number"
+                            name="year"
+                            class="form-control"
+                            value="{{ year }}"
+                        >
+
+                    </div>
+
+                    <div class="col-md-3 mb-2 d-flex align-items-end">
+
+                        <button
+                            type="submit"
+                            class="btn btn-primary me-2"
+                        >
+                            <i class="fas fa-search"></i>
+                            Search
+                        </button>
+
+                        <a
+                            href="{{ url_for(
+                                'bursar_student_classification',
+                                year=year,
+                                term=term
+                            ) }}"
+                            class="btn btn-secondary"
+                        >
+                            Reset
+                        </a>
+
+                    </div>
+
+                </div>
+
+            </form>
+
+        </div>
+
+    </div>
+
+
+    <div class="card shadow">
+
+        <div class="card-header bg-dark text-white">
+
+            <i class="fas fa-money-check-alt"></i>
+            Fee Classification
+
+        </div>
+
+        <div class="card-body">
+
+            <div class="table-responsive">
+
+                <table class="table table-bordered table-hover align-middle">
+
+                    <thead class="table-dark">
+
+                        <tr class="text-center">
+
+                            <th>Student ID</th>
+
+                            <th>Student</th>
+
+                            <th>Class</th>
+
+                            <th>Programme</th>
+
+                            <th>Residence</th>
+
+                            <th>Fee Structure</th>
+
+                            <th>Total Fees</th>
+
+                            <th>Paid</th>
+
+                            <th>Balance</th>
+
+                            <th>Action</th>
+
+                        </tr>
+
+                    </thead>
+
+                    <tbody>
+
+                    {% for s in students %}
+
+                        {% set student_level = s.class %}
+
+                        <tr>
+
+                            <td>
+                                <strong>
+                                    {{ s.student_id }}
+                                </strong>
+                            </td>
+
+                            <td>
+                                {{ s.full_name }}
+                            </td>
+
+                            <td class="text-center">
+                                <strong>
+                                    {{ s.class }}
+                                </strong>
+                            </td>
+
+                            <td>
+
+                                <form
+                                    method="POST"
+                                    action="{{ url_for(
+                                        'bursar_student_classification_update'
+                                    ) }}"
+                                    class="classification-form"
+                                >
+
+                                    <input
+                                        type="hidden"
+                                        name="student_id"
+                                        value="{{ s.student_id }}"
+                                    >
+
+                                    <input
+                                        type="hidden"
+                                        name="term"
+                                        value="{{ term }}"
+                                    >
+
+                                    <input
+                                        type="hidden"
+                                        name="year"
+                                        value="{{ year }}"
+                                    >
+
+                                    {% set level = s.class|upper %}
+
+                                    {% if level.startswith('S.1') %}
+                                        {% set level = 'S.1' %}
+                                    {% elif level.startswith('S.2') %}
+                                        {% set level = 'S.2' %}
+                                    {% elif level.startswith('S.3') %}
+                                        {% set level = 'S.3' %}
+                                    {% elif level.startswith('S.4') %}
+                                        {% set level = 'S.4' %}
+                                    {% elif level.startswith('S.5') %}
+                                        {% set level = 'S.5' %}
+                                    {% elif level.startswith('S.6') %}
+                                        {% set level = 'S.6' %}
+                                    {% endif %}
+
+                                    <select
+                                        name="programme"
+                                        class="form-select form-select-sm programme-select"
+                                        data-level="{{ level }}"
+                                        required
+                                    >
+
+                                        <option value="">
+                                            Select
+                                        </option>
+
+                                        {% if level in ['S.1','S.2','S.3','S.4'] %}
+
+                                            <option
+                                                value="USE"
+                                                {% if s.programme == 'USE' %}
+                                                selected
+                                                {% endif %}
+                                            >
+                                                USE
+                                            </option>
+
+                                            <option
+                                                value="Non-USE"
+                                                {% if s.programme == 'Non-USE' %}
+                                                selected
+                                                {% endif %}
+                                            >
+                                                Non-USE
+                                            </option>
+
+                                        {% else %}
+
+                                            <option
+                                                value="UPOLET"
+                                                {% if s.programme == 'UPOLET' %}
+                                                selected
+                                                {% endif %}
+                                            >
+                                                UPOLET
+                                            </option>
+
+                                            <option
+                                                value="Non-UPOLET"
+                                                {% if s.programme == 'Non-UPOLET' %}
+                                                selected
+                                                {% endif %}
+                                            >
+                                                Non-UPOLET
+                                            </option>
+
+                                        {% endif %}
+
+                                    </select>
+
+                            </td>
+
+                            <td>
+
+                                <select
+                                    name="residence"
+                                    class="form-select form-select-sm"
+                                    required
+                                >
+
+                                    <option value="">
+                                        Select
+                                    </option>
+
+                                    <option
+                                        value="Day"
+                                        {% if s.residence == 'Day' %}
+                                        selected
+                                        {% endif %}
+                                    >
+                                        Day
+                                    </option>
+
+                                    <option
+                                        value="Boarding"
+                                        {% if s.residence == 'Boarding' %}
+                                        selected
+                                        {% endif %}
+                                    >
+                                        Boarding
+                                    </option>
+
+                                </select>
+
+                            </td>
+
+                            <td>
+
+                                <select
+                                    class="form-select form-select-sm fee-structure"
+                                    disabled
+                                >
+
+                                    <option>
+                                        Select programme/residence
+                                    </option>
+
+                                    {% for f in fee_structures %}
+
+                                        {% if f.level == level %}
+
+                                        <option
+                                            value="{{ f.amount }}"
+                                            data-programme="{{ f.programme }}"
+                                            data-residence="{{ f.residence }}"
+                                        >
+                                            {{ f.level }}
+                                            {{ f.programme }}
+                                            {{ f.residence }}
+                                            -
+                                            UGX {{ "{:,.0f}".format(f.amount|float) }}
+                                        </option>
+
+                                        {% endif %}
+
+                                    {% endfor %}
+
+                                </select>
+
+                            </td>
+
+                            <td class="text-end">
+
+                                UGX
+                                <span class="fee-total">
+                                    {{ "{:,.0f}".format(s.fees_total|default(0)|float) }}
+                                </span>
+
+                            </td>
+
+                            <td class="text-end">
+
+                                UGX
+                                {{ "{:,.0f}".format(s.fees_paid|default(0)|float) }}
+
+                            </td>
+
+                            <td class="text-end
+                                {% if s.fees_balance|default(0)|float > 0 %}
+                                    text-danger
+                                {% else %}
+                                    text-success
+                                {% endif %}
+                            ">
+
+                                UGX
+                                {{ "{:,.0f}".format(s.fees_balance|default(0)|float) }}
+
+                            </td>
+
+                            <td>
+
+                                <button
+                                    type="submit"
+                                    class="btn btn-success btn-sm"
+                                >
+                                    <i class="fas fa-save"></i>
+                                    Save
+                                </button>
+
+                                </form>
+
+                            </td>
+
+                        </tr>
+
+                    {% else %}
+
+                        <tr>
+
+                            <td
+                                colspan="10"
+                                class="text-center text-muted py-4"
+                            >
+
+                                <i class="fas fa-users-slash fa-2x mb-2 d-block"></i>
+
+                                No students found.
+
+                            </td>
+
+                        </tr>
+
+                    {% endfor %}
+
+                    </tbody>
+
+                </table>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+
+<script>
+
+document.addEventListener(
+    'DOMContentLoaded',
+    function () {
+
+        document.querySelectorAll(
+            '.classification-form'
+        ).forEach(function(form) {
+
+            const programme =
+                form.querySelector(
+                    '.programme-select'
+                );
+
+            const residence =
+                form.querySelector(
+                    'select[name="residence"]'
+                );
+
+            const feeStructure =
+                form.querySelector(
+                    '.fee-structure'
+                );
+
+            const feeTotal =
+                form.querySelector(
+                    '.fee-total'
+                );
+
+
+            function updateFeeStructure() {
+
+                const selectedProgramme =
+                    programme.value;
+
+                const selectedResidence =
+                    residence.value;
+
+                let matched = false;
+
+
+                Array.from(
+                    feeStructure.options
+                ).forEach(function(option) {
+
+                    if (!option.dataset.programme) {
+                        return;
+                    }
+
+                    const match =
+                        option.dataset.programme ===
+                        selectedProgramme
+                        &&
+                        option.dataset.residence ===
+                        selectedResidence;
+
+                    option.hidden = !match;
+
+                    if (match && !matched) {
+
+                        option.selected = true;
+
+                        matched = true;
+
+                        if (feeTotal) {
+
+                            const amount =
+                                parseFloat(
+                                    option.value
+                                ) || 0;
+
+                            feeTotal.textContent =
+                                amount.toLocaleString(
+                                    'en-US',
+                                    {
+                                        maximumFractionDigits: 0
+                                    }
+                                );
+                        }
+
+                    }
+
+                });
+
+
+                if (!matched) {
+
+                    feeStructure.selectedIndex = 0;
+
+                }
+
+            }
+
+
+            programme.addEventListener(
+                'change',
+                updateFeeStructure
+            );
+
+            residence.addEventListener(
+                'change',
+                updateFeeStructure
+            );
+
+            updateFeeStructure();
+
+        });
+
+    }
+);
+
+</script>
+
+{% endblock %}
