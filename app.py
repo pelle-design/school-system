@@ -1336,32 +1336,27 @@ def get_alevel_class_teacher_comment(total_points):
 
     if total_points >= 15:
         return (
-            "Excellent performance. The student has demonstrated "
-            "outstanding commitment and achievement."
+            "Excellent performance. Keep it up!"
         )
 
     elif total_points >= 12:
         return (
-            "Very good performance. The student has demonstrated "
-            "strong commitment and good academic achievement."
+            "Very good performance. Maintain it!"
         )
 
     elif total_points >= 9:
         return (
-            "Good performance. The student has made satisfactory "
-            "progress and should continue working hard."
+            "Good performance. Continue working hard."
         )
 
     elif total_points >= 6:
         return (
-            "Fair performance. The student needs to put in more "
-            "effort and remain consistent in academic work."
+            "Fair performance. Put in more effort"
         )
 
     else:
         return (
-            "The student needs significant improvement and greater "
-            "commitment to academic work."
+            "The student needs significant improvement"
         )
 
 
@@ -1373,36 +1368,29 @@ def get_alevel_headteacher_comment(total_points):
 
     if total_points >= 15:
         return (
-            "Excellent academic performance. The student has "
-            "demonstrated outstanding achievement and commitment "
-            "to studies. Keep up the excellent work."
+            "Excellent academic performance. Keep up the excellent work."
         )
 
     elif total_points >= 12:
         return (
-            "Very good academic performance. The student has "
-            "demonstrated commendable achievement and commitment "
-            "to studies. Continue working hard."
+            "Very good academic performance. Continue working hard."
         )
 
     elif total_points >= 9:
         return (
-            "Good academic performance. The student has made "
-            "satisfactory progress and is encouraged to maintain "
+            "Good academic performance. Maintain "
             "consistent effort."
         )
 
     elif total_points >= 6:
         return (
-            "Fair academic performance. The student is encouraged "
-            "to increase effort and commitment in order to improve."
+            "Fair academic performance. Increase effort"
         )
 
     else:
         return (
             "The student needs considerable improvement and greater "
-            "commitment to academic work. Continued support and "
-            "consistent effort are encouraged."
+            "commitment to academic work"
         )
 
 
@@ -1414,33 +1402,27 @@ def get_olevel_class_teacher_comment(general_identifier):
 
     if general_identifier >= 2.50:
         return (
-            "Excellent performance. The student has demonstrated "
-            "strong commitment and a very good understanding of "
-            "the work covered."
+            "Excellent performance. Keep it up!"
         )
 
     elif general_identifier >= 2.00:
         return (
-            "Very good performance. The student has made good "
-            "progress and should continue working hard."
+            "Very good performance. Maintain it!"
         )
 
     elif general_identifier >= 1.50:
         return (
-            "Good performance. The student has made satisfactory "
-            "progress and should continue putting in consistent effort."
+            "Good performance. Continue putting in consistent effort."
         )
 
     elif general_identifier >= 1.00:
         return (
-            "Fair performance. The student needs to put in more "
-            "effort and remain consistent in order to improve."
+            "Fair performance. Needs to put in more effort"
         )
 
     else:
         return (
-            "The student needs significant improvement and greater "
-            "commitment to academic work."
+            "The student needs significant improvement"
         )
 
 
@@ -1452,36 +1434,29 @@ def get_olevel_headteacher_comment(general_identifier):
 
     if general_identifier >= 2.50:
         return (
-            "Excellent academic performance. The student has "
-            "demonstrated strong achievement and commitment to "
-            "academic work. Keep up the excellent performance."
+            "Excellent academic performance. Keep up the excellent performance."
         )
 
     elif general_identifier >= 2.00:
         return (
-            "Very good academic performance. The student has made "
-            "good progress and is encouraged to maintain consistent "
+            "Very good academic performance. Maintain consistent "
             "effort."
         )
 
     elif general_identifier >= 1.50:
         return (
-            "Good academic performance. The student has made "
-            "satisfactory progress and should continue working "
-            "hard to achieve even better results."
+            "Good academic performance. Work hard to achieve even better results."
         )
 
     elif general_identifier >= 1.00:
         return (
-            "Fair academic performance. The student is encouraged "
-            "to increase effort and commitment in order to improve."
+            "Fair academic performance. Increase effort and commitment in order to improve."
         )
 
     else:
         return (
             "The student needs significant improvement and greater "
-            "commitment to academic work. Continued effort and "
-            "support are encouraged."
+            "commitment to academic work"
         )
 
 # ==================== TEACHER ASSIGNMENT HELPERS ====================
