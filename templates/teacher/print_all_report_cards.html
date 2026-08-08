@@ -233,8 +233,6 @@ body {
     Back
 
 </a>
-```
-
 </div>
 
 <!-- =========================================================
@@ -638,15 +636,9 @@ body {
     </tr>
 
 </table>
-
-
 <!-- =====================================================
      COMMENTS AND SIGNATURES
      ===================================================== -->
-
-<div class="row mt-4">
-
-<!-- COMMENTS AND SIGNATURES SECTION -->
 
 <div class="row mt-4">
 
@@ -660,10 +652,13 @@ body {
 
                 <td style="width:70%;vertical-align:top;">
 
-                    <strong>👩‍🏫 Class Teacher's Comment:</strong>
+                    <strong>
+                        👩‍🏫 Class Teacher's Comment:
+                    </strong>
 
                     <div class="comment-box mt-2">
-                        {{ teacher_comment or 'No comment available.' }}
+                        {{ report.teacher_comment
+                        or 'No comment available.' }}
                     </div>
 
                 </td>
@@ -695,10 +690,13 @@ body {
 
                 <td style="width:70%;vertical-align:top;">
 
-                    <strong>👨‍🎓 Headteacher's Comment:</strong>
+                    <strong>
+                        👨‍🎓 Headteacher's Comment:
+                    </strong>
 
                     <div class="comment-box mt-2">
-                        {{ headteacher_comment or 'No comment available.' }}
+                        {{ report.headteacher_comment
+                        or 'No comment available.' }}
                     </div>
 
                 </td>
@@ -720,7 +718,6 @@ body {
     </div>
 
 </div>
-
 <!-- =====================================================
      TERM DATES
      ===================================================== -->
