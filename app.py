@@ -1631,28 +1631,16 @@ def generate_fee_prn():
 
 def teacher_has_class_access(user_id, student_class, assignment_type=None):
     """
-    Checks whether a teacher has access to a student class/stream.
+    Checks whether a teacher has access to a particular
+    student class/stream.
 
     Rules:
 
-        Assignment S.1
-            -> S.1
-            -> S.1A
-            -> S.1B
-            -> S.1C
+        Assignment S.1  -> S.1A, S.1B, S.1C
+        Assignment S.2  -> S.2A, S.2B, S.2C
 
-        Assignment S.1B
-            -> S.1A
-            -> S.1B
-            -> S.1C
-
-        Assignment S.2C
-            -> S.2A
-            -> S.2B
-            -> S.2C
-
-    Therefore, assigning a teacher to any stream gives them
-    access to the entire parent class.
+        Assignment S.1B -> S.1B only
+        Assignment S.1C -> S.1C only
     """
 
     if not user_id or not student_class:
@@ -1662,31 +1650,7 @@ def teacher_has_class_access(user_id, student_class, assignment_type=None):
 
     student_class = student_class.strip().upper()
 
-    # ---------------------------------------------------------
-    # Determine the parent class of the student
-    #
-    # S.1   -> S.1
-    # S.1A  -> S.1
-    # S.1B  -> S.1
-    # S.2C  -> S.2
-    # ---------------------------------------------------------
-
-    student_match = re.match(
-        r'^(S\.\d+)([A-Z]+)?$',
-        student_class
-    )
-
-    if not student_match:
-        return False
-
-    student_parent = student_match.group(1)
-
     for assignment in assignments:
-
-        # -----------------------------------------------------
-        # If a specific assignment type was requested,
-        # respect it.
-        # -----------------------------------------------------
 
         if (
             assignment_type
@@ -1701,41 +1665,24 @@ def teacher_has_class_access(user_id, student_class, assignment_type=None):
         if not assigned_class:
             continue
 
-        # -----------------------------------------------------
-        # Determine parent class of the teacher's assignment
+        # Exact stream/class match
+        if student_class == assigned_class:
+            return True
+
+        # Main class assignment covers all its streams
         #
-        # S.1  -> S.1
-        # S.1B -> S.1
-        # -----------------------------------------------------
-
-        assigned_match = re.match(
-            r'^(S\.\d+)([A-Z]+)?$',
-            assigned_class
-        )
-
-        if not assigned_match:
-            continue
-
-        assigned_parent = assigned_match.group(1)
-
-        # -----------------------------------------------------
-        # Same parent class = access
+        # S.1 -> S.1A
+        # S.1 -> S.1B
+        # S.2 -> S.2A
         #
-        # S.1  -> S.1A ✓
-        # S.1B -> S.1A ✓
-        # S.1C -> S.1B ✓
-        #
-        # But:
-        #
-        # S.1B -> S.2A ✗
-        # S.2  -> S.1A ✗
-        # -----------------------------------------------------
-
-        if assigned_parent == student_parent:
+        # S.1B does NOT cover S.1A.
+        if re.match(
+            r'^' + re.escape(assigned_class) + r'[A-Z]+$',
+            student_class
+        ):
             return True
 
     return False
-
 def get_teacher_accessible_classes(user_id=None, assignment_type=None):
     """
     Returns the classes assigned to the teacher.
