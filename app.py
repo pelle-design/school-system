@@ -9924,6 +9924,62 @@ def bursar_generate_fee_prn(student_id):
             request_id=request_id
         )
     )
+
+@app.route('/bursar/fee-prn/<int:request_id>')
+def bursar_fee_prn(request_id):
+
+    if not check_permission(['bursar']):
+        abort(403)
+
+    db = get_db_dict()
+    cur = db.cursor()
+
+    cur.execute("""
+        SELECT
+            f.id,
+            f.prn,
+            f.student_id,
+            f.amount,
+            f.term,
+            f.year,
+            f.payment_status,
+            f.payment_method,
+            f.provider_transaction_id,
+            f.created_by,
+            f.created_at,
+            f.expires_at,
+            f.paid_at,
+
+            s.full_name,
+            s.class,
+            s.parent_phone
+
+        FROM fee_payment_requests f
+
+        JOIN students s
+            ON s.student_id = f.student_id
+
+        WHERE f.id=%s
+    """, (request_id,))
+
+    fee_request = cur.fetchone()
+
+    cur.close()
+
+    if not fee_request:
+        flash(
+            'Payment request not found.',
+            'danger'
+        )
+
+        return redirect(
+            url_for('bursar_students')
+        )
+
+    return render_template(
+        'bursar/fee_prn.html',
+        fee_request=fee_request
+    )
 @app.route('/bursar/payment-request/<int:request_id>/print')
 def bursar_print_payment_prn(request_id):
 
