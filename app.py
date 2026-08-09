@@ -5090,17 +5090,54 @@ def teacher_students():
         return redirect(url_for('dashboard'))
 
     # =========================================================
-    # GET ASSIGNED CLASSES
+    # GET ASSIGNED CLASSES AND THEIR STREAMS
     # =========================================================
-    available_classes = sorted(
-        list(
-            set(
-                (a['class_name'] or '').strip().upper()
-                for a in assignments
-                if a.get('class_name')
-            )
+    
+    db = get_db_dict()
+    cur = db.cursor()
+    
+    assigned_classes = sorted(
+        set(
+            (a['class_name'] or '').strip().upper()
+            for a in assignments
+            if a.get('class_name')
         )
     )
+    
+    available_classes = set()
+    
+    for assigned_class in assigned_classes:
+    
+        # Always include the main class
+        available_classes.add(assigned_class)
+    
+        # If assignment is a main class such as S.1,
+        # automatically include all its streams.
+        if re.match(r'^S\.\d+$', assigned_class):
+    
+            cur.execute(
+                """
+                SELECT DISTINCT class
+                FROM students
+                WHERE class ~ %s
+                ORDER BY class
+                """,
+                (
+                    '^' + re.escape(assigned_class) + r'[A-Za-z]+$',
+                )
+            )
+    
+            stream_rows = cur.fetchall()
+    
+            for row in stream_rows:
+                stream_class = (row['class'] or '').strip().upper()
+    
+                if stream_class:
+                    available_classes.add(stream_class)
+    
+    cur.close()
+    
+    available_classes = sorted(available_classes)
 
     if not available_classes:
         flash(
