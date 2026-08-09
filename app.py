@@ -12180,7 +12180,7 @@ def generate_prn(student_id):
 
 
     return render_template(
-        'parent/prn.html',
+        'parent/fee_prn.html',
         prn=prn,
         amount=balance
     )
@@ -13043,8 +13043,7 @@ def inventory_item_edit(item_id):
 
 
 
-# ==================== ISSUE INVENTORY ITEM ====================
-
+# ==================== ISSUE INVENTORY ITEM ===================
 
 @app.route(
     '/inventory/issue/<int:item_id>',
@@ -13811,9 +13810,6 @@ def inventory_reports():
         ['admin','bursar','stores_keeper']
     ):
         abort(403)
-
-
-
     by_category = []
 
     by_status = []
