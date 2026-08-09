@@ -5575,18 +5575,129 @@ def save_manual_marks():
 
 @app.route('/teacher/upload_marks', methods=['GET', 'POST'])
 def teacher_upload_marks():
-    if not check_permission(['classteacher', 'subject_teacher', 'dos']):
+
+    if not check_permission(
+        ['classteacher', 'subject_teacher', 'dos']
+    ):
         abort(403)
+
     teacher_id = session.get('user_id')
+
     assignments = get_user_assignments(teacher_id)
+
     if not assignments:
-        flash('No classes assigned.', 'danger')
-        return redirect(url_for('dashboard'))
-    available_classes = list(
-        set(
-            [a['class_name'] for a in assignments]
+        flash(
+            'No classes assigned.',
+            'danger'
         )
-    )
+        return redirect(url_for('dashboard'))
+
+    # =========================================================
+    # BUILD CLASSES AVAILABLE FOR MARK ENTRY
+    #
+    # IMPORTANT:
+    #
+    # My Students:
+    #   S.1B teacher -> S.1B only
+    #
+    # Upload Marks:
+    #   S.1B teacher -> all S.1 streams
+    #
+    #   S.1  teacher -> all S.1 streams
+    #
+    # This is intentionally DIFFERENT from
+    # teacher_has_class_access().
+    # =========================================================
+
+    assigned_classes = set()
+
+    for assignment in assignments:
+
+        assigned_class = (
+            assignment.get('class_name') or ''
+        ).strip().upper()
+
+        if not assigned_class:
+            continue
+
+        assigned_classes.add(assigned_class)
+
+    # ---------------------------------------------------------
+    # Expand stream assignments to their parent-class streams
+    #
+    # S.1B -> S.1A, S.1B, S.1C...
+    # S.2C -> S.2A, S.2B, S.2C...
+    #
+    # Main class:
+    #
+    # S.1 -> S.1A, S.1B, S.1C...
+    # ---------------------------------------------------------
+
+    upload_classes = set(assigned_classes)
+
+    db = get_db_dict()
+    cur = db.cursor()
+
+    for assigned_class in assigned_classes:
+
+        match = re.match(
+            r'^(S\.\d+)([A-Z]+)?$',
+            assigned_class
+        )
+
+        if not match:
+            continue
+
+        parent_class = match.group(1)
+
+        # Get all streams belonging to this parent class
+        cur.execute(
+            """
+            SELECT DISTINCT class
+            FROM students
+            WHERE class ~ %s
+            ORDER BY class
+            """,
+            (
+                '^' + re.escape(parent_class) + r'[A-Za-z]+$',
+            )
+        )
+
+        stream_rows = cur.fetchall()
+
+        for row in stream_rows:
+
+            stream_class = (
+                row['class'] or ''
+            ).strip().upper()
+
+            if stream_class:
+                upload_classes.add(stream_class)
+
+    # =========================================================
+    # FINAL LIST OF CLASSES AVAILABLE FOR MARK ENTRY
+    # =========================================================
+
+    available_classes = sorted(upload_classes)
+
+    if not available_classes:
+
+        cur.close()
+        db.close()
+
+        flash(
+            'No classes assigned.',
+            'danger'
+        )
+
+        return redirect(
+            url_for('dashboard')
+        )
+
+    # =========================================================
+    # SELECT CLASS
+    # =========================================================
+
     selected_class = request.args.get(
         'class_name',
         session.get(
@@ -5594,10 +5705,29 @@ def teacher_upload_marks():
             available_classes[0]
         )
     )
+
+    selected_class = (
+        selected_class.strip().upper()
+        if selected_class
+        else available_classes[0]
+    )
+
+    # ---------------------------------------------------------
+    # Make sure selected class is actually allowed
+    # ---------------------------------------------------------
+
     if selected_class not in available_classes:
+
         selected_class = available_classes[0]
+
     session['selected_class'] = selected_class
+
+    # =========================================================
+    # DETERMINE LEVEL
+    # =========================================================
+
     class_upper = selected_class.upper()
+
     level = (
         'alevel'
         if (
@@ -5618,56 +5748,83 @@ def teacher_upload_marks():
         )
         else 'olevel'
     )
+
     current_year = datetime.now().year
-    # ===============================
+
+    # =========================================================
     # GET STUDENTS FOR MANUAL ENTRY
-    # ===============================
-    db = get_db_dict()
-    cur = db.cursor()
+    #
+    # Only students belonging to the SELECTED stream/class.
+    #
+    # Example:
+    #
+    # selected_class = S.1A
+    #
+    # -> only S.1A students appear.
+    # =========================================================
+
     cur.execute(
         """
-        SELECT student_id, full_name
+        SELECT
+            student_id,
+            full_name
         FROM students
-        WHERE class=%s
+        WHERE class = %s
         ORDER BY full_name
         """,
         (selected_class,)
     )
+
     students = cur.fetchall()
-    cur.close()
-    # ===============================
+
+    # =========================================================
     # EXCEL UPLOAD PROCESS
-    # ===============================
+    # =========================================================
+
     if request.method == "POST":
+
         subject = request.form.get(
             'subject',
             ''
         ).strip()
+
         term = request.form.get(
             'term',
             'Term 1'
         ).strip()
+
         year = request.form.get(
             'year',
             current_year
         )
+
         is_subsidiary = (
-            request.form.get('is_subsidiary') == 'on'
+            request.form.get(
+                'is_subsidiary'
+            ) == 'on'
         )
+
         file = request.files.get(
             'marks_file'
         )
+
         if not file or not file.filename:
+
+            cur.close()
+            db.close()
+
             flash(
                 'Please upload an Excel file.',
                 'danger'
             )
+
             return redirect(
                 url_for(
                     'teacher_upload_marks',
                     class_name=selected_class
                 )
             )
+
         count = process_marks_upload(
             file,
             subject,
@@ -5678,33 +5835,49 @@ def teacher_upload_marks():
             level,
             is_subsidiary
         )
+
         flash(
             f'{count} marks uploaded successfully.',
             'success'
         )
+
+        cur.close()
+        db.close()
+
         return redirect(
             url_for(
                 'teacher_upload_marks',
                 class_name=selected_class
             )
         )
-    # ===============================
+
+    # =========================================================
     # LOAD TEMPLATE
-    # ===============================
+    # =========================================================
+
+    cur.close()
+    db.close()
+
     return render_template(
         f'teacher/upload_marks_{level}.html',
+
         assigned_class=selected_class,
+
         current_year=current_year,
+
         teacher_classes=[
             {
                 'class_name': c
             }
             for c in available_classes
         ],
+
         selected_class=selected_class,
+
         students=students
     )
-    
+
+
 @app.route("/save_olevel_marks", methods=["POST"])
 def save_olevel_marks():
     if not check_permission(['classteacher', 'subject_teacher', 'dos']):
