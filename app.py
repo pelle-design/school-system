@@ -14472,8 +14472,6 @@ def inventory_print_report():
 
 
     else:
-
-
         cur.execute(
             """
             SELECT
