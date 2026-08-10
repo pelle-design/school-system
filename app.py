@@ -12179,25 +12179,43 @@ def bursar_settings_update():
     flash('Settings updated successfully.', 'success')
 
     return redirect(url_for('bursar_settings'))
-
-
 # ==================== HEADTEACHER & MANAGEMENT APPROVAL ====================
+
 @app.route('/headteacher/approvals')
 def headteacher_approvals():
+
     if not check_permission(['headteacher']):
         abort(403)
+
     db = get_db_dict()
     cur = db.cursor()
+
     cur.execute("""
-        SELECT id, payroll_no, month_year, total_amount, approval_status,
-               approval_code,  headteacher_access_token, created_at, recorded_by,
+        SELECT
+            id,
+            payroll_no,
+            month_year,
+            total_amount,
+            approval_status,
+            approval_code,
+            headteacher_access_token,
+            created_at,
+            recorded_by
         FROM payroll
         WHERE approval_status = 'pending'
         ORDER BY created_at DESC
     """)
+
     pending = cur.fetchall()
+
     cur.close()
-    return render_template('headteacher/approvals.html', pending=pending)
+
+    return render_template(
+        'headteacher/approvals.html',
+        pending=pending
+    )
+
+
 
 @app.route('/headteacher/approval/<token>', methods=['GET', 'POST'])
 def headteacher_approval_access(token):
