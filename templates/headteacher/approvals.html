@@ -35,7 +35,7 @@
                         <td style="text-align: left;">{{ p.month_year }}</td>
                         <td style="text-align: right;">{{ "{:,.2f}".format(p.total_amount) }}</td>
                         <td style="text-align: center;">{{ p.staff_count or 0 }}</td>
-                        <td style="text-align: left;">{{ p.created_at[:16] if p.created_at else '-' }}</td>
+                        <td style="text-align: left;">{{ p.created_at.strftime('%d/%m/%Y %H:%M') if p.created_at else '-' }}</td>
                         <td style="text-align: center;">
                             <div class="action-buttons">
                                 <a href="{{ url_for('headteacher_view_payroll', payroll_id=p.id) }}" class="btn btn-info btn-sm" title="View Details">
