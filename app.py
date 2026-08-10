@@ -10597,6 +10597,7 @@ def bursar_clearance(student_id):
         'bursar/clearance.html',
         student=student,
         school=school,
+        school_settings=school,
         logo_url=logo_url,
         stamp_url=stamp_url
     )
