@@ -762,7 +762,33 @@ def init_db():
         )
     """)
 
-
+    # STUDENT CLEARANCE
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS student_clearance (
+            id SERIAL PRIMARY KEY,
+    
+            student_id TEXT NOT NULL,
+    
+            clearance_status TEXT DEFAULT 'pending',
+    
+            cleared_by INTEGER,
+    
+            cleared_at TIMESTAMP,
+    
+            remarks TEXT,
+    
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+            FOREIGN KEY(student_id)
+                REFERENCES students(student_id)
+                ON DELETE CASCADE,
+    
+            FOREIGN KEY(cleared_by)
+                REFERENCES users(id),
+    
+            UNIQUE(student_id)
+        )
+    """)
     # SPORTS ACTIVITIES
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS sports_activities (
@@ -10378,23 +10404,51 @@ def bursar_clearance(student_id):
     cur = db.cursor()
 
     cur.execute("""
-        SELECT student_id, full_name, class, parent_phone,
-               fees_balance, fees_total, fees_paid, photo_path
-        FROM students
-        WHERE student_id=%s
+        SELECT
+            s.student_id,
+            s.full_name,
+            s.class,
+            s.parent_phone,
+            s.fees_balance,
+            s.fees_total,
+            s.fees_paid,
+            s.photo_path,
+
+            COALESCE(sc.clearance_status, 'pending') AS clearance_status,
+            sc.cleared_at,
+            sc.remarks,
+            u.full_name AS cleared_by_name
+
+        FROM students s
+
+        LEFT JOIN student_clearance sc
+            ON sc.student_id = s.student_id
+
+        LEFT JOIN users u
+            ON u.id = sc.cleared_by
+
+        WHERE s.student_id = %s
     """, (student_id,))
 
     student = cur.fetchone()
     cur.close()
 
     if not student:
-        flash('Student not found', 'danger')
+        flash('Student not found.', 'danger')
         return redirect(url_for('bursar_students'))
 
+    # Make sure fee values are never None
     student['fees_total'] = student.get('fees_total') or 0
     student['fees_paid'] = student.get('fees_paid') or 0
     student['fees_balance'] = student.get('fees_balance') or 0
-    student['photo_url'] = get_photo_url(student.get('photo_path'))
+
+    # Determine whether the student is financially eligible
+    student['fees_cleared'] = student['fees_balance'] <= 0
+
+    # Photo
+    student['photo_url'] = get_photo_url(
+        student.get('photo_path')
+    )
 
     return render_template(
         'bursar/clearance.html',
@@ -10406,40 +10460,159 @@ def bursar_bulk_clearance():
     if not check_permission(['bursar']):
         abort(403)
 
-    class_filter = request.args.get('class', '')
+    class_filter = request.args.get('class', '').strip()
 
     db = get_db_dict()
     cur = db.cursor()
 
     query = """
-        SELECT student_id, full_name, class, parent_phone,
-               fees_balance, fees_total, fees_paid, photo_path
-        FROM students
-        WHERE fees_balance <= 0
+        SELECT
+            s.student_id,
+            s.full_name,
+            s.class,
+            s.parent_phone,
+            s.fees_balance,
+            s.fees_total,
+            s.fees_paid,
+            s.photo_path,
+
+            COALESCE(sc.clearance_status, 'pending')
+                AS clearance_status,
+
+            sc.cleared_at,
+
+            sc.remarks,
+
+            u.full_name AS cleared_by_name
+
+        FROM students s
+
+        LEFT JOIN student_clearance sc
+            ON sc.student_id = s.student_id
+
+        LEFT JOIN users u
+            ON u.id = sc.cleared_by
+
+        WHERE COALESCE(s.fees_balance, 0) <= 0
     """
 
     params = []
 
     if class_filter:
-        query += " AND class=%s"
+        query += """
+            AND s.class = %s
+        """
         params.append(class_filter)
 
+    query += """
+        ORDER BY s.class, s.full_name
+    """
+
     cur.execute(query, params)
+
     students = cur.fetchall()
+
     cur.close()
 
-    for s in students:
-        s['fees_total'] = s.get('fees_total') or 0
-        s['fees_paid'] = s.get('fees_paid') or 0
-        s['fees_balance'] = s.get('fees_balance') or 0
-        s['photo_url'] = get_photo_url(s.get('photo_path'))
+    for student in students:
+
+        student['fees_total'] = (
+            student.get('fees_total') or 0
+        )
+
+        student['fees_paid'] = (
+            student.get('fees_paid') or 0
+        )
+
+        student['fees_balance'] = (
+            student.get('fees_balance') or 0
+        )
+
+        student['fees_cleared'] = (
+            student['fees_balance'] <= 0
+        )
+
+        student['photo_url'] = get_photo_url(
+            student.get('photo_path')
+        )
 
     return render_template(
         'bursar/bulk_clearance.html',
-        students=students
+        students=students,
+        class_filter=class_filter
     )
 
+@app.route('/bursar/clear_student/<student_id>', methods=['POST'])
+def clear_student(student_id):
+    if not check_permission(['bursar']):
+        abort(403)
 
+    db = get_db_dict()
+    cur = db.cursor()
+
+    # Check student's fees
+    cur.execute("""
+        SELECT fees_balance
+        FROM students
+        WHERE student_id = %s
+    """, (student_id,))
+
+    student = cur.fetchone()
+
+    if not student:
+        cur.close()
+        flash('Student not found.', 'danger')
+        return redirect(url_for('bursar_students'))
+
+    fees_balance = student.get('fees_balance') or 0
+
+    # Student cannot be cleared while owing fees
+    if fees_balance > 0:
+        cur.close()
+        flash(
+            'Student cannot be cleared because there is an outstanding fees balance.',
+            'danger'
+        )
+        return redirect(
+            url_for('bursar_clearance', student_id=student_id)
+        )
+
+    # Get logged-in bursar's user ID
+    user_id = session.get('user_id')
+
+    remarks = request.form.get('remarks', '').strip()
+
+    # Create or update clearance record
+    cur.execute("""
+        INSERT INTO student_clearance (
+            student_id,
+            clearance_status,
+            cleared_by,
+            cleared_at,
+            remarks
+        )
+        VALUES (%s, 'cleared', %s, CURRENT_TIMESTAMP, %s)
+
+        ON CONFLICT (student_id)
+        DO UPDATE SET
+            clearance_status = 'cleared',
+            cleared_by = EXCLUDED.cleared_by,
+            cleared_at = CURRENT_TIMESTAMP,
+            remarks = EXCLUDED.remarks
+    """, (
+        student_id,
+        user_id,
+        remarks
+    ))
+
+    db.commit()
+    cur.close()
+
+    flash('Student cleared successfully.', 'success')
+
+    return redirect(
+        url_for('bursar_clearance', student_id=student_id)
+    )
 @app.route('/bursar/webhook/process')
 def bursar_process_webhooks():
     if not check_permission(['bursar']):
