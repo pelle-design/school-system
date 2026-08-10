@@ -10296,37 +10296,116 @@ def bursar_print_payment_prn(request_id):
     )
 @app.route('/bursar/print_receipts')
 def bursar_print_receipts():
+
     if not check_permission(['bursar']):
         abort(403)
 
     receipt_ids = request.args.get('ids', '')
     receipts = []
 
+    db = get_db_dict()
+    cur = db.cursor()
+
+    # =================================================
+    # GET RECEIPTS
+    # =================================================
+
     if receipt_ids:
-        ids = [int(x) for x in receipt_ids.split(',') if x.isdigit()]
+
+        ids = [
+            int(x)
+            for x in receipt_ids.split(',')
+            if x.isdigit()
+        ]
 
         if ids:
-            placeholders = ','.join(['%s'] * len(ids))
 
-            db = get_db_dict()
-            cur = db.cursor()
+            placeholders = ','.join(
+                ['%s'] * len(ids)
+            )
 
             cur.execute(f"""
-                SELECT p.*, s.full_name, s.class
+                SELECT
+                    p.*,
+                    s.full_name,
+                    s.class
                 FROM payments p
-                JOIN students s 
-                ON p.student_id=s.student_id
+                JOIN students s
+                    ON p.student_id = s.student_id
                 WHERE p.id IN ({placeholders})
                 ORDER BY p.payment_date DESC
             """, ids)
 
             receipts = cur.fetchall()
-            cur.close()
+
+    # =================================================
+    # GET SCHOOL SETTINGS
+    # =================================================
+
+    cur.execute("""
+        SELECT
+            school_name,
+            school_address,
+            school_phone,
+            school_email,
+            logo_url,
+            headteacher_stamp
+        FROM school_settings
+        WHERE id = 1
+    """)
+
+    school = cur.fetchone()
+
+    cur.close()
+
+    # =================================================
+    # DEFAULT SETTINGS
+    # =================================================
+
+    if not school:
+        school = {
+            'school_name': 'YOUR SCHOOL NAME',
+            'school_address': '',
+            'school_phone': '',
+            'school_email': '',
+            'logo_url': None,
+            'headteacher_stamp': None
+        }
+
+    # =================================================
+    # SCHOOL LOGO
+    # =================================================
+
+    logo_url = None
+
+    if school.get('logo_url'):
+        logo_url = get_photo_url(
+            school['logo_url']
+        )
+
+    # =================================================
+    # SCHOOL STAMP
+    # =================================================
+
+    stamp_url = None
+
+    if school.get('headteacher_stamp'):
+        stamp_url = get_photo_url(
+            school['headteacher_stamp']
+        )
+
+    # =================================================
+    # RENDER
+    # =================================================
 
     return render_template(
         'bursar/print_receipts.html',
-        receipts=receipts
+        receipts=receipts,
+        school=school,
+        logo_url=logo_url,
+        stamp_url=stamp_url
     )
+
 
 @app.route('/bursar/send_reminder/<student_id>')
 def bursar_send_reminder(student_id):
@@ -10397,151 +10476,267 @@ def bursar_bulk_reminder():
 
 @app.route('/bursar/clearance/<student_id>')
 def bursar_clearance(student_id):
+
     if not check_permission(['bursar']):
         abort(403)
 
     db = get_db_dict()
     cur = db.cursor()
 
+    # ==============================
+    # GET STUDENT
+    # ==============================
+
     cur.execute("""
         SELECT
-            s.student_id,
-            s.full_name,
-            s.class,
-            s.parent_phone,
-            s.fees_balance,
-            s.fees_total,
-            s.fees_paid,
-            s.photo_path,
-
-            COALESCE(sc.clearance_status, 'pending') AS clearance_status,
-            sc.cleared_at,
-            sc.remarks,
-            u.full_name AS cleared_by_name
-
-        FROM students s
-
-        LEFT JOIN student_clearance sc
-            ON sc.student_id = s.student_id
-
-        LEFT JOIN users u
-            ON u.id = sc.cleared_by
-
-        WHERE s.student_id = %s
+            student_id,
+            full_name,
+            class,
+            parent_phone,
+            fees_balance,
+            fees_total,
+            fees_paid,
+            photo_path,
+            admission_date
+        FROM students
+        WHERE student_id=%s
     """, (student_id,))
 
     student = cur.fetchone()
-    cur.close()
 
     if not student:
-        flash('Student not found.', 'danger')
-        return redirect(url_for('bursar_students'))
+        cur.close()
 
-    # Make sure fee values are never None
-    student['fees_total'] = student.get('fees_total') or 0
-    student['fees_paid'] = student.get('fees_paid') or 0
-    student['fees_balance'] = student.get('fees_balance') or 0
+        flash('Student not found', 'danger')
 
-    # Determine whether the student is financially eligible
-    student['fees_cleared'] = student['fees_balance'] <= 0
+        return redirect(
+            url_for('bursar_students')
+        )
 
-    # Photo
+    # ==============================
+    # GET SCHOOL SETTINGS
+    # ==============================
+
+    cur.execute("""
+        SELECT
+            school_name,
+            school_address,
+            school_phone,
+            school_email,
+            logo_url,
+            headteacher_stamp
+        FROM school_settings
+        WHERE id=1
+    """)
+
+    school = cur.fetchone()
+
+    cur.close()
+
+    # ==============================
+    # DEFAULT SETTINGS IF NONE EXIST
+    # ==============================
+
+    if not school:
+        school = {
+            'school_name': 'YOUR SCHOOL NAME',
+            'school_address': '',
+            'school_phone': '',
+            'school_email': '',
+            'logo_url': None,
+            'headteacher_stamp': None
+        }
+
+    # ==============================
+    # FEES
+    # ==============================
+
+    student['fees_total'] = (
+        student.get('fees_total') or 0
+    )
+
+    student['fees_paid'] = (
+        student.get('fees_paid') or 0
+    )
+
+    student['fees_balance'] = (
+        student.get('fees_balance') or 0
+    )
+
+    # ==============================
+    # STUDENT PHOTO
+    # ==============================
+
     student['photo_url'] = get_photo_url(
         student.get('photo_path')
     )
 
+    # ==============================
+    # SCHOOL LOGO
+    # ==============================
+
+    logo_url = None
+
+    if school.get('logo_url'):
+        logo_url = get_photo_url(
+            school['logo_url']
+        )
+
+    # ==============================
+    # SCHOOL STAMP
+    # ==============================
+
+    stamp_url = None
+
+    if school.get('headteacher_stamp'):
+        stamp_url = get_photo_url(
+            school['headteacher_stamp']
+        )
+
     return render_template(
         'bursar/clearance.html',
-        student=student
+        student=student,
+        school=school,
+        logo_url=logo_url,
+        stamp_url=stamp_url
     )
 
 @app.route('/bursar/bulk_clearance')
 def bursar_bulk_clearance():
+
     if not check_permission(['bursar']):
         abort(403)
 
-    class_filter = request.args.get('class', '').strip()
+    class_filter = request.args.get(
+        'class',
+        ''
+    ).strip()
 
     db = get_db_dict()
     cur = db.cursor()
 
+    # ==============================
+    # GET CLEARED STUDENTS
+    # ==============================
+
     query = """
         SELECT
-            s.student_id,
-            s.full_name,
-            s.class,
-            s.parent_phone,
-            s.fees_balance,
-            s.fees_total,
-            s.fees_paid,
-            s.photo_path,
-
-            COALESCE(sc.clearance_status, 'pending')
-                AS clearance_status,
-
-            sc.cleared_at,
-
-            sc.remarks,
-
-            u.full_name AS cleared_by_name
-
-        FROM students s
-
-        LEFT JOIN student_clearance sc
-            ON sc.student_id = s.student_id
-
-        LEFT JOIN users u
-            ON u.id = sc.cleared_by
-
-        WHERE COALESCE(s.fees_balance, 0) <= 0
+            student_id,
+            full_name,
+            class,
+            parent_phone,
+            fees_balance,
+            fees_total,
+            fees_paid,
+            photo_path
+        FROM students
+        WHERE COALESCE(fees_balance, 0) <= 0
     """
 
     params = []
 
     if class_filter:
+
         query += """
-            AND s.class = %s
+            AND class=%s
         """
+
         params.append(class_filter)
 
     query += """
-        ORDER BY s.class, s.full_name
+        ORDER BY class, full_name
     """
 
     cur.execute(query, params)
 
     students = cur.fetchall()
 
+    # ==============================
+    # GET SCHOOL SETTINGS
+    # ==============================
+
+    cur.execute("""
+        SELECT
+            school_name,
+            school_address,
+            school_phone,
+            school_email,
+            logo_url,
+            headteacher_stamp
+        FROM school_settings
+        WHERE id=1
+    """)
+
+    school = cur.fetchone()
+
     cur.close()
 
-    for student in students:
+    # ==============================
+    # DEFAULT SETTINGS
+    # ==============================
 
-        student['fees_total'] = (
-            student.get('fees_total') or 0
+    if not school:
+        school = {
+            'school_name': 'YOUR SCHOOL NAME',
+            'school_address': '',
+            'school_phone': '',
+            'school_email': '',
+            'logo_url': None,
+            'headteacher_stamp': None
+        }
+
+    # ==============================
+    # PREPARE STUDENTS
+    # ==============================
+
+    for s in students:
+
+        s['fees_total'] = (
+            s.get('fees_total') or 0
         )
 
-        student['fees_paid'] = (
-            student.get('fees_paid') or 0
+        s['fees_paid'] = (
+            s.get('fees_paid') or 0
         )
 
-        student['fees_balance'] = (
-            student.get('fees_balance') or 0
+        s['fees_balance'] = (
+            s.get('fees_balance') or 0
         )
 
-        student['fees_cleared'] = (
-            student['fees_balance'] <= 0
+        s['photo_url'] = get_photo_url(
+            s.get('photo_path')
         )
 
-        student['photo_url'] = get_photo_url(
-            student.get('photo_path')
+    # ==============================
+    # SCHOOL LOGO
+    # ==============================
+
+    logo_url = None
+
+    if school.get('logo_url'):
+        logo_url = get_photo_url(
+            school['logo_url']
+        )
+
+    # ==============================
+    # SCHOOL STAMP
+    # ==============================
+
+    stamp_url = None
+
+    if school.get('headteacher_stamp'):
+        stamp_url = get_photo_url(
+            school['headteacher_stamp']
         )
 
     return render_template(
         'bursar/bulk_clearance.html',
         students=students,
-        class_filter=class_filter
+        class_filter=class_filter,
+        school=school,
+        logo_url=logo_url,
+        stamp_url=stamp_url
     )
-
 @app.route('/bursar/clear_student/<student_id>', methods=['POST'])
 def clear_student(student_id):
     if not check_permission(['bursar']):
