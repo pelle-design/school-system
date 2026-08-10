@@ -1,80 +1,381 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <title>Print Receipts</title>
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: Arial, sans-serif; background: #fff; padding: 10px; }
-        .receipt-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; }
-        .receipt {
-            border: 1px dashed #ccc;
-            padding: 12px;
-            border-radius: 8px;
-            page-break-inside: avoid;
-            font-size: 10px;
-        }
-        .receipt-header { text-align: center; margin-bottom: 8px; border-bottom: 1px solid #000; padding-bottom: 5px; }
-        .receipt-title { font-size: 14px; font-weight: bold; margin: 0; }
-        .receipt-school { font-size: 12px; font-weight: bold; }
-        .receipt-address { font-size: 9px; color: #555; }
-        .receipt-details { width: 100%; margin: 8px 0; border-collapse: collapse; }
-        .receipt-details td { padding: 3px 0; vertical-align: top; }
-        .receipt-details td:first-child { font-weight: bold; width: 35%; }
-        .amount-word { font-size: 9px; font-style: italic; margin: 5px 0; }
-        .receipt-footer { text-align: center; margin-top: 8px; padding-top: 5px; border-top: 1px dotted #ccc; font-size: 8px; }
-        .stamp { text-align: center; margin-top: 5px; font-family: cursive; font-size: 10px; }
-        @media print {
-            body { padding: 0; margin: 0; }
-            .no-print { display: none; }
-        }
-    </style>
-</head>
-<body>
-    <div class="no-print" style="text-align: center; margin-bottom: 20px;">
-        <button onclick="window.print()" class="btn btn-primary">Print Receipts</button>
-        <button onclick="window.close()" class="btn btn-secondary">Close</button>
-    </div>
-    
-    {% if receipts and receipts|length > 0 %}
-    <div class="receipt-grid">
-        {% for receipt in receipts %}
-        <div class="receipt">
-            <div class="receipt-header">
-                <div class="receipt-title">OFFICIAL RECEIPT</div>
-                <div class="receipt-school">{{ school_name|default('YOUR SCHOOL NAME') }}</div>
-                <div class="receipt-address">{{ school_address|default('P.O. Box 123, Kampala, Uganda') }}</div>
-            </div>
-            <table class="receipt-details">
-                <tr><td>Receipt No:</td><td>{{ receipt.receipt_no }}</td></tr>
-                <tr><td>Date:</td><td>{{ receipt.payment_date }}</td></tr>
-                <tr><td>Student Name:</td><td>{{ receipt.full_name }}</td></tr>
-                <tr><td>Student ID:</td><td>{{ receipt.student_id }}</td></tr>
-                <tr><td>Class:</td><td>{{ receipt.class }}</td></tr>
-                <tr><td>Amount Paid:</td><td><strong>UGX {{ "{:,.2f}".format(receipt.amount) }}</strong></td></tr>
-                <tr><td>Payment Method:</td><td>{{ receipt.payment_method }}</td></tr>
-                <tr><td>Received By:</td><td>{{ receipt.recorded_by or 'Bursar' }}</td></tr>
-            </table>
-            <div class="amount-word">
-                Amount in Words: {{ receipt.amount|word_format|default('') }}
-            </div>
-            <div class="stamp">AUTHORIZED SIGNATURE / STAMP</div>
-            <div class="receipt-footer">
-                {{ receipt_footer|default('Thank you for your payment') }}
-            </div>
+{% extends "base.html" %}
+
+{% block title %}Print Receipts{% endblock %}
+
+{% block content %}
+
+<style>
+
+.receipt-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+    max-width: 900px;
+    margin: 20px auto;
+}
+
+.receipt {
+    background: white;
+    border: 1px solid #555;
+    padding: 15px;
+    box-sizing: border-box;
+    page-break-inside: avoid;
+    break-inside: avoid;
+}
+
+.receipt-header {
+    text-align: center;
+    border-bottom: 1px solid #555;
+    padding-bottom: 8px;
+    margin-bottom: 8px;
+}
+
+.receipt-title {
+    font-weight: bold;
+    font-size: 14px;
+}
+
+.receipt-school {
+    font-size: 15px;
+    font-weight: bold;
+    margin-top: 3px;
+}
+
+.receipt-address {
+    font-size: 9px;
+    margin-top: 2px;
+}
+
+.receipt-details {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 10px;
+}
+
+.receipt-details td {
+    padding: 4px;
+    border-bottom: 1px solid #eee;
+}
+
+.receipt-details td:first-child {
+    font-weight: bold;
+    width: 40%;
+}
+
+.amount-word {
+    margin-top: 8px;
+    padding: 6px;
+    background: #f8f8f8;
+    font-size: 9px;
+}
+
+.receipt-stamp {
+    text-align: center;
+    margin-top: 10px;
+}
+
+.receipt-stamp img {
+    max-width: 70px;
+    max-height: 50px;
+}
+
+.receipt-footer {
+    text-align: center;
+    border-top: 1px solid #ddd;
+    margin-top: 10px;
+    padding-top: 5px;
+    font-size: 8px;
+}
+
+/* =========================
+   PRINT
+========================= */
+
+@media print {
+
+    @page {
+        size: A4 portrait;
+        margin: 8mm;
+    }
+
+    html,
+    body {
+        margin: 0 !important;
+        padding: 0 !important;
+        background: white !important;
+    }
+
+    .no-print,
+    nav,
+    aside,
+    header,
+    footer,
+    .sidebar {
+        display: none !important;
+    }
+
+    .receipt-grid {
+        width: 100%;
+        max-width: none;
+        margin: 0;
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 5mm;
+    }
+
+    .receipt {
+        height: 132mm;
+        min-height: 132mm;
+        max-height: 132mm;
+
+        padding: 5mm;
+
+        border: 1px solid #333;
+
+        box-sizing: border-box;
+
+        page-break-inside: avoid;
+        break-inside: avoid;
+    }
+
+    .receipt-title {
+        font-size: 11px;
+    }
+
+    .receipt-school {
+        font-size: 12px;
+    }
+
+    .receipt-address {
+        font-size: 7px;
+    }
+
+    .receipt-details {
+        font-size: 8px;
+    }
+
+    .receipt-details td {
+        padding: 2px;
+    }
+
+    .amount-word {
+        font-size: 7px;
+        padding: 4px;
+    }
+
+    .receipt-footer {
+        font-size: 6px;
+    }
+
+}
+
+</style>
+
+
+{% if receipts and receipts|length > 0 %}
+
+<div class="no-print text-center mb-3">
+
+    <button
+        onclick="window.print()"
+        class="btn btn-primary"
+    >
+        <i class="fas fa-print"></i>
+        Print Receipts
+    </button>
+
+</div>
+
+
+<div class="receipt-grid">
+
+{% for receipt in receipts %}
+
+<div class="receipt">
+
+    <!-- SCHOOL HEADER -->
+
+    <div class="receipt-header">
+
+        <div>
+
+            {% if logo_url %}
+
+                <img
+                    src="{{ logo_url }}"
+                    alt="School Logo"
+                    style="
+                        max-width:55px;
+                        max-height:45px;
+                        margin-bottom:4px;
+                    "
+                >
+
+            {% endif %}
+
         </div>
-        {% endfor %}
-    </div>
-    {% else %}
-    <div class="receipt" style="text-align: center; padding: 40px;">
-        No receipts selected. Please go back and select at least one receipt.
-    </div>
-    {% endif %}
-    
-    <script>
-        {% if receipts and receipts|length > 0 %}
-        window.onload = function() { window.print(); }
+
+        <div class="receipt-title">
+            OFFICIAL RECEIPT
+        </div>
+
+        <div class="receipt-school">
+            {{ school.school_name }}
+        </div>
+
+        {% if school.school_address %}
+
+            <div class="receipt-address">
+                {{ school.school_address }}
+            </div>
+
         {% endif %}
-    </script>
-</body>
-</html>
+
+        {% if school.school_phone %}
+
+            <div class="receipt-address">
+                {{ school.school_phone }}
+            </div>
+
+        {% endif %}
+
+        {% if school.school_email %}
+
+            <div class="receipt-address">
+                {{ school.school_email }}
+            </div>
+
+        {% endif %}
+
+    </div>
+
+
+    <!-- RECEIPT DETAILS -->
+
+    <table class="receipt-details">
+
+        <tr>
+            <td>Receipt No:</td>
+            <td>{{ receipt.receipt_no }}</td>
+        </tr>
+
+        <tr>
+            <td>Date:</td>
+            <td>{{ receipt.payment_date }}</td>
+        </tr>
+
+        <tr>
+            <td>Student Name:</td>
+            <td>{{ receipt.full_name }}</td>
+        </tr>
+
+        <tr>
+            <td>Student ID:</td>
+            <td>{{ receipt.student_id }}</td>
+        </tr>
+
+        <tr>
+            <td>Class:</td>
+            <td>{{ receipt.class }}</td>
+        </tr>
+
+        <tr>
+            <td>Amount Paid:</td>
+            <td>
+                <strong>
+                    UGX {{ "{:,.2f}".format(receipt.amount or 0) }}
+                </strong>
+            </td>
+        </tr>
+
+        <tr>
+            <td>Payment Method:</td>
+            <td>{{ receipt.payment_method or 'N/A' }}</td>
+        </tr>
+
+        <tr>
+            <td>Received By:</td>
+            <td>{{ receipt.recorded_by or 'Bursar' }}</td>
+        </tr>
+
+    </table>
+
+
+    <!-- AMOUNT IN WORDS -->
+
+    <div class="amount-word">
+
+        <strong>Amount in Words:</strong>
+
+        {{ receipt.amount|word_format|default('') }}
+
+    </div>
+
+
+    <!-- STAMP -->
+
+    <div class="receipt-stamp">
+
+        {% if stamp_url %}
+
+            <img
+                src="{{ stamp_url }}"
+                alt="Official Stamp"
+            >
+
+        {% else %}
+
+            <span style="font-size:7px;color:#999;">
+                AUTHORIZED SIGNATURE / STAMP
+            </span>
+
+        {% endif %}
+
+    </div>
+
+
+    <!-- FOOTER -->
+
+    <div class="receipt-footer">
+
+        Thank you for your payment.
+
+    </div>
+
+</div>
+
+{% endfor %}
+
+</div>
+
+{% else %}
+
+<div
+    class="receipt"
+    style="text-align:center;padding:40px;"
+>
+
+    No receipts selected.
+
+    <br>
+
+    Please go back and select at least one receipt.
+
+</div>
+
+{% endif %}
+
+
+<script>
+
+{% if receipts and receipts|length > 0 %}
+
+window.onload = function() {
+    window.print();
+};
+
+{% endif %}
+
+</script>
+
+{% endblock %}
