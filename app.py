@@ -12190,7 +12190,7 @@ def headteacher_approvals():
     cur = db.cursor()
     cur.execute("""
         SELECT id, payroll_no, month_year, total_amount, approval_status,
-               approval_code, created_at, recorded_by
+               approval_code,  headteacher_access_token, created_at, recorded_by,
         FROM payroll
         WHERE approval_status = 'pending'
         ORDER BY created_at DESC
