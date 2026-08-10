@@ -1,13 +1,16 @@
 {% extends "base.html" %}
 
-{% block title %}Clearance Cards - {{ class_filter or 'All Classes' }}{% endblock %}
+{% block title %}
+    Clearance Cards - {{ class_filter or 'All Classes' }}
+{% endblock %}
 
 {% block content %}
 
 <style>
-/* ================================
+
+/* =================================================
    SCREEN
-================================ */
+================================================= */
 
 .bulk-controls {
     text-align: center;
@@ -15,162 +18,280 @@
 }
 
 .clearance-grid {
+
     display: grid;
+
     grid-template-columns: repeat(2, 1fr);
+
     gap: 12px;
+
     max-width: 900px;
+
     margin: 0 auto;
 }
 
 .clearance-card {
-    background: #fff;
+
+    background: white;
+
     border: 1px solid #555;
+
     border-radius: 6px;
+
     padding: 12px;
+
     min-height: 360px;
+
     box-sizing: border-box;
+
     position: relative;
+
+    page-break-inside: avoid;
+
+    break-inside: avoid;
 }
 
+
+/* SCHOOL HEADER */
+
 .clearance-school-header {
+
     text-align: center;
+
     border-bottom: 1px solid #777;
+
     padding-bottom: 7px;
+
     margin-bottom: 8px;
 }
 
+.school-logo {
+
+    max-width: 55px;
+
+    max-height: 45px;
+
+    object-fit: contain;
+
+    margin-bottom: 3px;
+}
+
 .clearance-school-header h3 {
+
     margin: 0;
+
     font-size: 15px;
 }
 
 .clearance-school-header p {
+
     margin: 2px 0;
+
     font-size: 9px;
 }
 
 .clearance-title {
-    font-size: 12px;
+
+    font-size: 11px;
+
     font-weight: bold;
-    margin-top: 4px;
+
+    margin-top: 5px;
 }
 
+
+/* STUDENT PHOTO */
+
 .student-photo-container {
+
     text-align: center;
+
     margin-bottom: 7px;
 }
 
 .student-photo {
+
     width: 75px;
+
     height: 75px;
+
     object-fit: cover;
+
     border-radius: 5px;
+
     border: 1px solid #aaa;
 }
 
+
+/* INFORMATION */
+
 .info-row {
+
     display: flex;
+
     justify-content: space-between;
+
     gap: 8px;
+
     padding: 5px 3px;
+
     border-bottom: 1px solid #eee;
+
     font-size: 10px;
 }
 
 .info-label {
+
     font-weight: bold;
 }
 
 .info-value {
+
     text-align: right;
 }
 
+
+/* FEES */
+
 .fees-section {
+
     margin-top: 5px;
 }
 
+
+/* STATUS */
+
 .clearance-status {
+
     text-align: center;
+
     padding: 8px;
+
     margin-top: 9px;
+
     border-radius: 5px;
+
     font-size: 11px;
 }
 
 .status-cleared {
+
     background: #e8f5e9;
+
     border: 1px solid #81c784;
+
     color: #2e7d32;
 }
 
 .status-eligible {
+
     background: #fff8e1;
+
     border: 1px solid #ffcc80;
+
     color: #ef6c00;
 }
 
 .status-not-cleared {
+
     background: #ffebee;
+
     border: 1px solid #ef9a9a;
+
     color: #c62828;
 }
 
+
+/* SIGNATURES */
+
 .signature-section {
-    margin-top: 22px;
+
+    margin-top: 18px;
 }
 
 .signature-line {
+
     display: flex;
+
     justify-content: space-between;
+
     gap: 10px;
+
     text-align: center;
 }
 
 .signature-item {
+
     width: 32%;
+
     border-top: 1px solid #555;
+
     padding-top: 3px;
+
     font-size: 8px;
 }
 
 .stamp-area {
+
     text-align: center;
+
     margin-top: 7px;
 }
 
 .stamp-img {
+
     max-width: 65px;
+
     max-height: 45px;
 }
 
+
+/* FOOTER */
+
 .card-footer {
+
     position: absolute;
+
     bottom: 8px;
+
     left: 12px;
+
     right: 12px;
+
     text-align: center;
+
     border-top: 1px solid #ddd;
+
     padding-top: 5px;
+
     font-size: 7px;
+
     color: #666;
 }
 
 
-/* ================================
-   PRINT — A4, 4 CARDS PER PAGE
-================================ */
+/* =================================================
+   PRINT
+   A4 PORTRAIT
+   4 CARDS PER PAGE
+================================================= */
 
 @media print {
 
     @page {
+
         size: A4 portrait;
+
         margin: 8mm;
     }
 
     html,
     body {
+
         margin: 0 !important;
+
         padding: 0 !important;
+
         background: white !important;
     }
 
@@ -180,127 +301,199 @@
     header,
     footer,
     .sidebar {
+
         display: none !important;
     }
 
     .clearance-grid {
+
         width: 100%;
+
         max-width: none;
-        display: grid;
-        grid-template-columns: repeat(2, 1fr);
-        grid-template-rows: repeat(2, 1fr);
-        gap: 5mm;
+
         margin: 0;
+
+        display: grid;
+
+        grid-template-columns: repeat(2, 1fr);
+
+        grid-auto-rows: 132mm;
+
+        gap: 5mm;
     }
 
     .clearance-card {
+
         width: 100%;
+
         height: 132mm;
+
         min-height: 132mm;
+
         max-height: 132mm;
 
         box-sizing: border-box;
 
         border: 1px solid #333;
+
         border-radius: 3px;
 
         padding: 5mm;
 
         page-break-inside: avoid;
+
         break-inside: avoid;
     }
 
-    /*
-       Every 4 cards start a new A4 page.
-    */
-    .clearance-card:nth-child(4n + 1) {
-        break-before: page;
-        page-break-before: always;
-    }
 
-    .clearance-card:first-child {
-        break-before: auto;
-        page-break-before: auto;
+    /* HEADER */
+
+    .school-logo {
+
+        max-width: 45px;
+
+        max-height: 35px;
     }
 
     .clearance-school-header h3 {
-        font-size: 13px;
+
+        font-size: 12px;
     }
 
     .clearance-school-header p {
-        font-size: 8px;
-    }
 
-    .clearance-title {
-        font-size: 10px;
-    }
-
-    .student-photo {
-        width: 60px;
-        height: 60px;
-    }
-
-    .info-row {
-        font-size: 9px;
-        padding: 3px 2px;
-    }
-
-    .clearance-status {
-        font-size: 9px;
-        padding: 5px;
-        margin-top: 5px;
-    }
-
-    .signature-section {
-        margin-top: 15px;
-    }
-
-    .signature-item {
         font-size: 7px;
     }
 
-    .card-footer {
+    .clearance-title {
+
+        font-size: 9px;
+    }
+
+
+    /* PHOTO */
+
+    .student-photo {
+
+        width: 55px;
+
+        height: 55px;
+    }
+
+
+    /* INFORMATION */
+
+    .info-row {
+
+        font-size: 8px;
+
+        padding: 2.5px 2px;
+    }
+
+
+    /* STATUS */
+
+    .clearance-status {
+
+        font-size: 8px;
+
+        padding: 4px;
+
+        margin-top: 4px;
+    }
+
+
+    /* SIGNATURE */
+
+    .signature-section {
+
+        margin-top: 12px;
+    }
+
+    .signature-item {
+
         font-size: 6px;
-        bottom: 5mm;
+    }
+
+    .stamp-img {
+
+        max-width: 55px;
+
+        max-height: 35px;
+    }
+
+
+    /* FOOTER */
+
+    .card-footer {
+
+        font-size: 5.5px;
+
+        bottom: 4mm;
+
         left: 5mm;
+
         right: 5mm;
     }
+
 }
+
 </style>
 
-<!-- ================================
+
+<!-- =================================================
      SCREEN CONTROLS
-================================ -->
+================================================= -->
 
 <div class="no-print bulk-controls">
-<h2>
-    Clearance Cards
-</h2>
 
-<p>
-    {% if class_filter %}
-        Class: <strong>{{ class_filter }}</strong>
-    {% else %}
-        All Classes
-    {% endif %}
-</p>
+    <h2>
+        Clearance Cards
+    </h2>
 
-<p>
-    Students: <strong>{{ students|length }}</strong>
-</p>
+    <p>
 
-<button
-    onclick="window.print()"
-    class="btn btn-primary"
->
-    <i class="fas fa-print"></i>
-    Print Clearance Cards
-</button>
+        {% if class_filter %}
+
+            Class:
+            <strong>
+                {{ class_filter }}
+            </strong>
+
+        {% else %}
+
+            All Classes
+
+        {% endif %}
+
+    </p>
+
+    <p>
+
+        Students:
+        <strong>
+            {{ students|length }}
+        </strong>
+
+    </p>
+
+    <button
+        onclick="window.print()"
+        class="btn btn-primary"
+    >
+
+        <i class="fas fa-print"></i>
+
+        Print Clearance Cards
+
+    </button>
+
 </div>
 
-<!-- ================================
+
+<!-- =================================================
      CLEARANCE CARDS
-================================ -->
+================================================= -->
 
 <div class="clearance-grid">
 
@@ -308,108 +501,81 @@
 
 <div class="clearance-card">
 
-```
-<!-- SCHOOL HEADER -->
 
-<div class="clearance-school-header">
+    <!-- SCHOOL HEADER -->
 
-    <h3>
-        {{ school_name|default('SCHOOL') }}
-    </h3>
+    <div class="clearance-school-header">
 
-    <p>
-        {{ school_motto|default('Excellence in Education') }}
-    </p>
+        {% if logo_url %}
 
-    <div class="clearance-title">
-        STUDENT CLEARANCE CERTIFICATE
+            <img
+                src="{{ logo_url }}"
+                class="school-logo"
+                alt="School Logo"
+            >
+
+        {% endif %}
+
+        <h3>
+
+            {{ school.school_name }}
+
+        </h3>
+
+
+        {% if school.school_address %}
+
+            <p>
+                {{ school.school_address }}
+            </p>
+
+        {% endif %}
+
+
+        {% if school.school_phone %}
+
+            <p>
+                {{ school.school_phone }}
+            </p>
+
+        {% endif %}
+
+
+        <div class="clearance-title">
+
+            STUDENT CLEARANCE CERTIFICATE
+
+        </div>
+
     </div>
 
-</div>
 
+    <!-- STUDENT PHOTO -->
 
-<!-- STUDENT PHOTO -->
+    <div class="student-photo-container">
 
-<div class="student-photo-container">
+        <img
+            src="{{ student.photo_url or url_for(
+                'static',
+                filename='images/default_avatar.png'
+            ) }}"
+            class="student-photo"
+            alt="Student Photo"
+        >
 
-    <img
-        src="{{ student.photo_url or url_for(
-            'static',
-            filename='images/default_avatar.png'
-        ) }}"
-        class="student-photo"
-        alt="Student Photo"
-    >
-
-</div>
-
-
-<!-- STUDENT INFORMATION -->
-
-<div class="info-row">
-
-    <div class="info-label">
-        Student ID
     </div>
 
-    <div class="info-value">
-        {{ student.student_id }}
-    </div>
 
-</div>
-
-
-<div class="info-row">
-
-    <div class="info-label">
-        Name
-    </div>
-
-    <div class="info-value">
-        {{ student.full_name }}
-    </div>
-
-</div>
-
-
-<div class="info-row">
-
-    <div class="info-label">
-        Class
-    </div>
-
-    <div class="info-value">
-        {{ student.class }}
-    </div>
-
-</div>
-
-
-<div class="info-row">
-
-    <div class="info-label">
-        Parent Phone
-    </div>
-
-    <div class="info-value">
-        {{ student.parent_phone or 'N/A' }}
-    </div>
-
-</div>
-
-
-<!-- FEES -->
-
-<div class="fees-section">
+    <!-- STUDENT INFORMATION -->
 
     <div class="info-row">
 
         <div class="info-label">
-            Total Fees
+            Student ID
         </div>
 
         <div class="info-value">
-            UGX {{ "{:,.0f}".format(student.fees_total or 0) }}
+            {{ student.student_id }}
         </div>
 
     </div>
@@ -418,14 +584,11 @@
     <div class="info-row">
 
         <div class="info-label">
-            Fees Paid
+            Name
         </div>
 
-        <div
-            class="info-value"
-            style="color:#2e7d32;"
-        >
-            UGX {{ "{:,.0f}".format(student.fees_paid or 0) }}
+        <div class="info-value">
+            {{ student.full_name }}
         </div>
 
     </div>
@@ -434,150 +597,232 @@
     <div class="info-row">
 
         <div class="info-label">
-            Balance
+            Class
         </div>
 
-        <div
-            class="info-value"
-            style="
-            color:
-            {% if student.fees_balance|float > 0 %}
-                #c62828
-            {% else %}
-                #2e7d32
+        <div class="info-value">
+            {{ student.class }}
+        </div>
+
+    </div>
+
+
+    <div class="info-row">
+
+        <div class="info-label">
+            Parent Phone
+        </div>
+
+        <div class="info-value">
+            {{ student.parent_phone or 'N/A' }}
+        </div>
+
+    </div>
+
+
+    <!-- FEES -->
+
+    <div class="fees-section">
+
+        <div class="info-row">
+
+            <div class="info-label">
+                Total Fees
+            </div>
+
+            <div class="info-value">
+
+                UGX
+                {{ "{:,.0f}".format(
+                    student.fees_total or 0
+                ) }}
+
+            </div>
+
+        </div>
+
+
+        <div class="info-row">
+
+            <div class="info-label">
+                Fees Paid
+            </div>
+
+            <div
+                class="info-value"
+                style="color:#2e7d32;"
+            >
+
+                UGX
+                {{ "{:,.0f}".format(
+                    student.fees_paid or 0
+                ) }}
+
+            </div>
+
+        </div>
+
+
+        <div class="info-row">
+
+            <div class="info-label">
+                Balance
+            </div>
+
+            <div
+                class="info-value"
+                style="
+                color:
+                {% if student.fees_balance|float > 0 %}
+                    #c62828
+                {% else %}
+                    #2e7d32
+                {% endif %}
+                ;"
+            >
+
+                UGX
+                {{ "{:,.0f}".format(
+                    student.fees_balance or 0
+                ) }}
+
+            </div>
+
+        </div>
+
+    </div>
+
+
+    <!-- CLEARANCE STATUS -->
+
+    {% if student.clearance_status == 'cleared' %}
+
+        <div class="clearance-status status-cleared">
+
+            <strong>
+                ✓ FULLY CLEARED
+            </strong>
+
+            {% if student.cleared_at %}
+
+                <br>
+
+                Cleared:
+                {{ student.cleared_at.strftime(
+                    '%d/%m/%Y'
+                ) }}
+
             {% endif %}
-            ;"
-        >
-            UGX {{ "{:,.0f}".format(student.fees_balance or 0) }}
+
         </div>
 
-    </div>
+    {% elif student.fees_cleared %}
 
-</div>
+        <div class="clearance-status status-eligible">
 
-
-<!-- CLEARANCE STATUS -->
-
-{% if student.clearance_status == 'cleared' %}
-
-    <div class="clearance-status status-cleared">
-
-        <strong>
-            ✓ FULLY CLEARED
-        </strong>
-
-        {% if student.cleared_at %}
+            <strong>
+                ELIGIBLE FOR CLEARANCE
+            </strong>
 
             <br>
 
-            Cleared:
-            {{ student.cleared_at.strftime('%d/%m/%Y') }}
+            Clearance pending
 
-        {% endif %}
-
-    </div>
-
-
-{% elif student.fees_cleared %}
-
-    <div class="clearance-status status-eligible">
-
-        <strong>
-            ELIGIBLE FOR CLEARANCE
-        </strong>
-
-        <br>
-
-        Clearance pending
-
-    </div>
-
-
-{% else %}
-
-    <div class="clearance-status status-not-cleared">
-
-        <strong>
-            NOT CLEARED
-        </strong>
-
-        <br>
-
-        Outstanding fees
-
-    </div>
-
-{% endif %}
-
-
-<!-- SIGNATURES -->
-
-{% if student.clearance_status == 'cleared' %}
-
-<div class="signature-section">
-
-    <div class="signature-line">
-
-        <div class="signature-item">
-            Student
         </div>
-
-        <div class="signature-item">
-            Bursar
-        </div>
-
-        <div class="signature-item">
-            Headteacher
-        </div>
-
-    </div>
-
-
-    <div class="stamp-area">
-
-        {% if stamp_url %}
-
-            <img
-                src="{{ stamp_url }}"
-                class="stamp-img"
-                alt="Official Stamp"
-            >
-
-        {% else %}
-
-            <span style="font-size:7px;color:#999;">
-                Official Stamp
-            </span>
-
-        {% endif %}
-
-    </div>
-
-</div>
-
-{% endif %}
-
-
-<!-- CARD FOOTER -->
-
-<div class="card-footer">
-
-    {{ school_name|default('SCHOOL') }}
-
-    <br>
-
-    {% if student.clearance_status == 'cleared' and student.cleared_at %}
-
-        Issued:
-        {{ student.cleared_at.strftime('%d/%m/%Y') }}
 
     {% else %}
 
-        Clearance Pending
+        <div class="clearance-status status-not-cleared">
+
+            <strong>
+                NOT CLEARED
+            </strong>
+
+            <br>
+
+            Outstanding fees
+
+        </div>
 
     {% endif %}
 
-</div>
+
+    <!-- SIGNATURES -->
+
+    {% if student.clearance_status == 'cleared' %}
+
+        <div class="signature-section">
+
+            <div class="signature-line">
+
+                <div class="signature-item">
+                    Student
+                </div>
+
+                <div class="signature-item">
+                    Bursar
+                </div>
+
+                <div class="signature-item">
+                    Headteacher
+                </div>
+
+            </div>
+
+
+            <div class="stamp-area">
+
+                {% if stamp_url %}
+
+                    <img
+                        src="{{ stamp_url }}"
+                        class="stamp-img"
+                        alt="Official Stamp"
+                    >
+
+                {% else %}
+
+                    <span
+                        style="
+                            font-size:7px;
+                            color:#999;
+                        "
+                    >
+                        Official Stamp
+                    </span>
+
+                {% endif %}
+
+            </div>
+
+        </div>
+
+    {% endif %}
+
+
+    <!-- CARD FOOTER -->
+
+    <div class="card-footer">
+
+        {{ school.school_name }}
+
+        <br>
+
+        {% if student.clearance_status == 'cleared'
+              and student.cleared_at %}
+
+            Issued:
+            {{ student.cleared_at.strftime(
+                '%d/%m/%Y'
+            ) }}
+
+        {% else %}
+
+            Clearance Pending
+
+        {% endif %}
+
+    </div>
 
 </div>
 
