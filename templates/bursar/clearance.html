@@ -1,10 +1,13 @@
 {% extends "base.html" %}
 
-{% block title %}Clearance Card - {{ student.full_name }}{% endblock %}
+{% block title %}
+Clearance Card - {{ student.full_name }}
+{% endblock %}
 
 {% block content %}
 
 <style>
+
 .clearance-container {
     max-width: 700px;
     margin: 20px auto;
@@ -26,6 +29,11 @@
 
 .clearance-header p {
     margin: 3px 0;
+    color: #666;
+}
+
+.school-contact {
+    font-size: 12px;
     color: #666;
 }
 
@@ -146,7 +154,7 @@
 }
 
 .signature-item {
-    width: 45%;
+    width: 32%;
     padding-top: 30px;
     border-top: 1px solid #555;
 }
@@ -175,168 +183,342 @@
     margin: 20px 0;
 }
 
+
+/* =========================================================
+   PRINT
+========================================================= */
+
 @media print {
+
+    @page {
+        size: A4 portrait;
+        margin: 15mm;
+    }
+
+    html,
+    body {
+        margin: 0 !important;
+        padding: 0 !important;
+        background: white !important;
+    }
+
     .no-print,
     nav,
     aside,
-    header {
+    header,
+    footer,
+    .sidebar,
+    .navbar {
         display: none !important;
     }
 
     .clearance-container {
         box-shadow: none;
-        border: none;
-        margin: 0;
+        border: 1px solid #333;
+        border-radius: 0;
+        margin: 0 auto;
         max-width: 100%;
     }
+
 }
+
 </style>
 
+<!-- =========================================================
+     PRINT BUTTON
+========================================================= -->
+
 <div class="no-print print-button">
-    <button onclick="window.print()" class="btn btn-primary">
-        <i class="fas fa-print"></i>
-        Print Clearance
-    </button>
+<button
+    onclick="window.print()"
+    class="btn btn-primary"
+>
+    <i class="fas fa-print"></i>
+    Print Clearance
+</button>
+
+<a
+    href="{{ url_for('bursar_students') }}"
+    class="btn btn-secondary"
+>
+    <i class="fas fa-arrow-left"></i>
+    Back
+</a>
 </div>
+
+<!-- =========================================================
+     CLEARANCE CARD
+========================================================= -->
 
 <div class="clearance-container">
+<!-- =====================================================
+     SCHOOL HEADER
+====================================================== -->
+
 <div class="clearance-header">
-    <h2>{{ school_name|default('SCHOOL') }}</h2>
-    <p>{{ school_motto|default('Excellence in Education') }}</p>
-    <h3>CLEARANCE CERTIFICATE</h3>
+
+    <h2>
+        {{ school_settings.school_name or 'SCHOOL' }}
+    </h2>
+
+    {% if school_settings.school_address %}
+    <p>
+        {{ school_settings.school_address }}
+    </p>
+    {% endif %}
+
+    {% if school_settings.school_phone %}
+    <p class="school-contact">
+        {{ school_settings.school_phone }}
+    </p>
+    {% endif %}
+
+    {% if school_settings.school_email %}
+    <p class="school-contact">
+        {{ school_settings.school_email }}
+    </p>
+    {% endif %}
+
+    <h3>
+        CLEARANCE CERTIFICATE
+    </h3>
+
 </div>
 
-<!-- Student Photo -->
-<div class="text-center" style="margin-bottom:20px;">
+
+<!-- =====================================================
+     STUDENT PHOTO
+====================================================== -->
+
+<div
+    class="text-center"
+    style="margin-bottom:20px;"
+>
+
     <img
-        src="{{ student.photo_url or url_for('static', filename='images/default_avatar.png') }}"
+        src="{{ student.photo_url or url_for(
+            'static',
+            filename='images/default_avatar.png'
+        ) }}"
         class="student-photo"
         alt="Student Photo"
     >
+
 </div>
 
-<!-- Student Information -->
+
+<!-- =====================================================
+     STUDENT INFORMATION
+====================================================== -->
+
 <div class="info-row">
-    <div class="info-label">Student ID:</div>
+
+    <div class="info-label">
+        Student ID:
+    </div>
+
     <div class="info-value">
         {{ student.student_id }}
     </div>
+
 </div>
 
+
 <div class="info-row">
-    <div class="info-label">Full Name:</div>
+
+    <div class="info-label">
+        Full Name:
+    </div>
+
     <div class="info-value">
         {{ student.full_name }}
     </div>
+
 </div>
 
+
 <div class="info-row">
-    <div class="info-label">Class:</div>
+
+    <div class="info-label">
+        Class:
+    </div>
+
     <div class="info-value">
         {{ student.class }}
     </div>
+
 </div>
 
+
 <div class="info-row">
-    <div class="info-label">Parent Phone:</div>
+
+    <div class="info-label">
+        Parent Phone:
+    </div>
+
     <div class="info-value">
         {{ student.parent_phone or 'Not registered' }}
     </div>
+
 </div>
 
+
 <div class="info-row">
-    <div class="info-label">Admission Date:</div>
+
+    <div class="info-label">
+        Admission Date:
+    </div>
+
     <div class="info-value">
         {{ student.admission_date or 'N/A' }}
     </div>
+
 </div>
 
-<!-- Fees Summary -->
+
+<!-- =====================================================
+     FEES
+====================================================== -->
+
 <div class="fees-section">
 
     <div class="info-row" style="background:#f9f9f9;">
-        <div class="info-label">Total Fees:</div>
+
+        <div class="info-label">
+            Total Fees:
+        </div>
+
         <div class="info-value">
             UGX {{ "{:,.2f}".format(student.fees_total or 0) }}
         </div>
+
     </div>
 
+
     <div class="info-row" style="background:#f9f9f9;">
-        <div class="info-label">Fees Paid:</div>
-        <div class="info-value" style="color:#2e7d32;">
-            UGX {{ "{:,.2f}".format(student.fees_paid or 0) }}
+
+        <div class="info-label">
+            Fees Paid:
         </div>
-    </div>
 
-    <div class="info-row" style="background:#f9f9f9;">
-        <div class="info-label">Balance:</div>
         <div
             class="info-value"
-            style="color:
+            style="color:#2e7d32;"
+        >
+            UGX {{ "{:,.2f}".format(student.fees_paid or 0) }}
+        </div>
+
+    </div>
+
+
+    <div class="info-row" style="background:#f9f9f9;">
+
+        <div class="info-label">
+            Balance:
+        </div>
+
+        <div
+            class="info-value"
+            style="
+            color:
             {% if student.fees_balance|float > 0 %}
                 #c62828
             {% else %}
                 #2e7d32
-            {% endif %};"
+            {% endif %}
+            ;"
         >
             UGX {{ "{:,.2f}".format(student.fees_balance or 0) }}
         </div>
+
     </div>
 
 </div>
 
-<!-- CLEARANCE STATUS -->
+
+<!-- =====================================================
+     CLEARANCE STATUS
+====================================================== -->
 
 {% if student.clearance_status == 'cleared' %}
 
     <div class="cleared-status status-cleared">
 
         <div class="cleared-text">
+
             <i class="fas fa-check-circle"></i>
+
             FULLY CLEARED
+
         </div>
 
         <div class="cleared-subtext">
+
             No outstanding fees or obligations
+
         </div>
 
+
         {% if student.cleared_at %}
+
             <div class="cleared-subtext">
+
                 Cleared on:
                 {{ student.cleared_at.strftime('%d/%m/%Y %H:%M') }}
+
             </div>
+
         {% endif %}
 
+
         {% if student.cleared_by_name %}
+
             <div class="cleared-subtext">
+
                 Cleared by:
                 {{ student.cleared_by_name }}
+
             </div>
+
         {% endif %}
 
     </div>
+
 
 {% elif student.fees_cleared %}
 
     <div class="cleared-status status-eligible">
 
         <div class="cleared-text">
+
             <i class="fas fa-exclamation-circle"></i>
+
             ELIGIBLE FOR CLEARANCE
+
         </div>
 
         <div class="cleared-subtext">
-            Fees have been fully paid, but the student has not yet been cleared.
+
+            Fees have been fully paid,
+            but the student has not yet been cleared.
+
         </div>
 
     </div>
 
-    <!-- Clearance Form -->
+
+    <!-- =================================================
+         CLEARANCE FORM
+    ================================================== -->
+
     <div class="clearance-action">
 
         <form
             method="POST"
-            action="{{ url_for('clear_student', student_id=student.student_id) }}"
+            action="{{ url_for(
+                'clear_student',
+                student_id=student.student_id
+            ) }}"
         >
 
             <textarea
@@ -349,44 +531,81 @@
             <button
                 type="submit"
                 class="btn-clear"
-                onclick="return confirm('Are you sure you want to clear this student?');"
+                onclick="
+                    return confirm(
+                        'Are you sure you want to clear this student?'
+                    );
+                "
             >
+
                 <i class="fas fa-check-circle"></i>
+
                 Clear Student
+
             </button>
 
         </form>
 
     </div>
 
+
 {% else %}
 
     <div class="cleared-status status-not-cleared">
 
         <div class="cleared-text">
+
             <i class="fas fa-times-circle"></i>
+
             NOT CLEARED
+
         </div>
 
         <div class="cleared-subtext">
+
             Outstanding fees:
-            UGX {{ "{:,.2f}".format(student.fees_balance or 0) }}
+
+            UGX {{ "{:,.2f}".format(
+                student.fees_balance or 0
+            ) }}
+
         </div>
 
     </div>
 
 {% endif %}
 
-<!-- Remarks -->
+
+<!-- =====================================================
+     REMARKS
+====================================================== -->
 
 {% if student.remarks %}
-    <div style="margin-top:15px; padding:10px; background:#f9f9f9;">
-        <strong>Clearance Remarks:</strong><br>
+
+    <div
+        style="
+            margin-top:15px;
+            padding:10px;
+            background:#f9f9f9;
+        "
+    >
+
+        <strong>
+            Clearance Remarks:
+        </strong>
+
+        <br>
+
         {{ student.remarks }}
+
     </div>
+
 {% endif %}
 
-<!-- Signature Section -->
+
+<!-- =====================================================
+     SIGNATURES
+====================================================== -->
 
 {% if student.clearance_status == 'cleared' %}
 
@@ -402,11 +621,24 @@
             Bursar's Signature
         </div>
 
+        <div class="signature-item">
+            Headteacher's Signature
+        </div>
+
     </div>
+
 
     <div class="stamp-area">
 
-        {% if stamp_url %}
+        {% if school_settings.headteacher_stamp %}
+
+            <img
+                src="{{ school_settings.headteacher_stamp }}"
+                class="stamp-img"
+                alt="Official Stamp"
+            >
+
+        {% elif stamp_url %}
 
             <img
                 src="{{ stamp_url }}"
@@ -416,14 +648,16 @@
 
         {% else %}
 
-            <div style="
-                border:1px dashed #999;
-                padding:8px;
-                width:100px;
-                margin:0 auto;
-                font-size:10px;
-                color:#999;
-            ">
+            <div
+                style="
+                    border:1px dashed #999;
+                    padding:8px;
+                    width:100px;
+                    margin:0 auto;
+                    font-size:10px;
+                    color:#999;
+                "
+            >
                 Official Stamp
             </div>
 
@@ -435,27 +669,31 @@
 
 {% endif %}
 
-<!-- Footer -->
+
+<!-- =====================================================
+     FOOTER
+====================================================== -->
 
 <div class="clearance-footer">
 
     <strong>
-        {{ school_name|default('SCHOOL') }}
+        {{ school_settings.school_name or 'SCHOOL' }}
     </strong>
 
-    -
-    {{ school_motto|default('Excellence in Education') }}
+    <br>
+
+    This is a computer-generated
+    clearance certificate.
 
     <br>
 
-    This is a computer-generated clearance certificate.
-
-    <br>
-
-    {% if student.clearance_status == 'cleared' and student.cleared_at %}
+    {% if student.clearance_status == 'cleared'
+          and student.cleared_at %}
 
         Issued on:
-        {{ student.cleared_at.strftime('%d/%m/%Y %H:%M:%S') }}
+        {{ student.cleared_at.strftime(
+            '%d/%m/%Y %H:%M:%S'
+        ) }}
 
     {% else %}
 
@@ -464,6 +702,7 @@
     {% endif %}
 
 </div>
+
 </div>
 
 {% endblock %}
