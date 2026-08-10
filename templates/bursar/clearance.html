@@ -1,332 +1,469 @@
 {% extends "base.html" %}
+
 {% block title %}Clearance Card - {{ student.full_name }}{% endblock %}
 
 {% block content %}
+
 <style>
-    /* ========== BASE STYLES ========== */
-    .clearance-card {
-        max-width: 450px;
-        margin: 0 auto;
-        background: white;
-        border-radius: 15px;
-        overflow: hidden;
-        box-shadow: 0 10px 30px rgba(0,0,0,0.15);
-        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+.clearance-container {
+    max-width: 700px;
+    margin: 20px auto;
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 10px;
+    padding: 25px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+}
+
+.clearance-header {
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+.clearance-header h2 {
+    margin: 5px 0;
+}
+
+.clearance-header p {
+    margin: 3px 0;
+    color: #666;
+}
+
+.student-photo {
+    width: 110px;
+    height: 110px;
+    object-fit: cover;
+    border-radius: 8px;
+    border: 1px solid #ddd;
+}
+
+.info-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 15px;
+    padding: 9px 12px;
+    border-bottom: 1px solid #eee;
+}
+
+.info-label {
+    font-weight: 600;
+    color: #555;
+}
+
+.info-value {
+    text-align: right;
+    font-weight: 500;
+}
+
+.fees-section {
+    margin-top: 15px;
+}
+
+.cleared-status {
+    margin-top: 20px;
+    padding: 15px;
+    text-align: center;
+    border-radius: 8px;
+}
+
+.status-cleared {
+    background: #e8f5e9;
+    border: 1px solid #81c784;
+}
+
+.status-eligible {
+    background: #fff8e1;
+    border: 1px solid #ffcc80;
+}
+
+.status-not-cleared {
+    background: #ffebee;
+    border: 1px solid #ef9a9a;
+}
+
+.cleared-text {
+    font-size: 20px;
+    font-weight: bold;
+}
+
+.status-cleared .cleared-text {
+    color: #2e7d32;
+}
+
+.status-eligible .cleared-text {
+    color: #ef6c00;
+}
+
+.status-not-cleared .cleared-text {
+    color: #c62828;
+}
+
+.cleared-subtext {
+    margin-top: 5px;
+    font-size: 13px;
+}
+
+.clearance-action {
+    margin-top: 15px;
+    text-align: center;
+}
+
+.clearance-action textarea {
+    width: 100%;
+    min-height: 70px;
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    resize: vertical;
+}
+
+.clearance-action button {
+    margin-top: 10px;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+.btn-clear {
+    background: #2e7d32;
+    color: white;
+}
+
+.btn-clear:hover {
+    background: #1b5e20;
+}
+
+.signature-section {
+    margin-top: 35px;
+}
+
+.signature-line {
+    display: flex;
+    justify-content: space-between;
+    gap: 30px;
+    text-align: center;
+}
+
+.signature-item {
+    width: 45%;
+    padding-top: 30px;
+    border-top: 1px solid #555;
+}
+
+.stamp-area {
+    text-align: center;
+    margin-top: 15px;
+}
+
+.stamp-img {
+    max-width: 100px;
+    max-height: 80px;
+}
+
+.clearance-footer {
+    text-align: center;
+    margin-top: 25px;
+    padding-top: 15px;
+    border-top: 1px solid #ddd;
+    font-size: 11px;
+    color: #666;
+}
+
+.print-button {
+    text-align: center;
+    margin: 20px 0;
+}
+
+@media print {
+    .no-print,
+    nav,
+    aside,
+    header {
+        display: none !important;
     }
-    
-    /* ========== HEADER SECTION ========== */
-    .clearance-header {
-        background: linear-gradient(135deg, #1a237e 0%, #283593 100%);
-        color: white;
-        text-align: center;
-        padding: 20px;
+
+    .clearance-container {
+        box-shadow: none;
+        border: none;
+        margin: 0;
+        max-width: 100%;
     }
-    .clearance-title {
-        font-size: 22px;
-        font-weight: bold;
-        text-transform: uppercase;
-        letter-spacing: 2px;
-        margin-bottom: 5px;
-    }
-    .school-name {
-        font-size: 18px;
-        font-weight: bold;
-        margin-top: 5px;
-    }
-    .school-motto {
-        font-size: 11px;
-        font-style: italic;
-        opacity: 0.9;
-        margin-top: 3px;
-    }
-    .school-info {
-        font-size: 9px;
-        opacity: 0.9;
-        margin-top: 8px;
-        line-height: 1.4;
-    }
-    
-    /* ========== BODY SECTION ========== */
-    .clearance-body {
-        padding: 25px;
-        background: white;
-    }
-    .student-photo {
-        width: 120px;
-        height: 120px;
-        object-fit: cover;
-        border-radius: 50%;
-        border: 4px solid #1a237e;
-        box-shadow: 0 3px 10px rgba(0,0,0,0.2);
-        display: block;
-        margin: -60px auto 20px auto;
-        background: white;
-    }
-    
-    /* ========== INFO SECTION ========== */
-    .info-row {
-        display: flex;
-        justify-content: space-between;
-        padding: 10px 0;
-        border-bottom: 1px dashed #ddd;
-    }
-    .info-label {
-        font-weight: bold;
-        color: #1a237e;
-        width: 40%;
-    }
-    .info-value {
-        color: #333;
-        width: 60%;
-        text-align: right;
-    }
-    
-    /* ========== CLEARED STATUS ========== */
-    .cleared-status {
-        text-align: center;
-        margin: 25px 0;
-        padding: 15px;
-        background: linear-gradient(135deg, #2e7d32 0%, #388e3c 100%);
-        border-radius: 10px;
-        color: white;
-    }
-    .cleared-text {
-        font-size: 24px;
-        font-weight: bold;
-        text-transform: uppercase;
-        letter-spacing: 3px;
-    }
-    .cleared-subtext {
-        font-size: 11px;
-        opacity: 0.9;
-        margin-top: 5px;
-    }
-    
-    /* ========== SIGNATURE SECTION ========== */
-    .signature-section {
-        margin-top: 25px;
-        padding-top: 15px;
-        border-top: 2px solid #1a237e;
-        text-align: center;
-    }
-    .signature-line {
-        margin-top: 30px;
-        display: flex;
-        justify-content: space-between;
-    }
-    .signature-item {
-        text-align: center;
-    }
-    .signature-item span {
-        border-top: 1px solid #000;
-        padding-top: 5px;
-        font-size: 11px;
-    }
-    .stamp-area {
-        text-align: center;
-        margin-top: 15px;
-    }
-    .stamp-img {
-        max-width: 80px;
-        opacity: 0.8;
-    }
-    
-    /* ========== FOOTER ========== */
-    .clearance-footer {
-        background: #f5f5f5;
-        text-align: center;
-        padding: 10px;
-        font-size: 8px;
-        color: #666;
-        border-top: 1px solid #ddd;
-    }
-    
-    /* ========== WATERMARK ========== */
-    .watermark {
-        position: relative;
-    }
-    .watermark::after {
-        content: "{{ school_name|default('SCHOOL') }}";
-        position: absolute;
-        bottom: 50%;
-        left: 50%;
-        transform: translate(-50%, 50%);
-        font-size: 40px;
-        opacity: 0.05;
-        white-space: nowrap;
-        pointer-events: none;
-        z-index: 0;
-    }
-    
-    /* ========== PRINT STYLES ========== */
-    @media print {
-        .no-print {
-            display: none !important;
-        }
-        .sidebar {
-            display: none !important;
-        }
-        .content-area {
-            margin: 0 !important;
-            padding: 0 !important;
-            width: 100% !important;
-        }
-        .clearance-card {
-            box-shadow: none;
-            margin: 0 auto;
-            border: 2px solid #000;
-        }
-        .clearance-header {
-            background: #1a237e !important;
-            print-color-adjust: exact;
-            -webkit-print-color-adjust: exact;
-        }
-        .cleared-status {
-            background: #2e7d32 !important;
-            print-color-adjust: exact;
-            -webkit-print-color-adjust: exact;
-        }
-        .stamp-img {
-            filter: grayscale(100%);
-        }
-        .watermark::after {
-            opacity: 0.1;
-        }
-    }
-    
-    /* ========== SCREEN BUTTONS ========== */
-    @media screen {
-        .print-btn-container {
-            position: sticky;
-            top: 10px;
-            z-index: 1000;
-            background: white;
-            padding: 10px;
-            border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-            margin-bottom: 20px;
-            text-align: center;
-        }
-        .btn {
-            margin: 0 5px;
-        }
-    }
+}
 </style>
 
-<!-- Print Button -->
-<div class="print-btn-container no-print">
-    <button onclick="window.print()" class="btn btn-primary btn-lg">
-        <i class="fas fa-print"></i> Print Clearance Card
+<div class="no-print print-button">
+    <button onclick="window.print()" class="btn btn-primary">
+        <i class="fas fa-print"></i>
+        Print Clearance
     </button>
-    <a href="{{ url_for('bursar_student_detail', student_id=student.student_id) }}" class="btn btn-secondary btn-lg">
-        <i class="fas fa-arrow-left"></i> Back
-    </a>
 </div>
 
-<!-- Clearance Card -->
-<div class="clearance-card">
-    <!-- Header with ALL School Settings -->
-    <div class="clearance-header">
-        {% if school_logo_url %}
-        <img src="{{ school_logo_url }}" style="max-width: 50px; margin-bottom: 10px;" alt="Logo">
+<div class="clearance-container">
+<div class="clearance-header">
+    <h2>{{ school_name|default('SCHOOL') }}</h2>
+    <p>{{ school_motto|default('Excellence in Education') }}</p>
+    <h3>CLEARANCE CERTIFICATE</h3>
+</div>
+
+<!-- Student Photo -->
+<div class="text-center" style="margin-bottom:20px;">
+    <img
+        src="{{ student.photo_url or url_for('static', filename='images/default_avatar.png') }}"
+        class="student-photo"
+        alt="Student Photo"
+    >
+</div>
+
+<!-- Student Information -->
+<div class="info-row">
+    <div class="info-label">Student ID:</div>
+    <div class="info-value">
+        {{ student.student_id }}
+    </div>
+</div>
+
+<div class="info-row">
+    <div class="info-label">Full Name:</div>
+    <div class="info-value">
+        {{ student.full_name }}
+    </div>
+</div>
+
+<div class="info-row">
+    <div class="info-label">Class:</div>
+    <div class="info-value">
+        {{ student.class }}
+    </div>
+</div>
+
+<div class="info-row">
+    <div class="info-label">Parent Phone:</div>
+    <div class="info-value">
+        {{ student.parent_phone or 'Not registered' }}
+    </div>
+</div>
+
+<div class="info-row">
+    <div class="info-label">Admission Date:</div>
+    <div class="info-value">
+        {{ student.admission_date or 'N/A' }}
+    </div>
+</div>
+
+<!-- Fees Summary -->
+<div class="fees-section">
+
+    <div class="info-row" style="background:#f9f9f9;">
+        <div class="info-label">Total Fees:</div>
+        <div class="info-value">
+            UGX {{ "{:,.2f}".format(student.fees_total or 0) }}
+        </div>
+    </div>
+
+    <div class="info-row" style="background:#f9f9f9;">
+        <div class="info-label">Fees Paid:</div>
+        <div class="info-value" style="color:#2e7d32;">
+            UGX {{ "{:,.2f}".format(student.fees_paid or 0) }}
+        </div>
+    </div>
+
+    <div class="info-row" style="background:#f9f9f9;">
+        <div class="info-label">Balance:</div>
+        <div
+            class="info-value"
+            style="color:
+            {% if student.fees_balance|float > 0 %}
+                #c62828
+            {% else %}
+                #2e7d32
+            {% endif %};"
+        >
+            UGX {{ "{:,.2f}".format(student.fees_balance or 0) }}
+        </div>
+    </div>
+
+</div>
+
+<!-- CLEARANCE STATUS -->
+
+{% if student.clearance_status == 'cleared' %}
+
+    <div class="cleared-status status-cleared">
+
+        <div class="cleared-text">
+            <i class="fas fa-check-circle"></i>
+            FULLY CLEARED
+        </div>
+
+        <div class="cleared-subtext">
+            No outstanding fees or obligations
+        </div>
+
+        {% if student.cleared_at %}
+            <div class="cleared-subtext">
+                Cleared on:
+                {{ student.cleared_at.strftime('%d/%m/%Y %H:%M') }}
+            </div>
         {% endif %}
-        <div class="clearance-title">FEE CLEARANCE CERTIFICATE</div>
-        <div class="school-name">{{ school_name|default('YOUR SCHOOL NAME') }}</div>
-        <div class="school-motto">{{ school_motto|default('Excellence in Education') }}</div>
-        <div class="school-info">
-            {{ school_address|default('P.O. Box 123, Kampala, Uganda') }}<br>
-            📞 {{ school_phone|default('+256 712 345678') }} | ✉ {{ school_email|default('info@school.com') }}<br>
-            {{ school_website|default('www.school.ac.ug') }}
-        </div>
-    </div>
-    
-    <!-- Body -->
-    <div class="clearance-body">
-        <!-- Student Photo -->
-        <div class="text-center">
-            <img src="{{ student.photo_url or url_for('static', filename='images/default_avatar.png') }}" class="student-photo" alt="Student Photo">
-        </div>
-        
-        <!-- Student Information -->
-        <div class="info-row">
-            <div class="info-label">Student ID:</div>
-            <div class="info-value">{{ student['student_id'] }}</div>
-        </div>
-        <div class="info-row">
-            <div class="info-label">Full Name:</div>
-            <div class="info-value">{{ student['full_name'] }}</div>
-        </div>
-        <div class="info-row">
-            <div class="info-label">Class:</div>
-            <div class="info-value">{{ student['class'] }}</div>
-        </div>
-        <div class="info-row">
-            <div class="info-label">Parent Phone:</div>
-            <div class="info-value">{{ student['parent_phone'] or 'Not registered' }}</div>
-        </div>
-        <div class="info-row">
-            <div class="info-label">Admission Date:</div>
-            <div class="info-value">{{ student['admission_date'] or 'N/A' }}</div>
-        </div>
-        
-        <!-- Fees Summary -->
-        <div class="info-row" style="background: #f9f9f9; border-radius: 5px; margin-top: 10px;">
-            <div class="info-label">Total Fees:</div>
-            <div class="info-value">UGX {{ "{:,.2f}".format(student['fees_total'] or 0) }}</div>
-        </div>
-        <div class="info-row" style="background: #f9f9f9;">
-            <div class="info-label">Fees Paid:</div>
-            <div class="info-value" style="color: #2e7d32;">UGX {{ "{:,.2f}".format(student['fees_paid'] or 0) }}</div>
-        </div>
-        <div class="info-row" style="background: #f9f9f9;">
-            <div class="info-label">Balance:</div>
-            <div class="info-value" style="color: {% if (student.fees_total|float - student.fees_paid|float) > 0 %}#c62828{% else %}#2e7d32{% endif %};">
-                UGX {{ "{:,.2f}".format((student['fees_total'] or 0) - (student['fees_paid'] or 0)) }}
+
+        {% if student.cleared_by_name %}
+            <div class="cleared-subtext">
+                Cleared by:
+                {{ student.cleared_by_name }}
             </div>
-        </div>
-        
-        <!-- Cleared Status -->
-        <div class="cleared-status">
-            <div class="cleared-text">
-                <i class="fas fa-check-circle"></i> FULLY CLEARED
-            </div>
-            <div class="cleared-subtext">No outstanding fees or obligations</div>
-        </div>
-        
-        <!-- Signature Section -->
-        <div class="signature-section">
-            <div class="signature-line">
-                <div class="signature-item">
-                    <span>Student's Signature</span>
-                </div>
-                <div class="signature-item">
-                    <span>Bursar's Signature</span>
-                </div>
-            
-            <div class="stamp-area">
-                {% if stamp_url %}
-                <img src="{{ stamp_url }}" class="stamp-img" alt="Official Stamp">
-                {% else %}
-                <div style="border: 1px dashed #999; padding: 5px; width: 80px; margin: 0 auto; font-size: 9px; color: #999;">
-                    [Official Stamp]
-                </div>
-                {% endif %}
-            </div>
-        </div>
+        {% endif %}
+
     </div>
-    
-    <!-- Footer -->
-    <div class="clearance-footer">
-        <strong>{{ school_name|default('SCHOOL') }}</strong> - {{ school_motto|default('Excellence in Education') }}<br>
-        This is a computer-generated clearance certificate. No signature required if stamped.<br>
-        Issued on: {{ datetime.now().strftime('%d/%m/%Y %H:%M:%S') }}
+
+{% elif student.fees_cleared %}
+
+    <div class="cleared-status status-eligible">
+
+        <div class="cleared-text">
+            <i class="fas fa-exclamation-circle"></i>
+            ELIGIBLE FOR CLEARANCE
+        </div>
+
+        <div class="cleared-subtext">
+            Fees have been fully paid, but the student has not yet been cleared.
+        </div>
+
     </div>
+
+    <!-- Clearance Form -->
+    <div class="clearance-action">
+
+        <form
+            method="POST"
+            action="{{ url_for('clear_student', student_id=student.student_id) }}"
+        >
+
+            <textarea
+                name="remarks"
+                placeholder="Optional clearance remarks..."
+            ></textarea>
+
+            <br>
+
+            <button
+                type="submit"
+                class="btn-clear"
+                onclick="return confirm('Are you sure you want to clear this student?');"
+            >
+                <i class="fas fa-check-circle"></i>
+                Clear Student
+            </button>
+
+        </form>
+
+    </div>
+
+{% else %}
+
+    <div class="cleared-status status-not-cleared">
+
+        <div class="cleared-text">
+            <i class="fas fa-times-circle"></i>
+            NOT CLEARED
+        </div>
+
+        <div class="cleared-subtext">
+            Outstanding fees:
+            UGX {{ "{:,.2f}".format(student.fees_balance or 0) }}
+        </div>
+
+    </div>
+
+{% endif %}
+
+<!-- Remarks -->
+
+{% if student.remarks %}
+    <div style="margin-top:15px; padding:10px; background:#f9f9f9;">
+        <strong>Clearance Remarks:</strong><br>
+        {{ student.remarks }}
+    </div>
+{% endif %}
+
+<!-- Signature Section -->
+
+{% if student.clearance_status == 'cleared' %}
+
+<div class="signature-section">
+
+    <div class="signature-line">
+
+        <div class="signature-item">
+            Student's Signature
+        </div>
+
+        <div class="signature-item">
+            Bursar's Signature
+        </div>
+
+    </div>
+
+    <div class="stamp-area">
+
+        {% if stamp_url %}
+
+            <img
+                src="{{ stamp_url }}"
+                class="stamp-img"
+                alt="Official Stamp"
+            >
+
+        {% else %}
+
+            <div style="
+                border:1px dashed #999;
+                padding:8px;
+                width:100px;
+                margin:0 auto;
+                font-size:10px;
+                color:#999;
+            ">
+                Official Stamp
+            </div>
+
+        {% endif %}
+
+    </div>
+
 </div>
 
-<script>
-    // Auto-print when page loads (optional - uncomment if needed)
-    // window.onload = function() {
-    //     window.print();
-    // }
-</script>
+{% endif %}
+
+<!-- Footer -->
+
+<div class="clearance-footer">
+
+    <strong>
+        {{ school_name|default('SCHOOL') }}
+    </strong>
+
+    -
+    {{ school_motto|default('Excellence in Education') }}
+
+    <br>
+
+    This is a computer-generated clearance certificate.
+
+    <br>
+
+    {% if student.clearance_status == 'cleared' and student.cleared_at %}
+
+        Issued on:
+        {{ student.cleared_at.strftime('%d/%m/%Y %H:%M:%S') }}
+
+    {% else %}
+
+        Not yet issued.
+
+    {% endif %}
+
+</div>
+</div>
+
 {% endblock %}
